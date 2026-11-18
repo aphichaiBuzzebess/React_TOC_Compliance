@@ -8,7 +8,7 @@ export default function Gaps() {
     <>
       <PageHeader title="Feature gap & recommendation" />
       <Alert tone="info" title={`${gapCount(a)} requirements need work beyond configuration`}>
-        Customization, integration or not supported. Effort and cost estimation are out of scope for this prototype.
+        These need customization or integration, or the product does not support them. Effort and cost estimates are not part of this prototype.
       </Alert>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
         {a.gaps.map((g) => (

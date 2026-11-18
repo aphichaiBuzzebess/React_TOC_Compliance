@@ -19,14 +19,14 @@ export const REQS: Req[] = [
   { id: 'R-012', module: 'Point', s: 'config', conf: '88%', text: 'อัตราการให้คะแนนแยกตาม Brand และ Category สินค้า', reason: 'Earn rule ตั้งค่าตาม Brand และ Product category ได้', evidence: 'KB › Point › Earn rules', rec: 'ตั้งค่า Earn rule ต่อ Brand ระหว่าง Implementation' },
   { id: 'R-015', module: 'Point', s: 'full', conf: '90%', text: 'คะแนนหมดอายุแบบ Rolling 24 เดือน', reason: 'Point expiry รองรับแบบ Rolling period', evidence: 'KB › Point › Expiry policy', rec: 'ใช้ Feature มาตรฐาน' },
   { id: 'R-021', module: 'Point', s: 'verify', conf: '51%', text: 'ใช้คะแนนร่วมข้าม Brand ในเครือ (Coalition)', reason: 'ข้อมูลใน Knowledge Base ไม่เพียงพอที่จะยืนยัน', evidence: 'ไม่พบหลักฐานที่ตรงกัน', rec: 'ยืนยันกับ Product team ก่อนเสนอ' },
-  { id: 'R-028', module: 'Campaign', s: 'full', conf: '95%', text: 'สร้าง Campaign ตาม Segment พร้อมตั้งเวลาเริ่ม–สิ้นสุด', reason: 'Campaign รองรับ Target segment และ Schedule', evidence: 'KB › Campaign › Targeting & schedule', rec: 'ใช้ Feature มาตรฐาน' },
+  { id: 'R-028', module: 'Campaign', s: 'full', conf: '95%', text: 'สร้าง Campaign ตาม Segment พร้อมตั้งเวลาเริ่มและสิ้นสุด', reason: 'Campaign รองรับ Target segment และ Schedule', evidence: 'KB › Campaign › Targeting & schedule', rec: 'ใช้ Feature มาตรฐาน' },
   { id: 'R-034', module: 'Reward', s: 'integ', conf: '80%', text: 'แลก E-Coupon เพื่อใช้ที่หน้าร้าน (POS)', reason: 'มี E-Coupon แต่ต้องเชื่อม POS ของลูกค้าเพื่อ Redeem', evidence: 'KB › Reward › E-Coupon › POS API', rec: 'เชื่อมต่อผ่าน Coupon API กับ POS ของลูกค้า' },
   { id: 'R-041', module: 'Reward', s: 'integ', conf: '77%', text: 'แลกคะแนนเป็นส่วนลดบน e-Commerce', reason: 'ต้องเชื่อมต่อ Checkout ของเว็บไซต์ลูกค้า', evidence: 'KB › Integration › Burn API', rec: 'ใช้ Burn API ร่วมกับ e-Commerce platform' },
   { id: 'R-049', module: 'CRM', s: 'custom', conf: '69%', text: 'Customer 360 รวมประวัติการซื้อ Online และ Offline', reason: 'มี Profile และ Transaction แต่ยังไม่รวมข้อมูล Offline จากหลายแหล่ง', evidence: 'KB › CRM › Customer profile', rec: 'ปรับ Data model และ Import pipeline' },
   { id: 'R-056', module: 'Reporting', s: 'config', conf: '83%', text: 'Dashboard ยอดคะแนนสะสมและการแลก', reason: 'Report มาตรฐานรองรับ ต้องตั้งค่า Filter ต่อ Brand', evidence: 'KB › Reporting › Point report', rec: 'ตั้งค่า Report template ต่อ Brand' },
   { id: 'R-063', module: 'Integration', s: 'integ', conf: '72%', text: 'ส่งข้อมูล Point Liability เข้า SAP', reason: 'มี Export แต่ต้องเชื่อมต่อ SAP ของลูกค้า', evidence: 'KB › Integration › Accounting export', rec: 'กำหนด Interface กับ SAP ร่วมกับทีมบัญชี' },
   { id: 'R-071', module: 'Security', s: 'full', conf: '89%', text: 'PDPA Consent Management', reason: 'มี Consent capture และ History', evidence: 'KB › Security › PDPA consent', rec: 'ใช้ Feature มาตรฐาน' },
-  { id: 'R-078', module: 'CRM', s: 'none', conf: '86%', text: 'Predictive churn และ Next Best Offer', reason: 'Knowledge Base ระบุว่ายังไม่มี Predictive model', evidence: 'KB › CRM › Limitations', rec: 'ไม่ Commit — พิจารณา Partner หรือ Roadmap' },
+  { id: 'R-078', module: 'CRM', s: 'none', conf: '86%', text: 'Predictive churn และ Next Best Offer', reason: 'Knowledge Base ระบุว่ายังไม่มี Predictive model', evidence: 'KB › CRM › Limitations', rec: 'ไม่ Commit ให้พิจารณา Partner หรือ Roadmap' },
 ]
 
 export interface Gap { ids: string; s: StatusKey; title: string; gap: string; rec: string }
@@ -36,7 +36,7 @@ export const GAPS: Gap[] = [
   { ids: 'R-034', s: 'integ', title: 'POS coupon redemption', gap: 'ต้องเชื่อมระบบ POS ของลูกค้า', rec: 'Coupon API + คู่มือ Integration สำหรับ POS vendor' },
   { ids: 'R-041', s: 'integ', title: 'e-Commerce point burn', gap: 'ต้องเชื่อม Checkout ของเว็บไซต์', rec: 'Burn API ร่วมกับ e-Commerce platform ของลูกค้า' },
   { ids: 'R-063', s: 'integ', title: 'SAP point liability', gap: 'ต้องส่งข้อมูลบัญชีคะแนนเข้า SAP', rec: 'กำหนด Interface spec ร่วมกับทีมบัญชีลูกค้า' },
-  { ids: 'R-078', s: 'none', title: 'Predictive churn / Next Best Offer', gap: 'ยังไม่มี Predictive model ใน Product', rec: 'ไม่ Commit ใน Phase แรก — พิจารณา Partner' },
+  { ids: 'R-078', s: 'none', title: 'Predictive churn / Next Best Offer', gap: 'ยังไม่มี Predictive model ใน Product', rec: 'ไม่ Commit ใน Phase แรก ให้พิจารณา Partner' },
 ]
 
 export const MODULES: [name: string, total: number, full: number][] = [
@@ -52,7 +52,6 @@ export const STEPS: [name: string, desc: string][] = [
   ['Recommend', 'แนะนำ Feature หรือ Solution'],
 ]
 
-export const KB_LABELS = ['Loyalty platform — Member & Point', 'Campaign & Reward', 'CRM, Reporting & Integration', 'Other products (not in demo scope)']
 
 export const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 1000) / 10}%` : '0%')
 

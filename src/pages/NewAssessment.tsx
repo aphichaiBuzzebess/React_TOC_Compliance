@@ -20,7 +20,7 @@ export default function NewAssessment() {
               <span className="font-medium">Customer TOR document</span>
               <label htmlFor="torFile" className="flex cursor-pointer flex-col items-center gap-2 rounded-md border border-dashed border-[#D9D9D9] bg-[#FAFAFA] p-6 text-center hover:border-brand">
                 <Upload aria-hidden size={32} strokeWidth={1.5} className="text-brand-text" />
-                <span>เลือกไฟล์ TOR <span className="text-brand-text underline">browse</span></span>
+                <span className="text-brand-text underline">เลือกไฟล์ TOR</span>
                 <span className="text-xs text-muted">PDF, DOCX or XLSX · up to 4 MB</span>
                 <input id="torFile" type="file" accept=".pdf,.docx,.xlsx" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               </label>
@@ -29,7 +29,7 @@ export default function NewAssessment() {
                   <FileText aria-hidden size={18} className="text-[#595959]" />
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate font-medium">{file.name}</span>
-                    <span className="text-xs text-muted">{(file.size / 1024).toFixed(0)} KB · ready</span>
+                    <span className="text-xs text-muted">{(file.size / 1024).toFixed(0)} KB · พร้อมประเมิน</span>
                   </div>
                   <CheckCircle2 aria-hidden size={18} className="text-[#237804]" />
                 </div>
@@ -39,7 +39,7 @@ export default function NewAssessment() {
               <BookMarked aria-hidden size={18} className="mt-0.5 flex-none text-[#595959]" />
               <div className="flex flex-col">
                 <span className="font-medium">Product knowledge base</span>
-                <span className="text-xs text-muted">Obsidian vault <code>kb/</code> ใน repo — แก้ note แล้ว deploy ใหม่เพื่อให้ผลประเมินอิงข้อมูลล่าสุด</span>
+                <span className="text-xs text-muted">Obsidian vault <code>kb/</code> ใน repo แก้ note แล้ว deploy ใหม่ ผลประเมินจึงจะอิงข้อมูลล่าสุด</span>
               </div>
             </div>
             <div className="flex flex-col gap-2">
