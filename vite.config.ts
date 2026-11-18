@@ -8,6 +8,8 @@ export default defineConfig({
       '@': new URL('./src', import.meta.url).pathname,
     },
   },
+  // `vercel dev --listen 3100` serves /api; run it next to `npm run dev`.
+  server: { proxy: { '/api': 'http://localhost:3100' } },
   test: {
     environment: 'jsdom',
     globals: true,

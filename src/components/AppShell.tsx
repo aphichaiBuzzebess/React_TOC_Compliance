@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
-import { FilePlus2, LayoutDashboard, Table2, TriangleAlert, FileText, CircleHelp } from 'lucide-react'
+import { FilePlus2, LayoutDashboard, Table2, TriangleAlert, FileText, CircleHelp, Library } from 'lucide-react'
 import { useAssessment } from '@/lib/useAssessment'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 
@@ -9,9 +9,10 @@ const NAV = [
   { to: '/dashboard', label: 'Coverage dashboard', Icon: LayoutDashboard },
   { to: '/matrix', label: 'Compliance matrix', Icon: Table2 },
   { to: '/gaps', label: 'Gap & recommendation', Icon: TriangleAlert },
-  { to: '/questions', label: 'Open questions', Icon: CircleHelp },
+  { to: '/questions', label: 'Open questions', Icon: CircleHelp, Library },
   { to: '/summary', label: 'Executive summary', Icon: FileText },
 ]
+const REFERENCE = [{ to: '/knowledge-base', label: 'Knowledge base', Icon: Library }]
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const a = useAssessment()
@@ -35,8 +36,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </header>
       <div className="flex flex-1 flex-wrap items-stretch">
         <nav aria-label="Main" className="flex flex-[1_1_232px] flex-col gap-1 bg-ink px-2 py-4 md:max-w-[232px]">
-          <span className="px-4 pb-1 pt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-white/65">Assessment</span>
-          {NAV.map(({ to, label, Icon }) => (
+          {[['Assessment', NAV], ['Reference', REFERENCE]].map(([title, items]) => (
+            <Fragment key={title as string}>
+              <span className="px-4 pb-1 pt-3 text-[11px] font-bold uppercase tracking-[0.08em] text-white/65">{title as string}</span>
+          {(items as typeof NAV).map(({ to, label, Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -48,6 +51,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <Icon aria-hidden size={18} />
               {label}
             </NavLink>
+          ))}
+            </Fragment>
           ))}
           <div className="mt-4 flex flex-col gap-1 border-t border-white/10 px-4 py-3">
             <span className="text-[11px] text-white/65">Current TOR</span>

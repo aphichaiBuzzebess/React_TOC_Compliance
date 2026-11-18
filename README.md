@@ -23,7 +23,8 @@ TOR (pdf/docx/xlsx) ─► api/extract.ts ─► requirements ─┬─► api/j
 ```bash
 npm install
 cp .env.example .env.local   # ใส่ ANTHROPIC_API_KEY และ ACCESS_CODE
-npx vercel dev               # web + /api ; `npm run dev` ไม่มี /api
+ACCESS_CODE=xxx npx vercel dev --listen 3100   # /api  (เพิ่ม ANTHROPIC_API_KEY ถ้าจะเรียก Claude จริง)
+npm run dev                  # web, proxy /api -> :3100
 npm test
 ```
 Production: ตั้ง `ANTHROPIC_API_KEY` และ `ACCESS_CODE` ใน Vercel env (endpoint ปฏิเสธทุก request ถ้าไม่ตั้ง `ACCESS_CODE`)
