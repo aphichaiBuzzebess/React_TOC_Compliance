@@ -27,7 +27,9 @@ npm run dev:api              # /api บน :3100 โหลด .env.local (ACCESS
 npm run dev                  # web, proxy /api -> :3100
 npm test
 ```
-Production: ตั้ง `ANTHROPIC_API_KEY` และ `ACCESS_CODE` ใน Vercel env (endpoint ปฏิเสธทุก request ถ้าไม่ตั้ง `ACCESS_CODE`)
+LLM เลือกได้ด้วย `LLM_PROVIDER` (`anthropic` ค่าเริ่มต้น หรือ `gemini`) แล้วตั้ง key ตัวที่ใช้: `ANTHROPIC_API_KEY` หรือ `GEMINI_API_KEY` (ปรับโมเดลด้วย `ANTHROPIC_MODEL` / `GEMINI_MODEL`)
+
+Production: ตั้ง `ACCESS_CODE` กับ key ของ provider ที่ใช้ใน Vercel env (endpoint ปฏิเสธทุก request ถ้าไม่ตั้ง `ACCESS_CODE`)
 
 ## Limits
 - ไฟล์ TOR ≤ 4 MB (เพดาน body ของ Vercel function) ถ้าต้องใหญ่กว่านี้ให้อัปโหลดผ่าน Vercel Blob

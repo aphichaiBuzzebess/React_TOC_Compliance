@@ -2,7 +2,7 @@
 import { loadKb, parseNote, searchKb } from '../../server/kb'
 import { judge } from '../../server/pipeline'
 import { checkCoverage, loadTopics } from '../../server/questions'
-import type { Llm } from '../../server/llm'
+import { createLlm, type Llm } from '../../server/llm'
 import { fromReqs } from '@/lib/assessment'
 import type { Req } from '@/lib/types'
 
@@ -87,5 +87,43 @@ describe('open-question coverage', () => {
     expect(unseen.coverage).toBe('missing')
     expect(unseen.open.length).toBeGreaterThan(0)
     expect(out).toHaveLength(topics.length)
+  })
+})
+
+describe('llm provider', () => {
+  afterEach(() => {
+    delete process.env.LLM_PROVIDER
+    delete process.env.GEMINI_API_KEY
+    vi.resetModules()
+    vi.doUnmock('@google/genai')
+  })
+
+  it('rejects an unknown provider before any call', () => {
+    process.env.LLM_PROVIDER = 'gpt'
+    expect(() => createLlm()).toThrow(/Unknown LLM_PROVIDER/)
+  })
+
+  it('fails clearly when the Gemini key is missing', async () => {
+    process.env.LLM_PROVIDER = 'gemini'
+    await expect(createLlm()({ system: 's', content: [], tool: { name: 't', description: 'd', schema: {} } })).rejects.toThrow('GEMINI_API_KEY is not set')
+  })
+
+  it('sends a schema-constrained request to Gemini and parses the JSON', async () => {
+    const generateContent = vi.fn().mockResolvedValue({ text: '{"ok":true}' })
+    vi.doMock('@google/genai', () => ({ GoogleGenAI: class { models = { generateContent } } }))
+    process.env.LLM_PROVIDER = 'gemini'
+    process.env.GEMINI_API_KEY = 'test'
+    const { createLlm: create } = await import('../../server/llm')
+    const schema = { type: 'object' }
+    const out = await create()({
+      system: 'sys',
+      content: [{ type: 'text', text: 'hi' }, { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'QUJD' } }],
+      tool: { name: 't', description: 'desc', schema },
+    })
+    expect(out).toEqual({ ok: true })
+    const arg = generateContent.mock.calls[0][0]
+    expect(arg.contents[0].parts).toEqual([{ text: 'hi' }, { inlineData: { mimeType: 'application/pdf', data: 'QUJD' } }])
+    expect(arg.config).toMatchObject({ responseMimeType: 'application/json', responseJsonSchema: schema })
+    expect(arg.config.systemInstruction).toContain('sys')
   })
 })

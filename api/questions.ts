@@ -1,4 +1,4 @@
-import { anthropicLlm } from '../server/llm'
+import { createLlm } from '../server/llm'
 import { checkCoverage, loadTopics } from '../server/questions'
 import { handle } from '../server/http'
 import type { RawReq } from '../src/lib/types'
@@ -10,6 +10,6 @@ export async function POST(req: Request): Promise<Response> {
     const { requirements } = (await req.json()) as { requirements?: RawReq[] }
     if (!Array.isArray(requirements) || requirements.length === 0 || requirements.length > MAX_REQS) throw new Error(`Send 1-${MAX_REQS} requirements`)
     const clean = requirements.map((r) => ({ id: String(r.id), module: String(r.module), text: String(r.text).slice(0, 1000) }))
-    return { topics: await checkCoverage(anthropicLlm(), clean, loadTopics()) }
+    return { topics: await checkCoverage(createLlm(), clean, loadTopics()) }
   })
 }
