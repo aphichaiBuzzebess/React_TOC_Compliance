@@ -10,9 +10,9 @@ function SummaryContent({ a }: { a: Assessment }) {
   const stats = [
     { label: 'Product fit', value: pct(fit(a), a.total), note: 'Supported out of the box or by configuration' },
     { label: 'Gaps', value: String(gapCount(a)), note: 'Customization, integration, not supported' },
-    { label: 'Open questions', value: String(a.counts.verify), note: 'Need verification with product team' },
+    { label: 'Need verification', value: String(a.counts.verify), note: 'Confirm with product team' },
   ]
-  const strongest = [...a.modules].sort((x, y) => y[2] / y[1] - x[2] / x[1]).slice(0, 3).map((m) => m[0]).join(', ')
+  const strongest = [...a.modules].filter((m) => m[2] > 0).sort((x, y) => y[2] / y[1] - x[2] / x[1]).slice(0, 3).map((m) => m[0]).join(', ')
   return (
     <>
       <PageHeader title="Executive summary" action={<Button>Download PDF</Button>} />
@@ -29,7 +29,7 @@ function SummaryContent({ a }: { a: Assessment }) {
         <div className="flex flex-col gap-2">
           <h2 className="m-0 text-base font-medium text-[#262626]">Assessment</h2>
           <p className="m-0 leading-[1.7]">
-            Product รองรับ TOR ได้ {fit(a)} จาก {a.total} ข้อ ทั้งแบบพร้อมใช้งานและตั้งค่าเพิ่มเติม โมดูลที่รองรับเต็มรูปแบบมากที่สุดคือ {strongest || '-'} ส่วนที่ต้องเตรียมคือ
+            Product รองรับ TOR ได้ {fit(a)} จาก {a.total} ข้อ ทั้งแบบพร้อมใช้งานและตั้งค่าเพิ่มเติม{strongest ? ` โมดูลที่รองรับเต็มรูปแบบมากที่สุดคือ ${strongest}` : ''} ส่วนที่ต้องเตรียมคือ
             Integration {a.counts.integ} ข้อ และ Customization {a.counts.custom} ข้อ
           </p>
         </div>
