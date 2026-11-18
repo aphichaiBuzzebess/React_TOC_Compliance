@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { Llm, LlmConfig } from './llm'
+import type { Llm, LlmConfig } from './llm.js'
 
 export function anthropicLlm({ apiKey, model }: LlmConfig): Llm {
   const client = new Anthropic({ apiKey })

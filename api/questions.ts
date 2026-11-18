@@ -1,7 +1,7 @@
-import { createLlm } from '../server/llm'
-import { checkCoverage, loadTopics } from '../server/questions'
-import { handle, llmFromRequest } from '../server/http'
-import type { RawReq } from '../src/lib/types'
+import { createLlm } from '../server/llm.js'
+import { checkCoverage, loadTopics } from '../server/questions.js'
+import { handle, llmFromRequest } from '../server/http.js'
+import type { RawReq } from '../src/lib/types.js'
 
 const MAX_REQS = 300
 

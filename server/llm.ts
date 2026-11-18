@@ -16,7 +16,7 @@ export interface LlmConfig { provider: Provider; apiKey: string; model: string }
 /** SDKs load on first use so only the chosen one is paid for. */
 export function createLlm(cfg: LlmConfig): Llm {
   return async (o) => {
-    const llm = cfg.provider === 'gemini' ? (await import('./llm-gemini')).geminiLlm(cfg) : (await import('./llm-anthropic')).anthropicLlm(cfg)
+    const llm = cfg.provider === 'gemini' ? (await import('./llm-gemini.js')).geminiLlm(cfg) : (await import('./llm-anthropic.js')).anthropicLlm(cfg)
     return llm(o)
   }
 }

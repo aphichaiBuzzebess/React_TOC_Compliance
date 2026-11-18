@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
-import type { StatusKey } from '../src/lib/types'
+import type { StatusKey } from '../src/lib/types.js'
 
 export interface Note {
   path: string // relative to the vault, e.g. member/registration-channels.md

@@ -1,8 +1,8 @@
-import { createLlm } from '../server/llm'
-import { loadKb } from '../server/kb'
-import { judge } from '../server/pipeline'
-import { handle, llmFromRequest } from '../server/http'
-import type { RawReq } from '../src/lib/types'
+import { createLlm } from '../server/llm.js'
+import { loadKb } from '../server/kb.js'
+import { judge } from '../server/pipeline.js'
+import { handle, llmFromRequest } from '../server/http.js'
+import type { RawReq } from '../src/lib/types.js'
 
 const MAX_BATCH = 15
 

@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
-import type { Block, Llm, LlmConfig } from './llm'
+import type { Block, Llm, LlmConfig } from './llm.js'
 
 export const toParts = (blocks: Block[]) =>
   blocks.map((b) => (b.type === 'text' ? { text: b.text } : { inlineData: { mimeType: b.source.media_type, data: b.source.data } }))

@@ -1,6 +1,6 @@
-import type { PingResult } from '../src/lib/types'
-import { createLlm, type Llm, type LlmConfig } from './llm'
-import { errorMessage } from './http'
+import type { PingResult } from '../src/lib/types.js'
+import { createLlm, type Llm, type LlmConfig } from './llm.js'
+import { errorMessage } from './http.js'
 
 /** One tiny real call, so a wrong or expired key shows up here and not in the middle of a TOR run. */
 export async function pingProvider(cfg: LlmConfig, llm: Llm = createLlm(cfg)): Promise<PingResult> {

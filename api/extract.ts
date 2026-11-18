@@ -1,6 +1,6 @@
-import { createLlm } from '../server/llm'
-import { extractRequirements, toBlocks } from '../server/pipeline'
-import { handle, llmFromRequest } from '../server/http'
+import { createLlm } from '../server/llm.js'
+import { extractRequirements, toBlocks } from '../server/pipeline.js'
+import { handle, llmFromRequest } from '../server/http.js'
 
 const MAX_BYTES = 4 * 1024 * 1024 // Vercel function bodies are capped at ~4.5 MB
 

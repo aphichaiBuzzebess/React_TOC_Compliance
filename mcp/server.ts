@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import { loadKb, searchKb } from '../server/kb'
+import { loadKb, searchKb } from '../server/kb.js'
 
 // Read-only view of the kb/ vault. Edit notes in Obsidian; this just serves them.
 const server = new McpServer({ name: 'tor-scouter-kb', version: '0.1.0' })

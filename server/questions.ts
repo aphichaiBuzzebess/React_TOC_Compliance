@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { FunctionCoverage, RawReq } from '../src/lib/types'
-import type { Llm } from './llm'
+import type { FunctionCoverage, RawReq } from '../src/lib/types.js'
+import type { Llm } from './llm.js'
 
 export interface Topic { function: string; questions: { id: string; text: string }[] }
 
