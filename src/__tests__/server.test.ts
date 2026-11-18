@@ -203,7 +203,7 @@ describe('gemini output handling', () => {
     const { run, generateContent } = await ask([{ text: '{"topics":[{"fun', finishReason: 'MAX_TOKENS' }, { text: '{"topics":[]}', finishReason: 'STOP' }])
     expect(await run).toEqual({ topics: [] })
     const limits = generateContent.mock.calls.map((c) => c[0].config.maxOutputTokens)
-    expect(limits[0]).toBeGreaterThanOrEqual(16384)
+    expect(limits[0]).toBeGreaterThanOrEqual(32768)
     expect(limits[1]).toBe(limits[0] * 2)
   })
 

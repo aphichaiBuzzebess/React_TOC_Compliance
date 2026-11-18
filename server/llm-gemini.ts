@@ -19,8 +19,8 @@ export function parseJson(text: string): unknown {
 
 // Thinking models spend part of the output limit on reasoning, and Thai text is token-heavy,
 // so the visible answer gets cut off unless the limit is generous.
-const FLOOR = 16384
-const CEILING = 32768
+const FLOOR = 32768
+const CEILING = 65536
 
 export function geminiLlm({ apiKey, model }: LlmConfig): Llm {
   const ai = new GoogleGenAI({ apiKey })
