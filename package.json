@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:api": "set -a; . ./.env.local; set +a; npx --yes vercel dev --listen 3100 --yes"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.10.0",

@@ -22,8 +22,8 @@ TOR (pdf/docx/xlsx) ─► api/extract.ts ─► requirements ─┬─► api/j
 ## Run
 ```bash
 npm install
-cp .env.example .env.local   # ใส่ ANTHROPIC_API_KEY และ ACCESS_CODE
-ACCESS_CODE=xxx npx vercel dev --listen 3100   # /api  (เพิ่ม ANTHROPIC_API_KEY ถ้าจะเรียก Claude จริง)
+cp .env.example .env.local   # ใส่ ACCESS_CODE และ ANTHROPIC_API_KEY
+npm run dev:api              # /api บน :3100 โหลด .env.local (ACCESS_CODE, ANTHROPIC_API_KEY)
 npm run dev                  # web, proxy /api -> :3100
 npm test
 ```
