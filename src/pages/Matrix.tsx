@@ -60,6 +60,18 @@ function MatrixContent({ a }: { a: Assessment }) {
         </div>
       </div>
 
+      <details className="rounded-md border border-line bg-white px-6 py-3">
+        <summary className="cursor-pointer font-medium">ความหมายของสถานะ</summary>
+        <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
+          {ORDER.map((k) => (
+            <li key={k} className="flex flex-wrap items-baseline gap-2">
+              <span className="inline-block min-w-48 whitespace-nowrap rounded border px-2 text-xs leading-5" style={{ color: STATUS[k].fg, background: STATUS[k].bg, borderColor: STATUS[k].bd }}>{STATUS[k].label}</span>
+              <span className="text-muted">{STATUS[k].hint}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
+
       <div className="flex flex-wrap items-start gap-6">
         <Card className="min-w-0 flex-[999_1_560px]">
           <div className="overflow-x-auto">
@@ -99,6 +111,7 @@ function MatrixContent({ a }: { a: Assessment }) {
                 <span className="font-mono text-[13px] text-brand-text">{sel.id} · {sel.module}</span>
                 <h2 className="m-0 text-base font-medium text-[#262626]">{sel.text}</h2>
                 <div className="flex flex-wrap items-center gap-2"><StatusBadge s={sel.s} /><span className="text-xs text-muted">Confidence {sel.conf}</span></div>
+                <p className="m-0 text-xs text-muted">{STATUS[sel.s].hint}</p>
               </div>
               <div className="flex flex-col gap-4 px-6 py-4">
                 <div className="flex flex-col gap-1"><span className={LABEL}>Agent reasoning</span><p className="m-0">{sel.reason}</p></div>
