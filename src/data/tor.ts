@@ -1,5 +1,6 @@
 // Sample data for the prototype — mirrors the design canvas. Replace with agent output later.
-export type StatusKey = 'full' | 'config' | 'custom' | 'integ' | 'none' | 'verify'
+import type { StatusKey, Req } from '@/lib/types'
+export type { StatusKey, Req }
 
 export const STATUS: Record<StatusKey, { label: string; dot: string; fg: string; bg: string; bd: string; count: number }> = {
   full: { label: 'Fully Supported', dot: '#52C41A', fg: '#237804', bg: '#F6FFED', bd: '#B7EB8F', count: 38 },
@@ -12,7 +13,6 @@ export const STATUS: Record<StatusKey, { label: string; dot: string; fg: string;
 export const ORDER: StatusKey[] = ['full', 'config', 'custom', 'integ', 'none', 'verify']
 export const TOTAL = 87
 
-export interface Req { id: string; module: string; s: StatusKey; conf: string; text: string; reason: string; evidence: string; rec: string }
 export const REQS: Req[] = [
   { id: 'R-001', module: 'Member', s: 'full', conf: '92%', text: 'สมัครสมาชิกผ่าน LINE OA และ Mobile App', reason: 'Registration channels ใน Knowledge Base ระบุ LINE OA และ Mobile App เป็นช่องทางมาตรฐาน', evidence: 'KB › Member › Registration channels', rec: 'ใช้ Feature มาตรฐาน ไม่ต้องพัฒนาเพิ่ม' },
   { id: 'R-007', module: 'Member', s: 'custom', conf: '74%', text: 'รวมบัญชีสมาชิก (Merge) จากหลาย Brand', reason: 'รองรับ Member หลาย Brand แต่ยังไม่พบ Flow การ Merge บัญชีที่มีอยู่แล้ว', evidence: 'KB › Member › Multi-brand profile', rec: 'ออกแบบ Merge rule และ Duplicate detection เพิ่ม' },
@@ -54,4 +54,4 @@ export const STEPS: [name: string, desc: string][] = [
 
 export const KB_LABELS = ['Loyalty platform — Member & Point', 'Campaign & Reward', 'CRM, Reporting & Integration', 'Other products (not in demo scope)']
 
-export const pct = (n: number, d: number) => `${Math.round((n / d) * 1000) / 10}%`
+export const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 1000) / 10}%` : '0%')

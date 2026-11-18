@@ -1,17 +1,19 @@
 import { BookOpen } from 'lucide-react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
-import { ORDER, REQS, STATUS, TOTAL } from '@/data/tor'
+import { ORDER, STATUS } from '@/data/tor'
+import { useAssessment } from '@/lib/useAssessment'
 import { Button, Card, PageHeader, StatusBadge } from '@/components/ui'
 
 const LABEL = 'text-xs font-bold uppercase tracking-[0.06em] text-muted'
 const TH = 'border-b border-line bg-[#FAFAFA] px-4 py-3 text-left font-medium'
 
 export default function Matrix() {
+  const a = useAssessment()
   const { filter, query, selId, valid, setFilter, setQuery, select, validate } = useAssessmentStore()
   const q = query.toLowerCase()
-  const rows = REQS.filter((r) => (filter === 'all' || r.s === filter) && (!q || `${r.id} ${r.text} ${r.module}`.toLowerCase().includes(q)))
-  const chips = [{ key: 'all' as const, label: 'All', count: TOTAL }, ...ORDER.map((k) => ({ key: k, label: STATUS[k].label, count: STATUS[k].count }))]
-  const sel = REQS.find((r) => r.id === selId)
+  const rows = a.reqs.filter((r) => (filter === 'all' || r.s === filter) && (!q || `${r.id} ${r.text} ${r.module}`.toLowerCase().includes(q)))
+  const chips = [{ key: 'all' as const, label: 'All', count: a.total }, ...ORDER.map((k) => ({ key: k, label: STATUS[k].label, count: a.counts[k] }))]
+  const sel = a.reqs.find((r) => r.id === selId)
   const v = sel && valid[sel.id]
 
   return (
@@ -75,7 +77,7 @@ export default function Matrix() {
               </tbody>
             </table>
           </div>
-          <div className="px-6 py-3 text-xs text-muted">Showing {rows.length} sample rows of {TOTAL} · select an ID to see evidence</div>
+          <div className="px-6 py-3 text-xs text-muted">Showing {rows.length} {a.sample ? 'sample ' : ''}rows of {a.total} · select an ID to see evidence</div>
         </Card>
 
         <aside aria-label="Requirement detail" className="min-w-0 flex-[1_1_320px] rounded-md border border-line bg-white">

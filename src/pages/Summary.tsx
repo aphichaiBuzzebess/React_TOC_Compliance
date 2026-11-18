@@ -1,17 +1,18 @@
 import { useAssessmentStore } from '@/store/useAssessmentStore'
-import { STATUS, TOTAL, pct } from '@/data/tor'
+import { pct } from '@/data/tor'
+import { fit, gapCount } from '@/lib/assessment'
+import { useAssessment } from '@/lib/useAssessment'
 import { Alert, Button, PageHeader } from '@/components/ui'
 
-const FIT = STATUS.full.count + STATUS.config.count
-const GAPS = STATUS.custom.count + STATUS.integ.count + STATUS.none.count
-
 export default function Summary() {
+  const a = useAssessment()
   const confirmed = useAssessmentStore((s) => Object.values(s.valid).filter((v) => v === 'ok').length)
   const stats = [
-    { label: 'Product fit', value: pct(FIT, TOTAL), note: 'Supported out of the box or by configuration' },
-    { label: 'Gaps', value: String(GAPS), note: 'Customization, integration, not supported' },
-    { label: 'Open questions', value: String(STATUS.verify.count), note: 'Need verification with product team' },
+    { label: 'Product fit', value: pct(fit(a), a.total), note: 'Supported out of the box or by configuration' },
+    { label: 'Gaps', value: String(gapCount(a)), note: 'Customization, integration, not supported' },
+    { label: 'Open questions', value: String(a.counts.verify), note: 'Need verification with product team' },
   ]
+  const strongest = [...a.modules].sort((x, y) => y[2] / y[1] - x[2] / x[1]).slice(0, 3).map((m) => m[0]).join(', ')
   return (
     <>
       <PageHeader title="Executive summary" action={<Button>Download PDF</Button>} />
@@ -27,17 +28,22 @@ export default function Summary() {
         </div>
         <div className="flex flex-col gap-2">
           <h2 className="m-0 text-base font-medium text-[#262626]">Assessment</h2>
-          <p className="m-0 leading-[1.7]">Product รองรับ TOR ได้ {FIT} จาก {TOTAL} ข้อ ทั้งแบบพร้อมใช้งานและตั้งค่าเพิ่มเติม จุดแข็งอยู่ที่ Member, Point และ Campaign ส่วนที่ต้องเตรียมคือการเชื่อมต่อ POS / e-Commerce / SAP และการรวมบัญชีสมาชิกข้าม Brand</p>
+          <p className="m-0 leading-[1.7]">
+            Product รองรับ TOR ได้ {fit(a)} จาก {a.total} ข้อ ทั้งแบบพร้อมใช้งานและตั้งค่าเพิ่มเติม โมดูลที่รองรับเต็มรูปแบบมากที่สุดคือ {strongest || '-'} ส่วนที่ต้องเตรียมคือ
+            Integration {a.counts.integ} ข้อ และ Customization {a.counts.custom} ข้อ
+          </p>
         </div>
         <div className="flex flex-col gap-2">
           <h2 className="m-0 text-base font-medium text-[#262626]">Before committing scope</h2>
           <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5">
-            <li>ยืนยัน {STATUS.verify.count} ข้อที่ Need Verification กับ Product team</li>
-            <li>แยก Integration {STATUS.integ.count} ข้อ (POS, e-Commerce, SAP) เป็น Phase ที่ชัดเจน</li>
-            <li>ไม่ Commit ข้อที่ Not Supported {STATUS.none.count} ข้อ จนกว่าจะมี Roadmap</li>
+            <li>ยืนยัน {a.counts.verify} ข้อที่ Need Verification กับ Product team</li>
+            <li>แยก Integration {a.counts.integ} ข้อเป็น Phase ที่ชัดเจน</li>
+            <li>ไม่ Commit ข้อที่ Not Supported {a.counts.none} ข้อ จนกว่าจะมี Roadmap</li>
           </ul>
         </div>
-        <Alert tone="warning" title={`PM validation: ${confirmed} of ${TOTAL} results confirmed`}>Figures on this page are sample data for the prototype.</Alert>
+        <Alert tone="warning" title={`PM validation: ${confirmed} of ${a.total} results confirmed`}>
+          {a.sample ? 'Figures on this page are sample data for the prototype.' : 'AI-generated from the knowledge base. PM should confirm each result before it is shared.'}
+        </Alert>
       </section>
     </>
   )

@@ -1,14 +1,14 @@
 import { useNavigate } from 'react-router-dom'
-import { CheckCircle2, FileText, Upload } from 'lucide-react'
+import { BookMarked, CheckCircle2, FileText, Upload } from 'lucide-react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
-import { KB_LABELS, STEPS, TOTAL } from '@/data/tor'
+import { STEPS } from '@/data/tor'
 import { Button, Card, PageHeader } from '@/components/ui'
 
 export default function NewAssessment() {
   const nav = useNavigate()
-  const { step, running, kb, toggleKb, run, reset } = useAssessmentStore()
+  const { step, running, error, file, customer, accessCode, result, setFile, setCustomer, setAccessCode, runSample, runReal, reset } = useAssessmentStore()
   const done = step >= STEPS.length
-  const runLabel = done ? `Completed · ${TOTAL} requirements assessed` : running ? `Running step ${step + 1} of ${STEPS.length}` : 'Ready to run'
+  const runLabel = done ? `Completed · ${result?.length ?? 87} requirements assessed` : running ? `Running step ${step + 1} of ${STEPS.length}` : 'Ready to run'
 
   return (
     <>
@@ -18,32 +18,37 @@ export default function NewAssessment() {
           <div className="flex flex-col gap-5 p-6">
             <div className="flex flex-col gap-2">
               <span className="font-medium">Customer TOR document</span>
-              <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-[#D9D9D9] bg-[#FAFAFA] p-6 text-center">
+              <label htmlFor="torFile" className="flex cursor-pointer flex-col items-center gap-2 rounded-md border border-dashed border-[#D9D9D9] bg-[#FAFAFA] p-6 text-center hover:border-brand">
                 <Upload aria-hidden size={32} strokeWidth={1.5} className="text-brand-text" />
-                <span>Drag a TOR file here, or <a href="#" onClick={(e) => e.preventDefault()} className="text-brand-text underline">browse</a></span>
-                <span className="text-xs text-muted">PDF, DOCX or XLSX · up to 50 MB</span>
-              </div>
-              <div className="flex items-center gap-3 rounded-md border border-line px-3 py-2.5">
-                <FileText aria-hidden size={18} className="text-[#595959]" />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="font-medium">Customer_TOR.pdf</span>
-                  <span className="text-xs text-muted">Uploaded · {TOTAL} requirements detected</span>
+                <span>เลือกไฟล์ TOR <span className="text-brand-text underline">browse</span></span>
+                <span className="text-xs text-muted">PDF, DOCX or XLSX · up to 4 MB</span>
+                <input id="torFile" type="file" accept=".pdf,.docx,.xlsx" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              </label>
+              {file && (
+                <div className="flex items-center gap-3 rounded-md border border-line px-3 py-2.5">
+                  <FileText aria-hidden size={18} className="text-[#595959]" />
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate font-medium">{file.name}</span>
+                    <span className="text-xs text-muted">{(file.size / 1024).toFixed(0)} KB · ready</span>
+                  </div>
+                  <CheckCircle2 aria-hidden size={18} className="text-[#237804]" />
                 </div>
-                <CheckCircle2 aria-hidden size={18} className="text-[#237804]" />
+              )}
+            </div>
+            <div className="flex items-start gap-3 rounded-md border border-line px-3 py-2.5">
+              <BookMarked aria-hidden size={18} className="mt-0.5 flex-none text-[#595959]" />
+              <div className="flex flex-col">
+                <span className="font-medium">Product knowledge base</span>
+                <span className="text-xs text-muted">Obsidian vault <code>kb/</code> ใน repo — แก้ note แล้ว deploy ใหม่เพื่อให้ผลประเมินอิงข้อมูลล่าสุด</span>
               </div>
             </div>
-            <fieldset className="m-0 flex flex-col gap-1 border-0 p-0">
-              <legend className="mb-2 p-0 font-medium">Product knowledge base</legend>
-              {KB_LABELS.map((label, i) => (
-                <label key={label} className="flex min-h-8 items-center gap-2">
-                  <input type="checkbox" checked={kb[i]} onChange={() => toggleKb(i)} className="size-4 accent-brand" />
-                  {label}
-                </label>
-              ))}
-            </fieldset>
             <div className="flex flex-col gap-2">
               <label htmlFor="custName" className="font-medium">Customer</label>
-              <input id="custName" type="text" placeholder="Customer name" className="h-8 rounded-md border border-[#D9D9D9] px-[11px] text-sm" />
+              <input id="custName" type="text" placeholder="Customer name" value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-8 rounded-md border border-[#D9D9D9] px-[11px] text-sm" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="accessCode" className="font-medium">Access code</label>
+              <input id="accessCode" type="password" autoComplete="off" placeholder="Required to run a real assessment" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} className="h-8 rounded-md border border-[#D9D9D9] px-[11px] text-sm" />
             </div>
           </div>
         </Card>
@@ -73,8 +78,14 @@ export default function NewAssessment() {
               )
             })}
           </ol>
+          {error && <p role="alert" className="m-0 px-6 text-[#CF1322]">{error}</p>}
           <div className="flex flex-wrap gap-2 px-6 pb-6 pt-4">
-            {!done && <Button variant="primary" className="min-h-10" disabled={running} onClick={run}>{running ? 'Assessing…' : 'Run assessment'}</Button>}
+            {!done && (
+              <>
+                <Button variant="primary" className="min-h-10" disabled={running || !file || !accessCode} onClick={runReal}>{running ? 'Assessing…' : 'Run assessment'}</Button>
+                <Button className="min-h-10" disabled={running} onClick={runSample}>Run with sample data</Button>
+              </>
+            )}
             {done && (
               <>
                 <Button variant="primary" className="min-h-10" onClick={() => nav('/dashboard')}>View results</Button>

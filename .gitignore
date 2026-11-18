@@ -6,3 +6,8 @@ tsconfig.tsbuildinfo
 .claude/
 skills-lock.json
 .vercel
+
+# Obsidian local state
+kb/.obsidian/
+.env*
+!.env.example
