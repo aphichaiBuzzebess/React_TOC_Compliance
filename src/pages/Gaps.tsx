@@ -1,9 +1,9 @@
 import { gapCount } from '@/lib/assessment'
 import { useAssessment } from '@/lib/useAssessment'
-import { Alert, PageHeader, StatusBadge } from '@/components/ui'
+import type { Assessment } from '@/lib/assessment'
+import { Alert, PageHeader, StatusBadge, EmptyState } from '@/components/ui'
 
-export default function Gaps() {
-  const a = useAssessment()
+function GapsContent({ a }: { a: Assessment }) {
   return (
     <>
       <PageHeader title="Feature gap & recommendation" />
@@ -28,4 +28,9 @@ export default function Gaps() {
       </div>
     </>
   )
+}
+
+export default function Gaps() {
+  const a = useAssessment()
+  return a ? <GapsContent a={a} /> : <EmptyState title="Feature gap & recommendation" />
 }

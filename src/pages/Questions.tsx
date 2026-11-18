@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
-import { SAMPLE_COVERAGE } from '@/data/tor'
 import { useAssessment } from '@/lib/useAssessment'
 import type { FunctionCoverage } from '@/lib/types'
-import { Alert, Button, Card, PageHeader } from '@/components/ui'
+import { Alert, Button, Card, EmptyState, PageHeader } from '@/components/ui'
 
 const TONE = {
   covered: { label: 'TOR ตอบแล้ว', cls: 'border-[#B7EB8F] bg-[#F6FFED] text-[#237804]' },
@@ -14,11 +13,9 @@ const TONE = {
 const toText = (rows: FunctionCoverage[]) =>
   rows.filter((r) => r.open.length).map((r) => `${r.function}\n${r.open.map((q) => `- ${q}`).join('\n')}`).join('\n\n')
 
-export default function Questions() {
-  const a = useAssessment()
-  const stored = useAssessmentStore((s) => s.coverage)
+function QuestionsContent() {
+  const rows = useAssessmentStore((s) => s.coverage)
   const [copied, setCopied] = useState(false)
-  const rows = a.sample ? SAMPLE_COVERAGE : stored
   const openCount = rows?.reduce((n, r) => n + r.open.length, 0) ?? 0
 
   const copy = async () => {
@@ -39,7 +36,7 @@ export default function Questions() {
       ) : (
         <>
           <Alert tone="info" title={`${openCount} คำถามที่ TOR ยังไม่ตอบ`}>
-            เทียบ requirement ของ TOR กับหัวข้อ Basic Question ของ BA ใช้ถามลูกค้าก่อนยืนยัน scope{a.sample ? ' · ตัวอย่างข้อมูล' : ''}
+            เทียบ requirement ของ TOR กับหัวข้อ Basic Question ของ BA ใช้ถามลูกค้าก่อนยืนยัน scope
           </Alert>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
             {rows.map((r) => (
@@ -63,4 +60,9 @@ export default function Questions() {
       )}
     </>
   )
+}
+
+export default function Questions() {
+  const a = useAssessment()
+  return a ? <QuestionsContent /> : <EmptyState title="Open questions for customer" />
 }

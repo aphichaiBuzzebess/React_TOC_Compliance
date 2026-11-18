@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { STATUS, type StatusKey } from '@/data/tor'
 
@@ -73,5 +74,17 @@ export function StatCard({ label, value, suffix, foot }: { label: string; value:
       </span>
       <span className="text-xs text-muted">{foot}</span>
     </div>
+  )
+}
+
+export function EmptyState({ title }: { title: string }) {
+  return (
+    <>
+      <PageHeader title={title} />
+      <div className="flex flex-col items-center gap-3 rounded-md border border-line bg-white px-6 py-16 text-center">
+        <span className="text-muted">ยังไม่มีผลประเมิน อัปโหลด TOR แล้วรัน assessment ก่อน</span>
+        <Link to="/" className="rounded-md border border-brand bg-brand px-4 py-2 font-medium text-ink no-underline hover:bg-[#E39701]">New assessment</Link>
+      </div>
+    </>
   )
 }

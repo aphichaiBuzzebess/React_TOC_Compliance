@@ -14,7 +14,7 @@ interface AssessmentState {
   file: File | null
   customer: string
   accessCode: string
-  result: Req[] | null // null = show the built-in sample
+  result: Req[] | null // null until a TOR has been assessed
   coverage: FunctionCoverage[] | null
   filter: 'all' | StatusKey
   query: string
@@ -23,7 +23,6 @@ interface AssessmentState {
   setFile: (f: File | null) => void
   setCustomer: (c: string) => void
   setAccessCode: (c: string) => void
-  runSample: () => void
   runReal: () => Promise<void>
   reset: () => void
   setFilter: (f: 'all' | StatusKey) => void
@@ -31,8 +30,6 @@ interface AssessmentState {
   select: (id: string) => void
   validate: (v: Validation) => void
 }
-
-let timer: ReturnType<typeof setInterval> | undefined
 
 async function api<T>(path: string, code: string, init: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, method: 'POST', headers: { ...init.headers, 'x-access-code': code } })
@@ -54,22 +51,11 @@ export const useAssessmentStore = create<AssessmentState>()(
       coverage: null,
       filter: 'all',
       query: '',
-      selId: 'R-007',
+      selId: null,
       valid: {},
       setFile: (file) => set({ file, error: null }),
       setCustomer: (customer) => set({ customer }),
       setAccessCode: (accessCode) => set({ accessCode }),
-      runSample: () => {
-        clearInterval(timer)
-        set({ running: true, step: 0, error: null, result: null, coverage: null, selId: 'R-007', valid: {} })
-        timer = setInterval(() => {
-          const next = get().step + 1
-          if (next >= STEPS.length) {
-            clearInterval(timer)
-            set({ step: STEPS.length, running: false })
-          } else set({ step: next })
-        }, 700)
-      },
       runReal: async () => {
         const { file, accessCode } = get()
         if (!file) return
@@ -111,10 +97,7 @@ export const useAssessmentStore = create<AssessmentState>()(
           set({ running: false, step: -1, error: e instanceof Error ? e.message : 'Assessment failed' })
         }
       },
-      reset: () => {
-        clearInterval(timer)
-        set({ step: -1, running: false, error: null })
-      },
+      reset: () => set({ step: -1, running: false, error: null }),
       setFilter: (filter) => set({ filter }),
       setQuery: (query) => set({ query }),
       select: (selId) => set({ selId }),

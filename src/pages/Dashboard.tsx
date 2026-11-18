@@ -2,11 +2,11 @@ import { useNavigate } from 'react-router-dom'
 import { ORDER, STATUS, pct } from '@/data/tor'
 import { fit, gapCount } from '@/lib/assessment'
 import { useAssessment } from '@/lib/useAssessment'
-import { Button, Card, PageHeader, StatCard } from '@/components/ui'
+import type { Assessment } from '@/lib/assessment'
+import { Button, Card, PageHeader, StatCard, EmptyState } from '@/components/ui'
 
-export default function Dashboard() {
+function DashboardContent({ a }: { a: Assessment }) {
   const nav = useNavigate()
-  const a = useAssessment()
   const kpis = [
     { label: 'Total requirements', value: String(a.total), foot: 'Extracted from TOR' },
     { label: 'Fully supported', value: String(a.counts.full), foot: `${pct(a.counts.full, a.total)} of TOR` },
@@ -70,4 +70,9 @@ export default function Dashboard() {
       </Card>
     </>
   )
+}
+
+export default function Dashboard() {
+  const a = useAssessment()
+  return a ? <DashboardContent a={a} /> : <EmptyState title="Coverage dashboard" />
 }

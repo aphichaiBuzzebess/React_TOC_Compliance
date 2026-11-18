@@ -30,7 +30,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <span className="hidden whitespace-nowrap text-xs text-muted sm:inline">Compliance &amp; Feature Gap Agent</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="whitespace-nowrap rounded border border-[#FFE58F] bg-[#FFFBE6] px-2 py-0.5 text-xs font-medium text-[#AD6800]">{a.sample ? 'Prototype · sample data' : 'Live assessment'}</span>
+          <span className="whitespace-nowrap rounded border border-[#FFE58F] bg-[#FFFBE6] px-2 py-0.5 text-xs font-medium text-[#AD6800]">Prototype</span>
           <span aria-label="Signed-in user" className="flex size-8 items-center justify-center rounded-full border border-brand-line bg-brand-soft text-xs font-bold text-brand-text">PM</span>
         </div>
       </header>
@@ -57,7 +57,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <div className="mt-4 flex flex-col gap-1 border-t border-white/10 px-4 py-3">
             <span className="text-[11px] text-white/65">Current TOR</span>
             <span className="text-[13px] font-medium text-white/90">{customer || 'Customer TOR'}</span>
-            <span className="text-xs text-white/65">{a.total} requirements</span>
+            <span className="text-xs text-white/65">{a ? `${a.total} requirements` : 'ยังไม่มี TOR'}</span>
           </div>
         </nav>
         <main className="flex min-w-0 flex-[999_1_560px] flex-col gap-6 p-6">{children}</main>

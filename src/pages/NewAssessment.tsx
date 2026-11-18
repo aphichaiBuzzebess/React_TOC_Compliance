@@ -6,9 +6,9 @@ import { Button, Card, PageHeader } from '@/components/ui'
 
 export default function NewAssessment() {
   const nav = useNavigate()
-  const { step, running, error, file, customer, accessCode, result, setFile, setCustomer, setAccessCode, runSample, runReal, reset } = useAssessmentStore()
+  const { step, running, error, file, customer, accessCode, result, setFile, setCustomer, setAccessCode, runReal, reset } = useAssessmentStore()
   const done = step >= STEPS.length
-  const runLabel = done ? `Completed · ${result?.length ?? 87} requirements assessed` : running ? `Running step ${step + 1} of ${STEPS.length}` : 'Ready to run'
+  const runLabel = done ? `Completed · ${result?.length ?? 0} requirements assessed` : running ? `Running step ${step + 1} of ${STEPS.length}` : 'Ready to run'
 
   return (
     <>
@@ -83,7 +83,6 @@ export default function NewAssessment() {
             {!done && (
               <>
                 <Button variant="primary" className="min-h-10" disabled={running || !file || !accessCode} onClick={runReal}>{running ? 'Assessing…' : 'Run assessment'}</Button>
-                <Button className="min-h-10" disabled={running} onClick={runSample}>Run with sample data</Button>
               </>
             )}
             {done && (
