@@ -1,12 +1,13 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { BookMarked, CheckCircle2, FileText, Upload } from 'lucide-react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { STEPS } from '@/data/tor'
+import { AI_PROVIDERS } from '@/data/models'
 import { Button, Card, PageHeader } from '@/components/ui'
 
 export default function NewAssessment() {
   const nav = useNavigate()
-  const { step, running, error, file, customer, accessCode, result, setFile, setCustomer, setAccessCode, runReal, reset } = useAssessmentStore()
+  const { step, running, error, file, customer, provider, model, apiKey, result, setFile, setCustomer, runReal, reset } = useAssessmentStore()
   const done = step >= STEPS.length
   const runLabel = done ? `Completed · ${result?.length ?? 0} requirements assessed` : running ? `Running step ${step + 1} of ${STEPS.length}` : 'Ready to run'
 
@@ -46,9 +47,12 @@ export default function NewAssessment() {
               <label htmlFor="custName" className="font-medium">Customer</label>
               <input id="custName" type="text" placeholder="Customer name" value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-8 rounded-md border border-[#D9D9D9] px-[11px] text-sm" />
             </div>
-            <div className="flex flex-col gap-2">
-              <label htmlFor="accessCode" className="font-medium">Access code</label>
-              <input id="accessCode" type="password" autoComplete="off" placeholder="Required to run a real assessment" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} className="h-8 rounded-md border border-[#D9D9D9] px-[11px] text-sm" />
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line px-3 py-2.5">
+              <div className="flex flex-col">
+                <span className="font-medium">{AI_PROVIDERS.find((p) => p.id === provider)?.label}</span>
+                <span className="text-xs text-muted">{model} · {apiKey ? 'พร้อมใช้งาน' : 'ยังไม่ได้ใส่ API key'}</span>
+              </div>
+              <Link to="/ai-settings" className="text-brand-text underline">{apiKey ? 'เปลี่ยน' : 'ตั้งค่า AI'}</Link>
             </div>
           </div>
         </Card>
@@ -82,7 +86,7 @@ export default function NewAssessment() {
           <div className="flex flex-wrap gap-2 px-6 pb-6 pt-4">
             {!done && (
               <>
-                <Button variant="primary" className="min-h-10" disabled={running || !file || !accessCode} onClick={runReal}>{running ? 'Assessing…' : 'Run assessment'}</Button>
+                <Button variant="primary" className="min-h-10" disabled={running || !file || !apiKey} onClick={runReal}>{running ? 'Assessing…' : 'Run assessment'}</Button>
               </>
             )}
             {done && (

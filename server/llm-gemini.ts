@@ -1,14 +1,11 @@
 import { GoogleGenAI } from '@google/genai'
-import { modelFor, type Block, type Llm } from './llm'
+import type { Block, Llm, LlmConfig } from './llm'
 
 export const toParts = (blocks: Block[]) =>
   blocks.map((b) => (b.type === 'text' ? { text: b.text } : { inlineData: { mimeType: b.source.media_type, data: b.source.data } }))
 
-export function geminiLlm(): Llm {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set')
+export function geminiLlm({ apiKey, model }: LlmConfig): Llm {
   const ai = new GoogleGenAI({ apiKey })
-  const model = modelFor('gemini')
   return async ({ system, content, tool, maxTokens = 8000 }) => {
     const res = await ai.models.generateContent({
       model,
@@ -19,7 +16,7 @@ export function geminiLlm(): Llm {
     try {
       return JSON.parse(res.text)
     } catch {
-      throw new Error('Model returned invalid JSON (try again or use a larger GEMINI_MODEL)')
+      throw new Error('Model returned invalid JSON (try again or pick a larger model)')
     }
   }
 }

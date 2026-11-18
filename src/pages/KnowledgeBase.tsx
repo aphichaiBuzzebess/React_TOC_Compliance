@@ -28,7 +28,7 @@ export default function KnowledgeBase() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/kb', { headers: { 'x-access-code': accessCode } })
+      const res = await fetch('/api/kb', { headers: accessCode ? { 'x-access-code': accessCode } : {} })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`)
       setNotes(body.notes)
@@ -41,7 +41,7 @@ export default function KnowledgeBase() {
     }
   }
   useEffect(() => {
-    if (accessCode) void load()
+    void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on arrival; later loads are explicit
   }, [])
 
@@ -61,7 +61,7 @@ export default function KnowledgeBase() {
         <Card title="Access">
           <div className="flex flex-wrap items-end gap-3 p-6">
             <div className="flex flex-col gap-2">
-              <label htmlFor="kbCode" className="font-medium">Access code</label>
+              <label htmlFor="kbCode" className="font-medium">Access code <span className="font-normal text-muted">(ถ้าผู้ดูแลระบบกำหนด)</span></label>
               <input id="kbCode" type="password" autoComplete="off" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && accessCode && load()} className="h-9 w-64 rounded-md border border-[#D9D9D9] px-[11px] text-sm" />
             </div>
             <Button variant="primary" disabled={!accessCode || loading} onClick={load}>{loading ? 'Loading…' : 'Open knowledge base'}</Button>

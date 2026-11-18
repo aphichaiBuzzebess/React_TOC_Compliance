@@ -16,7 +16,7 @@ function open(path: string) {
 
 beforeEach(() => {
   localStorage.clear()
-  useAssessmentStore.setState({ result: null, coverage: null, selId: null, valid: {} })
+  useAssessmentStore.setState({ result: null, coverage: null, selId: null, valid: {}, apiKey: '', accessCode: '' })
 })
 
 describe('no mock data', () => {
@@ -31,6 +31,33 @@ describe('no mock data', () => {
     open('/matrix')
     expect(screen.getByText('requirement R-002')).toBeInTheDocument()
     expect(screen.getByText('2 requirements')).toBeInTheDocument()
+  })
+})
+
+describe('AI settings', () => {
+  it('never writes the API key or access code to browser storage', () => {
+    useAssessmentStore.getState().setProvider('gemini')
+    useAssessmentStore.getState().setApiKey('my-secret-key-123456')
+    useAssessmentStore.getState().setAccessCode('code-123')
+    useAssessmentStore.getState().select('R-001') // any persisted change triggers a save
+    const saved = localStorage.getItem('tor-scouter') ?? ''
+    expect(saved).toContain('gemini') // provider and model are remembered
+    expect(saved).not.toContain('my-secret-key')
+    expect(saved).not.toContain('code-123')
+    expect(JSON.stringify({ ...sessionStorage })).not.toContain('my-secret-key')
+  })
+
+  it('switching provider resets to that provider\'s default model', () => {
+    useAssessmentStore.getState().setProvider('gemini')
+    expect(useAssessmentStore.getState().model).toBe('gemini-3.8-flash')
+    useAssessmentStore.getState().setProvider('anthropic')
+    expect(useAssessmentStore.getState().model).toBe('claude-sonnet-5-5')
+  })
+
+  it('cannot run an assessment without a key', async () => {
+    useAssessmentStore.setState({ file: new File(['x'], 'tor.pdf'), apiKey: '' })
+    await useAssessmentStore.getState().runReal()
+    expect(useAssessmentStore.getState().running).toBe(false)
   })
 })
 

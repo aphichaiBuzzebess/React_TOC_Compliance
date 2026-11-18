@@ -1,0 +1,81 @@
+import { useState } from 'react'
+import { CheckCircle2, CircleAlert } from 'lucide-react'
+import { authHeaders, useAssessmentStore } from '@/store/useAssessmentStore'
+import { AI_PROVIDERS } from '@/data/models'
+import { Button, Card, PageHeader } from '@/components/ui'
+import type { PingResult } from '@/lib/types'
+
+const CUSTOM = '__custom'
+const INPUT = 'h-9 w-full max-w-md rounded-md border border-[#D9D9D9] px-[11px] text-sm'
+
+export default function AiSettings() {
+  const s = useAssessmentStore()
+  const prov = AI_PROVIDERS.find((p) => p.id === s.provider)!
+  const [custom, setCustom] = useState(!prov.models.includes(s.model))
+  const [testing, setTesting] = useState(false)
+  const [result, setResult] = useState<PingResult | null>(null)
+
+  async function test() {
+    setTesting(true)
+    setResult(null)
+    try {
+      const res = await fetch('/api/status', { method: 'POST', headers: authHeaders(s) })
+      const body = await res.json().catch(() => ({}))
+      setResult(res.ok ? body : { ok: false, ms: 0, error: body.error ?? `Request failed (${res.status})` })
+    } catch {
+      setResult({ ok: false, ms: 0, error: 'Could not reach the server' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <>
+      <PageHeader crumb="Reference" title="AI settings" />
+      <Card title="Provider and model">
+        <div className="flex flex-col gap-5 p-6">
+          <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+            <legend className="mb-1 p-0 font-medium">AI provider</legend>
+            {AI_PROVIDERS.map((p) => (
+              <label key={p.id} className="flex min-h-8 items-center gap-2">
+                <input type="radio" name="provider" checked={s.provider === p.id} onChange={() => { s.setProvider(p.id); setCustom(false); setResult(null) }} className="size-4 accent-brand" />
+                {p.label}
+              </label>
+            ))}
+          </fieldset>
+
+          <div className="flex flex-col gap-2">
+            <label htmlFor="model" className="font-medium">Model</label>
+            <select id="model" value={custom ? CUSTOM : s.model} onChange={(e) => { if (e.target.value === CUSTOM) { setCustom(true); s.setModel('') } else { setCustom(false); s.setModel(e.target.value) } setResult(null) }} className={INPUT}>
+              {prov.models.map((m) => <option key={m} value={m}>{m}</option>)}
+              <option value={CUSTOM}>Custom…</option>
+            </select>
+            {custom && <input aria-label="Custom model id" type="text" placeholder="model id" value={s.model} onChange={(e) => s.setModel(e.target.value.trim())} className={INPUT} />}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label htmlFor="apiKey" className="font-medium">{prov.keyLabel}</label>
+            <input id="apiKey" type="password" autoComplete="off" spellCheck={false} placeholder="วาง key ของคุณ" value={s.apiKey} onChange={(e) => s.setApiKey(e.target.value)} className={INPUT} />
+            <span className="text-xs text-muted">Key ไม่ถูกบันทึก อยู่ในหน้านี้เท่านั้นและหายเมื่อรีเฟรช ส่งไปที่ server เฉพาะตอนเรียก AI แต่ละครั้ง ค่าใช้จ่ายเป็นของบัญชีคุณ</span>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label htmlFor="access" className="font-medium">Access code <span className="font-normal text-muted">(ถ้าผู้ดูแลระบบกำหนด)</span></label>
+            <input id="access" type="password" autoComplete="off" value={s.accessCode} onChange={(e) => s.setAccessCode(e.target.value)} className={INPUT} />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="primary" disabled={!s.apiKey || !s.model || testing} onClick={test}>{testing ? 'Testing…' : 'Test connection'}</Button>
+            {result && (
+              <span role="status" className={`flex items-center gap-1.5 text-sm ${result.ok ? 'text-[#237804]' : 'text-[#CF1322]'}`}>
+                {result.ok ? <CheckCircle2 aria-hidden size={16} /> : <CircleAlert aria-hidden size={16} />}
+                {result.ok ? `Working · ${s.model} · ${result.ms} ms` : result.error}
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-muted">Test connection ส่งคำขอเล็กๆ 1 ครั้งด้วย key ของคุณ</span>
+        </div>
+      </Card>
+    </>
+  )
+}

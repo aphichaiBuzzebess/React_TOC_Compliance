@@ -19,21 +19,20 @@ TOR (pdf/docx/xlsx) ─► api/extract.ts ─► requirements ─┬─► api/j
 ## MCP
 `.mcp.json` ลงทะเบียน `tor-scouter-kb` (tools: `search_kb`, `get_note`, `list_modules`) ใช้ใน Claude Code/Desktop เพื่อให้ Claude ช่วยค้น/ตรวจ KB
 
-## AI status
-หน้า `/ai-status` บอกว่า provider ไหน active, มี key หรือยัง (ไม่แสดงค่า key) และมีปุ่ม Test connection ที่ยิงคำขอเล็กๆ 1 ครั้งเพื่อเช็กว่า key ใช้ได้จริง
+## AI settings
+ทุกคนกรอก provider, model และ API key ของตัวเองที่หน้า `/ai-settings` (Claude หรือ Gemini, เลือกโมเดลจากรายการหรือพิมพ์เอง) key อยู่ในหน่วยความจำของหน้าเว็บเท่านั้น ไม่ถูกเก็บทั้งในเบราว์เซอร์และ server ถูกส่งไปกับคำขอแต่ละครั้งเพื่อใช้เรียก AI ค่าใช้จ่ายเป็นของบัญชีผู้ใช้ มีปุ่ม Test connection
 
 ## Run
 ```bash
 npm install
-cp .env.example .env.local   # ใส่ ACCESS_CODE และ ANTHROPIC_API_KEY
-npm run dev:api              # /api บน :3100 โหลด .env.local (ACCESS_CODE, ANTHROPIC_API_KEY)
+cp .env.example .env.local   # ACCESS_CODE ไม่บังคับ
+npm run dev:api              # /api บน :3100
 npm run dev                  # web, proxy /api -> :3100
 npm test
 ```
-LLM เลือกได้ด้วย `LLM_PROVIDER` (`anthropic` ค่าเริ่มต้น หรือ `gemini`) แล้วตั้ง key ตัวที่ใช้: `ANTHROPIC_API_KEY` หรือ `GEMINI_API_KEY` (ปรับโมเดลด้วย `ANTHROPIC_MODEL` / `GEMINI_MODEL`)
-
-Production: ตั้ง `ACCESS_CODE` กับ key ของ provider ที่ใช้ใน Vercel env (endpoint ปฏิเสธทุก request ถ้าไม่ตั้ง `ACCESS_CODE`)
+ไม่มี AI key ฝั่ง server: ผู้ใช้กรอกเองที่หน้า AI settings ถ้าตั้ง `ACCESS_CODE` ใน Vercel env ทุก endpoint จะต้องใช้รหัสนี้ (ไม่ตั้ง = เปิดให้ทุกคน)
 
 ## Limits
 - ไฟล์ TOR ≤ 4 MB (เพดาน body ของ Vercel function) ถ้าต้องใหญ่กว่านี้ให้อัปโหลดผ่าน Vercel Blob
 - ผลลัพธ์เก็บใน localStorage ของเบราว์เซอร์ ยังไม่มี database
+- key ผ่าน server ของเราทุกครั้งที่เรียก AI (HTTPS) เพื่อให้ server อ่าน PDF/KB ได้ ไม่ได้เรียก AI จากเบราว์เซอร์โดยตรง

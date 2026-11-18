@@ -2,8 +2,9 @@
 import { loadKb, parseNote, searchKb } from '../../server/kb'
 import { judge } from '../../server/pipeline'
 import { checkCoverage, loadTopics } from '../../server/questions'
-import { pingProvider, providerStatus } from '../../server/status'
-import { createLlm, type Llm } from '../../server/llm'
+import { pingProvider } from '../../server/status'
+import type { Llm } from '../../server/llm'
+import { errorMessage, guard, handle, llmFromRequest, redact } from '../../server/http'
 import { fromReqs } from '@/lib/assessment'
 import type { Req } from '@/lib/types'
 
@@ -91,77 +92,89 @@ describe('open-question coverage', () => {
   })
 })
 
-describe('llm provider', () => {
+describe('per-request AI settings', () => {
+  const req = (h: Record<string, string>) => new Request('http://x/api', { method: 'POST', headers: h })
+  const ok = { 'x-llm-provider': 'gemini', 'x-llm-key': 'user-own-key-123456', 'x-llm-model': 'gemini-3.8-flash' }
+
   afterEach(() => {
-    delete process.env.LLM_PROVIDER
-    delete process.env.GEMINI_API_KEY
+    delete process.env.ACCESS_CODE
     vi.resetModules()
     vi.doUnmock('@google/genai')
   })
 
-  it('rejects an unknown provider before any call', () => {
-    process.env.LLM_PROVIDER = 'gpt'
-    expect(() => createLlm()).toThrow(/Unknown LLM_PROVIDER/)
+  it('reads provider, key and model from headers', () => {
+    expect(llmFromRequest(req(ok))).toEqual({ provider: 'gemini', apiKey: 'user-own-key-123456', model: 'gemini-3.8-flash' })
   })
 
-  it('fails clearly when the Gemini key is missing', async () => {
-    process.env.LLM_PROVIDER = 'gemini'
-    await expect(createLlm()({ system: 's', content: [], tool: { name: 't', description: 'd', schema: {} } })).rejects.toThrow('GEMINI_API_KEY is not set')
+  it.each([
+    ['no provider', { ...ok, 'x-llm-provider': '' }, /provider/],
+    ['unknown provider', { ...ok, 'x-llm-provider': 'gpt' }, /provider/],
+    ['no key', { ...ok, 'x-llm-key': ' ' }, /API key/],
+    ['odd model id', { ...ok, 'x-llm-model': '../etc/passwd?x=1' }, /model/],
+  ])('rejects %s', (_n, headers, msg) => {
+    expect(() => llmFromRequest(req(headers))).toThrow(msg)
   })
 
-  it('sends a schema-constrained request to Gemini and parses the JSON', async () => {
+  it('does not use any server-side key', () => {
+    process.env.ANTHROPIC_API_KEY = 'server-key-should-be-ignored'
+    expect(() => llmFromRequest(req({ 'x-llm-provider': 'anthropic', 'x-llm-model': 'm' }))).toThrow(/API key/)
+    delete process.env.ANTHROPIC_API_KEY
+  })
+
+  it('access code is optional: open when unset, enforced when set', () => {
+    expect(guard(req({}))).toBeNull()
+    process.env.ACCESS_CODE = 'abc'
+    expect(guard(req({}))?.status).toBe(401)
+    expect(guard(req({ 'x-access-code': 'abc' }))).toBeNull()
+  })
+
+  it('keeps the key out of error responses', async () => {
+    const res = await handle(req(ok), async () => {
+      throw new Error('401 bad key user-own-key-123456')
+    })
+    expect(res.status).toBe(400)
+    expect(await res.text()).not.toContain('user-own-key')
+    expect(redact('x user-own-key-123456 y', 'user-own-key-123456')).toBe('x *** y')
+  })
+
+  it('sends a schema-constrained request to Gemini with the caller key and model', async () => {
     const generateContent = vi.fn().mockResolvedValue({ text: '{"ok":true}' })
-    vi.doMock('@google/genai', () => ({ GoogleGenAI: class { models = { generateContent } } }))
-    process.env.LLM_PROVIDER = 'gemini'
-    process.env.GEMINI_API_KEY = 'test'
+    const ctor = vi.fn()
+    vi.doMock('@google/genai', () => ({ GoogleGenAI: class { models = { generateContent }; constructor(o: unknown) { ctor(o) } } }))
     const { createLlm: create } = await import('../../server/llm')
     const schema = { type: 'object' }
-    const out = await create()({
+    const out = await create({ provider: 'gemini', apiKey: 'user-own-key-123456', model: 'gemini-x' })({
       system: 'sys',
       content: [{ type: 'text', text: 'hi' }, { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'QUJD' } }],
       tool: { name: 't', description: 'desc', schema },
     })
     expect(out).toEqual({ ok: true })
+    expect(ctor).toHaveBeenCalledWith({ apiKey: 'user-own-key-123456' })
     const arg = generateContent.mock.calls[0][0]
+    expect(arg.model).toBe('gemini-x')
     expect(arg.contents[0].parts).toEqual([{ text: 'hi' }, { inlineData: { mimeType: 'application/pdf', data: 'QUJD' } }])
     expect(arg.config).toMatchObject({ responseMimeType: 'application/json', responseJsonSchema: schema })
-    expect(arg.config.systemInstruction).toContain('sys')
   })
 })
 
-describe('ai status', () => {
-  afterEach(() => {
-    for (const k of ['LLM_PROVIDER', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY']) delete process.env[k]
+describe('error messages', () => {
+  it('shows the readable part of a provider JSON error', () => {
+    expect(errorMessage(new Error('401 {"type":"error","error":{"type":"authentication_error","message":"Invalid bearer token"}}'), '')).toBe('401 Invalid bearer token')
+    expect(errorMessage(new Error('{"error":{"code":400,"message":"API key not valid. Please pass a valid API key."}}'), '')).toBe('API key not valid. Please pass a valid API key.')
+    expect(errorMessage(new Error('plain failure {not json'), '')).toBe('plain failure {not json')
   })
+})
 
-  it('reports which keys are set without ever returning a value', () => {
-    process.env.GEMINI_API_KEY = 'super-secret-gemini-key'
-    const s = providerStatus()
-    expect(s.active).toBe('anthropic')
-    expect(s.providers.find((p) => p.id === 'gemini')).toMatchObject({ keySet: true, envVar: 'GEMINI_API_KEY' })
-    expect(s.providers.find((p) => p.id === 'anthropic')?.keySet).toBe(false)
-    expect(JSON.stringify(s)).not.toContain('super-secret')
+describe('connection test', () => {
+  const cfg = { provider: 'anthropic' as const, apiKey: 'sk-test-abcdef123456', model: 'm' }
+  it('pings ok', async () => {
+    expect(await pingProvider(cfg, (async () => ({ ok: true })) as never)).toMatchObject({ ok: true })
   })
-
-  it('flags an invalid LLM_PROVIDER instead of throwing', () => {
-    process.env.LLM_PROVIDER = 'gpt'
-    expect(providerStatus()).toMatchObject({ active: null, error: expect.stringContaining('Unknown LLM_PROVIDER') })
-  })
-
-  it('does not call the model when the key is missing', async () => {
-    const llm = vi.fn()
-    expect(await pingProvider('anthropic', llm as never)).toMatchObject({ ok: false, error: 'ANTHROPIC_API_KEY is not set' })
-    expect(llm).not.toHaveBeenCalled()
-  })
-
-  it('pings ok, and redacts the key from an error message', async () => {
-    process.env.ANTHROPIC_API_KEY = 'sk-test-abcdef123456'
-    expect(await pingProvider('anthropic', (async () => ({ ok: true })) as never)).toMatchObject({ ok: true })
+  it('reports a failure with the key redacted', async () => {
     const bad = (async () => {
       throw new Error('401 invalid x-api-key sk-test-abcdef123456')
     }) as never
-    const r = await pingProvider('anthropic', bad)
-    expect(r.ok).toBe(false)
-    expect(r.error).toBe('401 invalid x-api-key ***')
+    const r = await pingProvider(cfg, bad)
+    expect(r).toMatchObject({ ok: false, error: '401 invalid x-api-key ***' })
   })
 })

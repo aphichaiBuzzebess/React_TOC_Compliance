@@ -9,21 +9,14 @@ export type Llm = <T>(o: { system: string; content: Block[]; tool: Tool; maxToke
 
 export type Provider = 'anthropic' | 'gemini'
 export const PROVIDERS: Provider[] = ['anthropic', 'gemini']
-export const KEY_ENV: Record<Provider, string> = { anthropic: 'ANTHROPIC_API_KEY', gemini: 'GEMINI_API_KEY' }
 
-export const modelFor = (p: Provider) => (p === 'gemini' ? process.env.GEMINI_MODEL ?? 'gemini-3.8-flash' : process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5-5')
-
-/** LLM_PROVIDER=anthropic (default) or gemini. */
-export function activeProvider(): Provider {
-  const p = (process.env.LLM_PROVIDER ?? 'anthropic').toLowerCase()
-  if (p !== 'anthropic' && p !== 'gemini') throw new Error(`Unknown LLM_PROVIDER "${p}" (use anthropic or gemini)`)
-  return p
-}
+/** Supplied by the caller on every request. The server holds no AI keys and stores nothing. */
+export interface LlmConfig { provider: Provider; apiKey: string; model: string }
 
 /** SDKs load on first use so only the chosen one is paid for. */
-export function createLlm(provider: Provider = activeProvider()): Llm {
+export function createLlm(cfg: LlmConfig): Llm {
   return async (o) => {
-    const llm = provider === 'gemini' ? (await import('./llm-gemini')).geminiLlm() : (await import('./llm-anthropic')).anthropicLlm()
+    const llm = cfg.provider === 'gemini' ? (await import('./llm-gemini')).geminiLlm(cfg) : (await import('./llm-anthropic')).anthropicLlm(cfg)
     return llm(o)
   }
 }

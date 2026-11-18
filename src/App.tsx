@@ -7,7 +7,7 @@ import Gaps from './pages/Gaps'
 import Summary from './pages/Summary'
 import Questions from './pages/Questions'
 import KnowledgeBase from './pages/KnowledgeBase'
-import AiStatus from './pages/AiStatus'
+import AiSettings from './pages/AiSettings'
 
 export default function App() {
   return (
@@ -19,7 +19,7 @@ export default function App() {
         <Route path="/gaps" element={<Gaps />} />
         <Route path="/questions" element={<Questions />} />
         <Route path="/knowledge-base" element={<KnowledgeBase />} />
-        <Route path="/ai-status" element={<AiStatus />} />
+        <Route path="/ai-settings" element={<AiSettings />} />
         <Route path="/summary" element={<Summary />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

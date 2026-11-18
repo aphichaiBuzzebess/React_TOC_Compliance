@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
-import { FilePlus2, LayoutDashboard, Table2, TriangleAlert, FileText, CircleHelp, Library, Activity } from 'lucide-react'
+import { FilePlus2, LayoutDashboard, Table2, TriangleAlert, FileText, CircleHelp, Library, Settings2 } from 'lucide-react'
 import { useAssessment } from '@/lib/useAssessment'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 
@@ -14,7 +14,7 @@ const NAV = [
 ]
 const REFERENCE = [
   { to: '/knowledge-base', label: 'Knowledge base', Icon: Library },
-  { to: '/ai-status', label: 'AI status', Icon: Activity },
+  { to: '/ai-settings', label: 'AI settings', Icon: Settings2 },
 ]
 
 export default function AppShell({ children }: { children: ReactNode }) {
