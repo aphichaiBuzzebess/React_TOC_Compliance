@@ -5,12 +5,16 @@
 ```
 kb/ (Obsidian vault, .md)  ──►  server/kb.ts  ──┬─► api/judge.ts    (Vercel function)
                                                 └─► mcp/server.ts   (MCP, stdio)
-TOR (pdf/docx/xlsx) ─► api/extract.ts ─► requirements ─► api/judge.ts ─► web (Matrix, Gap, Summary)
+TOR (pdf/docx/xlsx) ─► api/extract.ts ─► requirements ─┬─► api/judge.ts ─► web (Matrix, Gap, Summary)
+                                                      └─► api/questions.ts ─► web (Open questions)
 ```
 
 ## Knowledge base
 เปิดโฟลเดอร์ `kb/` ด้วย Obsidian 1 note = 1 capability/ข้อจำกัด frontmatter: `title`, `module`, `support` (`full|config|custom|integ|none`), `updated`
 ไม่มี note ที่ตรง = `Need Verification` (โมเดลไม่เดา) การแก้ note มีผลหลัง deploy ใหม่ เพราะ note ถูกแพ็คไปกับ function
+
+## Open questions
+`questions/` คือ Basic Question ของ BA (1 ไฟล์ = 1 หัวข้อ, frontmatter `function:` + bullet คำถาม) หลังแยก requirement ระบบเทียบกับหัวข้อเหล่านี้ แล้วสรุปคำถามที่ TOR ยังไม่ตอบ (`covered|partial|missing`) ใช้ถามลูกค้าก่อนยืนยัน scope แก้คำถามได้ใน Obsidian เช่นกัน
 
 ## MCP
 `.mcp.json` ลงทะเบียน `tor-scouter-kb` (tools: `search_kb`, `get_note`, `list_modules`) ใช้ใน Claude Code/Desktop เพื่อให้ Claude ช่วยค้น/ตรวจ KB

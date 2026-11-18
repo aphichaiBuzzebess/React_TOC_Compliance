@@ -55,3 +55,10 @@ export const STEPS: [name: string, desc: string][] = [
 export const KB_LABELS = ['Loyalty platform — Member & Point', 'Campaign & Reward', 'CRM, Reporting & Integration', 'Other products (not in demo scope)']
 
 export const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 1000) / 10}%` : '0%')
+
+export const SAMPLE_COVERAGE: import('@/lib/types').FunctionCoverage[] = [
+  { function: 'Point', coverage: 'partial', reqIds: ['R-012', 'R-015', 'R-021'], open: ['3.2 มูลค่า Point เท่าไหร่'] },
+  { function: 'Integrate', coverage: 'partial', reqIds: ['R-034', 'R-041', 'R-063'], open: ['2.ถ้าใช้ระบบลูกค้า ขอทราบ Flow การทำงานและขอ API Spec'] },
+  { function: 'Migration', coverage: 'missing', reqIds: [], open: ['3.มีส่วนไหนต้องทำ Migration ไหม ถ้ามีขอทราบข้อมูลและไฟล์ตัวอย่างของทุก Table ที่ต้อง Migrate'] },
+  { function: 'Campaign', coverage: 'covered', reqIds: ['R-028'], open: [] },
+]

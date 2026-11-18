@@ -1,4 +1,14 @@
 {
-  "functions": { "api/*.ts": { "maxDuration": 60, "includeFiles": "kb/**" } },
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "functions": {
+    "api/*.ts": {
+      "maxDuration": 60,
+      "includeFiles": "{kb,questions}/**"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

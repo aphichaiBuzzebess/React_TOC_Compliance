@@ -16,3 +16,11 @@ export type RawReq = Pick<Req, 'id' | 'module' | 'text'>
 
 /** What the judge returns per requirement. */
 export type Verdict = Pick<Req, 'id' | 's' | 'reason' | 'rec'> & { confidence: number; sources: string[] }
+
+/** How well the TOR answers one Basic Question topic, and what is still unanswered. */
+export interface FunctionCoverage {
+  function: string
+  coverage: 'covered' | 'partial' | 'missing'
+  reqIds: string[]
+  open: string[] // question texts still to ask the customer
+}

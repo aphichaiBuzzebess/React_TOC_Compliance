@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
-import { FilePlus2, LayoutDashboard, Table2, TriangleAlert, FileText } from 'lucide-react'
+import { FilePlus2, LayoutDashboard, Table2, TriangleAlert, FileText, CircleHelp } from 'lucide-react'
 import { useAssessment } from '@/lib/useAssessment'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 
@@ -9,6 +9,7 @@ const NAV = [
   { to: '/dashboard', label: 'Coverage dashboard', Icon: LayoutDashboard },
   { to: '/matrix', label: 'Compliance matrix', Icon: Table2 },
   { to: '/gaps', label: 'Gap & recommendation', Icon: TriangleAlert },
+  { to: '/questions', label: 'Open questions', Icon: CircleHelp },
   { to: '/summary', label: 'Executive summary', Icon: FileText },
 ]
 

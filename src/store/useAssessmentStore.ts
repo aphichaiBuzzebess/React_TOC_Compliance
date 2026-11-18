@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STEPS } from '@/data/tor'
-import type { RawReq, Req, StatusKey } from '@/lib/types'
+import type { FunctionCoverage, RawReq, Req, StatusKey } from '@/lib/types'
 
 type Validation = 'ok' | 'flag'
 const BATCH = 10
@@ -15,6 +15,7 @@ interface AssessmentState {
   customer: string
   accessCode: string
   result: Req[] | null // null = show the built-in sample
+  coverage: FunctionCoverage[] | null
   filter: 'all' | StatusKey
   query: string
   selId: string | null
@@ -50,6 +51,7 @@ export const useAssessmentStore = create<AssessmentState>()(
       customer: '',
       accessCode: '',
       result: null,
+      coverage: null,
       filter: 'all',
       query: '',
       selId: 'R-007',
@@ -59,7 +61,7 @@ export const useAssessmentStore = create<AssessmentState>()(
       setAccessCode: (accessCode) => set({ accessCode }),
       runSample: () => {
         clearInterval(timer)
-        set({ running: true, step: 0, error: null, result: null, selId: 'R-007', valid: {} })
+        set({ running: true, step: 0, error: null, result: null, coverage: null, selId: 'R-007', valid: {} })
         timer = setInterval(() => {
           const next = get().step + 1
           if (next >= STEPS.length) {
@@ -81,6 +83,11 @@ export const useAssessmentStore = create<AssessmentState>()(
           set({ step: 2 }) // Extract + Classify done
           const batches: RawReq[][] = []
           for (let i = 0; i < requirements.length; i += BATCH) batches.push(requirements.slice(i, i + BATCH))
+          // Independent of judging, so it runs alongside; a failure here must not lose the results.
+          const coverageP = api<{ topics: FunctionCoverage[] }>('/api/questions', accessCode, {
+            body: JSON.stringify({ requirements }),
+            headers: { 'content-type': 'application/json' },
+          }).then((r) => r.topics, (e: unknown) => (e instanceof Error ? e : new Error('Open-question check failed')))
           const out: Req[][] = []
           let next = 0
           let done = 0
@@ -98,7 +105,8 @@ export const useAssessmentStore = create<AssessmentState>()(
             }),
           )
           const result = out.flat()
-          set({ result, selId: result[0]?.id ?? null, valid: {}, filter: 'all', query: '', step: STEPS.length, running: false })
+          const coverage = await coverageP
+          set({ result, coverage: Array.isArray(coverage) ? coverage : null, error: Array.isArray(coverage) ? null : `ประเมินสำเร็จ แต่สร้างคำถามค้างไม่ได้: ${coverage.message}`, selId: result[0]?.id ?? null, valid: {}, filter: 'all', query: '', step: STEPS.length, running: false })
         } catch (e) {
           set({ running: false, step: -1, error: e instanceof Error ? e.message : 'Assessment failed' })
         }
@@ -118,7 +126,7 @@ export const useAssessmentStore = create<AssessmentState>()(
     // Keep the result and PM validation across refresh; the access code is never persisted.
     {
       name: 'tor-scouter',
-      partialize: (s) => ({ result: s.result, valid: s.valid, selId: s.selId, customer: s.customer }),
+      partialize: (s) => ({ result: s.result, coverage: s.coverage, valid: s.valid, selId: s.selId, customer: s.customer }),
     },
   ),
 )
