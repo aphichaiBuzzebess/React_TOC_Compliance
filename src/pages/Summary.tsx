@@ -1,12 +1,32 @@
+import { useRef, useState } from 'react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { pct } from '@/data/tor'
 import { fit, gapCount } from '@/lib/assessment'
 import { useAssessment } from '@/lib/useAssessment'
+import { exportPdf } from '@/lib/exportPdf'
 import type { Assessment } from '@/lib/assessment'
 import { Alert, Button, PageHeader, EmptyState } from '@/components/ui'
 
 function SummaryContent({ a }: { a: Assessment }) {
   const confirmed = useAssessmentStore((s) => Object.values(s.valid).filter((v) => v === 'ok').length)
+  const customer = useAssessmentStore((s) => s.customer)
+  const page = useRef<HTMLElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const today = new Date().toISOString().slice(0, 10)
+
+  async function download() {
+    if (!page.current) return
+    setBusy(true)
+    setError(null)
+    try {
+      await exportPdf(page.current, `${(customer || 'TOR').replace(/[^\p{L}\p{N}_-]+/gu, '_')}_executive_summary_${today}.pdf`)
+    } catch {
+      setError('สร้าง PDF ไม่สำเร็จ ลองอีกครั้ง')
+    } finally {
+      setBusy(false)
+    }
+  }
   const stats = [
     { label: 'Product fit', value: pct(fit(a), a.total), note: 'Supported out of the box or by configuration' },
     { label: 'Gaps', value: String(gapCount(a)), note: 'Customization, integration, not supported' },
@@ -15,8 +35,10 @@ function SummaryContent({ a }: { a: Assessment }) {
   const strongest = [...a.modules].filter((m) => m[2] > 0).sort((x, y) => y[2] / y[1] - x[2] / x[1]).slice(0, 3).map((m) => m[0]).join(', ')
   return (
     <>
-      <PageHeader title="Executive summary" action={<Button className="print:hidden" onClick={() => window.print()}>Download PDF</Button>} />
-      <section className="flex max-w-[880px] flex-col gap-6 rounded-md border border-line bg-white p-8">
+      <PageHeader title="Executive summary" action={<Button disabled={busy} onClick={download}>{busy ? 'กำลังสร้าง PDF…' : 'Download PDF'}</Button>} />
+      {error && <p role="alert" className="m-0 text-[#CF1322]">{error}</p>}
+      <section ref={page} className="flex max-w-[880px] flex-col gap-6 rounded-md border border-line bg-white p-8">
+        <span className="text-xs text-muted">TOR Scouter · {customer || 'Customer TOR'} · {today}</span>
         <div className="flex flex-wrap gap-8">
           {stats.map((s) => (
             <div key={s.label} className="flex flex-col">

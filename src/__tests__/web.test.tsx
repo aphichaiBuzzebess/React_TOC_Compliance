@@ -3,6 +3,10 @@ import { MemoryRouter } from 'react-router-dom'
 import App from '@/App'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import type { Req } from '@/lib/types'
+import { pageSlices } from '@/lib/exportPdf'
+
+const { exportPdfMock } = vi.hoisted(() => ({ exportPdfMock: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@/lib/exportPdf', async (orig) => ({ ...(await orig<typeof import('@/lib/exportPdf')>()), exportPdf: exportPdfMock }))
 
 const req = (id: string, s: Req['s']): Req => ({ id, module: 'Member', s, conf: '90%', text: `requirement ${id}`, reason: 'r', evidence: 'e', rec: 'c' })
 
@@ -135,13 +139,22 @@ describe('progress display', () => {
 })
 
 describe('summary pdf', () => {
-  it('opens the print dialog', async () => {
+  it('downloads a PDF file instead of opening the print dialog', async () => {
+    exportPdfMock.mockClear()
     const print = vi.spyOn(window, 'print').mockImplementation(() => {})
-    useAssessmentStore.setState({ result: [req('R-001', 'full')] })
+    useAssessmentStore.setState({ result: [req('R-001', 'full')], customer: 'Bangchak' })
     open('/summary')
     screen.getByRole('button', { name: 'Download PDF' }).click()
-    expect(print).toHaveBeenCalled()
+    await vi.waitFor(() => expect(exportPdfMock).toHaveBeenCalled())
+    expect(exportPdfMock.mock.calls[0][0]).toBeInstanceOf(HTMLElement)
+    expect(exportPdfMock.mock.calls[0][1]).toMatch(/^Bangchak_executive_summary_\d{4}-\d{2}-\d{2}\.pdf$/)
+    expect(print).not.toHaveBeenCalled()
     print.mockRestore()
+  })
+
+  it('splits a tall page into A4-sized slices', () => {
+    expect(pageSlices(2500, 1000)).toEqual([{ y: 0, h: 1000 }, { y: 1000, h: 1000 }, { y: 2000, h: 500 }])
+    expect(pageSlices(800, 1000)).toEqual([{ y: 0, h: 800 }])
   })
 })
 
