@@ -1,0 +1,89 @@
+import { useNavigate } from 'react-router-dom'
+import { CheckCircle2, FileText, Upload } from 'lucide-react'
+import { useAssessmentStore } from '@/store/useAssessmentStore'
+import { KB_LABELS, STEPS, TOTAL } from '@/data/tor'
+import { Button, Card, PageHeader } from '@/components/ui'
+
+export default function NewAssessment() {
+  const nav = useNavigate()
+  const { step, running, kb, toggleKb, run, reset } = useAssessmentStore()
+  const done = step >= STEPS.length
+  const runLabel = done ? `Completed · ${TOTAL} requirements assessed` : running ? `Running step ${step + 1} of ${STEPS.length}` : 'Ready to run'
+
+  return (
+    <>
+      <PageHeader crumb="Assessment / New" title="New TOR assessment" />
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] items-start gap-6">
+        <Card title="1. Input">
+          <div className="flex flex-col gap-5 p-6">
+            <div className="flex flex-col gap-2">
+              <span className="font-medium">Customer TOR document</span>
+              <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-[#D9D9D9] bg-[#FAFAFA] p-6 text-center">
+                <Upload aria-hidden size={32} strokeWidth={1.5} className="text-brand-text" />
+                <span>Drag a TOR file here, or <a href="#" onClick={(e) => e.preventDefault()} className="text-brand-text underline">browse</a></span>
+                <span className="text-xs text-muted">PDF, DOCX or XLSX · up to 50 MB</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-md border border-line px-3 py-2.5">
+                <FileText aria-hidden size={18} className="text-[#595959]" />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="font-medium">Customer_TOR.pdf</span>
+                  <span className="text-xs text-muted">Uploaded · {TOTAL} requirements detected</span>
+                </div>
+                <CheckCircle2 aria-hidden size={18} className="text-[#237804]" />
+              </div>
+            </div>
+            <fieldset className="m-0 flex flex-col gap-1 border-0 p-0">
+              <legend className="mb-2 p-0 font-medium">Product knowledge base</legend>
+              {KB_LABELS.map((label, i) => (
+                <label key={label} className="flex min-h-8 items-center gap-2">
+                  <input type="checkbox" checked={kb[i]} onChange={() => toggleKb(i)} className="size-4 accent-brand" />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="custName" className="font-medium">Customer</label>
+              <input id="custName" type="text" placeholder="Customer name" className="h-8 rounded-md border border-[#D9D9D9] px-[11px] text-sm" />
+            </div>
+          </div>
+        </Card>
+
+        <Card title="2. Agent workflow" right={<span className="text-xs text-muted">{runLabel}</span>}>
+          <ol className="m-0 list-none px-6 py-2">
+            {STEPS.map(([name, desc], i) => {
+              const isDone = step > i
+              const active = step === i && running
+              return (
+                <li key={name} className="flex items-start gap-4 border-b border-line py-3.5">
+                  <span
+                    className={`flex size-7 flex-none items-center justify-center rounded-full border text-xs font-bold ${
+                      isDone ? 'border-[#B7EB8F] bg-[#F6FFED] text-[#237804]' : active ? 'border-brand bg-brand text-ink' : 'border-[#D9D9D9] bg-white text-muted'
+                    }`}
+                  >
+                    {isDone ? '✓' : i + 1}
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="font-medium">{name}</span>
+                    <span className="text-xs text-muted">{desc}</span>
+                  </div>
+                  <span className={`whitespace-nowrap text-xs font-medium ${isDone ? 'text-[#237804]' : active ? 'text-brand-text' : 'text-muted'}`}>
+                    {isDone ? 'Done' : active ? 'Running…' : 'Pending'}
+                  </span>
+                </li>
+              )
+            })}
+          </ol>
+          <div className="flex flex-wrap gap-2 px-6 pb-6 pt-4">
+            {!done && <Button variant="primary" className="min-h-10" disabled={running} onClick={run}>{running ? 'Assessing…' : 'Run assessment'}</Button>}
+            {done && (
+              <>
+                <Button variant="primary" className="min-h-10" onClick={() => nav('/dashboard')}>View results</Button>
+                <Button className="min-h-10" onClick={reset}>Run again</Button>
+              </>
+            )}
+          </div>
+        </Card>
+      </div>
+    </>
+  )
+}

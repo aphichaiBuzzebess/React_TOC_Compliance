@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: Roboto, 'Noto Sans Thai', system-ui, sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, monospace;
+  --color-canvas: #f5f6f8;
+  --color-ink: #1f1f1f;
+  --color-brand: #f9a601;
+  --color-brand-soft: #fef6e6;
+  --color-brand-line: #fde3b0;
+  --color-brand-text: #895b01;
+  --color-line: #f0f0f0;
+  --color-muted: rgba(0, 0, 0, 0.65);
+}
+
+@layer base {
+  body {
+    margin: 0;
+    background: var(--color-canvas);
+    color: rgba(0, 0, 0, 0.88);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5715;
+    font-feature-settings: 'tnum';
+  }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
