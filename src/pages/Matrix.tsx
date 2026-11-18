@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { BookOpen } from 'lucide-react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { ORDER, STATUS } from '@/data/tor'
 import { useAssessment } from '@/lib/useAssessment'
+import { exportXlsx } from '@/lib/exportXlsx'
 import type { Assessment } from '@/lib/assessment'
 import { Button, Card, PageHeader, StatusBadge, EmptyState } from '@/components/ui'
 
@@ -9,7 +11,16 @@ const LABEL = 'text-xs font-bold uppercase tracking-[0.06em] text-muted'
 const TH = 'border-b border-line bg-[#FAFAFA] px-4 py-3 text-left font-medium'
 
 function MatrixContent({ a }: { a: Assessment }) {
-  const { filter, query, selId, valid, setFilter, setQuery, select, validate } = useAssessmentStore()
+  const [exportError, setExportError] = useState<string | null>(null)
+  async function doExport() {
+    setExportError(null)
+    try {
+      await exportXlsx(a, coverage, valid, customer)
+    } catch {
+      setExportError('Export failed. Try again.')
+    }
+  }
+  const { filter, query, selId, valid, coverage, customer, setFilter, setQuery, select, validate } = useAssessmentStore()
   const q = query.toLowerCase()
   const rows = a.reqs.filter((r) => (filter === 'all' || r.s === filter) && (!q || `${r.id} ${r.text} ${r.module}`.toLowerCase().includes(q)))
   const chips = [{ key: 'all' as const, label: 'All', count: a.total }, ...ORDER.map((k) => ({ key: k, label: STATUS[k].label, count: a.counts[k] }))]
@@ -18,7 +29,8 @@ function MatrixContent({ a }: { a: Assessment }) {
 
   return (
     <>
-      <PageHeader title="Compliance matrix" action={<Button variant="success">Export Excel</Button>} />
+      {exportError && <p role="alert" className="m-0 text-[#CF1322]">{exportError}</p>}
+      <PageHeader title="Compliance matrix" action={<Button variant="success" onClick={doExport}>Export Excel</Button>} />
 
       <div className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-white px-6 py-4">
         <label htmlFor="q" className="sr-only">Search requirements</label>

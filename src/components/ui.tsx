@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { STATUS, type StatusKey } from '@/data/tor'
@@ -87,4 +87,14 @@ export function EmptyState({ title }: { title: string }) {
       </div>
     </>
   )
+}
+
+/** Seconds since `since`, ticking once a second. */
+export function Elapsed({ since }: { since: number }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  return <>{Math.max(0, Math.floor((now - since) / 1000))}s</>
 }

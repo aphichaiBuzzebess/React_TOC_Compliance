@@ -11,6 +11,8 @@ const PARALLEL = 3
 interface AssessmentState {
   step: number // -1 idle, 0..n-1 running, n done
   running: boolean
+  startedAt: number | null
+  detail: string // what the run is doing right now
   error: string | null
   file: File | null
   customer: string
@@ -57,6 +59,8 @@ export const useAssessmentStore = create<AssessmentState>()(
     (set, get) => ({
       step: -1,
       running: false,
+      startedAt: null,
+      detail: '',
       error: null,
       file: null,
       customer: '',
@@ -80,14 +84,14 @@ export const useAssessmentStore = create<AssessmentState>()(
         const { file, apiKey } = get()
         if (!file || !apiKey) return
         const auth = get()
-        set({ running: true, step: 0, error: null })
+        set({ running: true, step: 0, error: null, startedAt: Date.now(), detail: 'กำลังอ่านไฟล์และแยก requirement ด้วย AI (ใช้เวลาประมาณ 30-60 วินาที)' })
         try {
           const { requirements } = await api<{ requirements: RawReq[] }>('/api/extract', auth, {
             body: file,
             headers: { 'x-filename': encodeURIComponent(file.name) },
           })
           if (requirements.length === 0) throw new Error('No requirements found in this document')
-          set({ step: 2 }) // Extract + Classify done
+          set({ step: 2, detail: `พบ ${requirements.length} requirement กำลังเทียบกับ KB (0/${Math.ceil(requirements.length / BATCH)} ชุด)` }) // Extract + Classify done
           const batches: RawReq[][] = []
           for (let i = 0; i < requirements.length; i += BATCH) batches.push(requirements.slice(i, i + BATCH))
           // Independent of judging, so it runs alongside; a failure here must not lose the results.
@@ -107,18 +111,18 @@ export const useAssessmentStore = create<AssessmentState>()(
                   headers: { 'content-type': 'application/json' },
                 })
                 out[i] = results
-                set({ step: 2 + Math.min(2, Math.floor((++done / batches.length) * 3)) })
+                set({ step: 2 + Math.min(2, Math.floor((++done / batches.length) * 3)), detail: `พบ ${requirements.length} requirement ประเมินแล้ว ${done}/${batches.length} ชุด` })
               }
             }),
           )
           const result = out.flat()
           const coverage = await coverageP
-          set({ result, coverage: Array.isArray(coverage) ? coverage : null, error: Array.isArray(coverage) ? null : `ประเมินสำเร็จ แต่สร้างคำถามค้างไม่ได้: ${coverage.message}`, selId: result[0]?.id ?? null, valid: {}, filter: 'all', query: '', step: STEPS.length, running: false })
+          set({ result, coverage: Array.isArray(coverage) ? coverage : null, error: Array.isArray(coverage) ? null : `ประเมินสำเร็จ แต่สร้างคำถามค้างไม่ได้: ${coverage.message}`, selId: result[0]?.id ?? null, valid: {}, filter: 'all', query: '', step: STEPS.length, running: false, startedAt: null, detail: '' })
         } catch (e) {
-          set({ running: false, step: -1, error: e instanceof Error ? e.message : 'Assessment failed' })
+          set({ running: false, startedAt: null, detail: '', step: -1, error: e instanceof Error ? e.message : 'Assessment failed' })
         }
       },
-      reset: () => set({ step: -1, running: false, error: null }),
+      reset: () => set({ step: -1, running: false, error: null, startedAt: null, detail: '' }),
       setFilter: (filter) => set({ filter }),
       setQuery: (query) => set({ query }),
       select: (selId) => set({ selId }),

@@ -3,11 +3,11 @@ import { BookMarked, CheckCircle2, FileText, Upload } from 'lucide-react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { STEPS } from '@/data/tor'
 import { AI_PROVIDERS } from '@/data/models'
-import { Button, Card, PageHeader } from '@/components/ui'
+import { Button, Card, Elapsed, PageHeader } from '@/components/ui'
 
 export default function NewAssessment() {
   const nav = useNavigate()
-  const { step, running, error, file, customer, provider, model, apiKey, result, setFile, setCustomer, runReal, reset } = useAssessmentStore()
+  const { step, running, startedAt, detail, error, file, customer, provider, model, apiKey, result, setFile, setCustomer, runReal, reset } = useAssessmentStore()
   const done = step >= STEPS.length
   const runLabel = done ? `Completed · ${result?.length ?? 0} requirements assessed` : running ? `Running step ${step + 1} of ${STEPS.length}` : 'Ready to run'
 
@@ -82,6 +82,12 @@ export default function NewAssessment() {
               )
             })}
           </ol>
+          {running && (
+            <p role="status" className="m-0 flex flex-wrap items-center gap-2 border-b border-line bg-brand-soft px-6 py-3 text-brand-text">
+              <span>{detail}</span>
+              {startedAt && <span className="font-medium">· <Elapsed since={startedAt} /></span>}
+            </p>
+          )}
           {error && <p role="alert" className="m-0 px-6 text-[#CF1322]">{error}</p>}
           <div className="flex flex-wrap gap-2 px-6 pb-6 pt-4">
             {!done && (

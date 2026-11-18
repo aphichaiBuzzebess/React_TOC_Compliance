@@ -15,7 +15,7 @@ function SummaryContent({ a }: { a: Assessment }) {
   const strongest = [...a.modules].filter((m) => m[2] > 0).sort((x, y) => y[2] / y[1] - x[2] / x[1]).slice(0, 3).map((m) => m[0]).join(', ')
   return (
     <>
-      <PageHeader title="Executive summary" action={<Button>Download PDF</Button>} />
+      <PageHeader title="Executive summary" action={<Button className="print:hidden" onClick={() => window.print()}>Download PDF</Button>} />
       <section className="flex max-w-[880px] flex-col gap-6 rounded-md border border-line bg-white p-8">
         <div className="flex flex-wrap gap-8">
           {stats.map((s) => (
