@@ -24,3 +24,18 @@ export interface FunctionCoverage {
   reqIds: string[]
   open: string[] // question texts still to ask the customer
 }
+
+export interface ProviderStatus {
+  id: 'anthropic' | 'gemini'
+  keySet: boolean
+  model: string
+  envVar: string // name only, never the value
+}
+
+export interface StatusInfo {
+  active: ProviderStatus['id'] | null
+  error?: string // e.g. invalid LLM_PROVIDER
+  providers: ProviderStatus[]
+}
+
+export interface PingResult { ok: boolean; ms: number; error?: string }

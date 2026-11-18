@@ -2,6 +2,7 @@
 import { loadKb, parseNote, searchKb } from '../../server/kb'
 import { judge } from '../../server/pipeline'
 import { checkCoverage, loadTopics } from '../../server/questions'
+import { pingProvider, providerStatus } from '../../server/status'
 import { createLlm, type Llm } from '../../server/llm'
 import { fromReqs } from '@/lib/assessment'
 import type { Req } from '@/lib/types'
@@ -125,5 +126,42 @@ describe('llm provider', () => {
     expect(arg.contents[0].parts).toEqual([{ text: 'hi' }, { inlineData: { mimeType: 'application/pdf', data: 'QUJD' } }])
     expect(arg.config).toMatchObject({ responseMimeType: 'application/json', responseJsonSchema: schema })
     expect(arg.config.systemInstruction).toContain('sys')
+  })
+})
+
+describe('ai status', () => {
+  afterEach(() => {
+    for (const k of ['LLM_PROVIDER', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY']) delete process.env[k]
+  })
+
+  it('reports which keys are set without ever returning a value', () => {
+    process.env.GEMINI_API_KEY = 'super-secret-gemini-key'
+    const s = providerStatus()
+    expect(s.active).toBe('anthropic')
+    expect(s.providers.find((p) => p.id === 'gemini')).toMatchObject({ keySet: true, envVar: 'GEMINI_API_KEY' })
+    expect(s.providers.find((p) => p.id === 'anthropic')?.keySet).toBe(false)
+    expect(JSON.stringify(s)).not.toContain('super-secret')
+  })
+
+  it('flags an invalid LLM_PROVIDER instead of throwing', () => {
+    process.env.LLM_PROVIDER = 'gpt'
+    expect(providerStatus()).toMatchObject({ active: null, error: expect.stringContaining('Unknown LLM_PROVIDER') })
+  })
+
+  it('does not call the model when the key is missing', async () => {
+    const llm = vi.fn()
+    expect(await pingProvider('anthropic', llm as never)).toMatchObject({ ok: false, error: 'ANTHROPIC_API_KEY is not set' })
+    expect(llm).not.toHaveBeenCalled()
+  })
+
+  it('pings ok, and redacts the key from an error message', async () => {
+    process.env.ANTHROPIC_API_KEY = 'sk-test-abcdef123456'
+    expect(await pingProvider('anthropic', (async () => ({ ok: true })) as never)).toMatchObject({ ok: true })
+    const bad = (async () => {
+      throw new Error('401 invalid x-api-key sk-test-abcdef123456')
+    }) as never
+    const r = await pingProvider('anthropic', bad)
+    expect(r.ok).toBe(false)
+    expect(r.error).toBe('401 invalid x-api-key ***')
   })
 })

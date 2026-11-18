@@ -19,6 +19,9 @@ TOR (pdf/docx/xlsx) ─► api/extract.ts ─► requirements ─┬─► api/j
 ## MCP
 `.mcp.json` ลงทะเบียน `tor-scouter-kb` (tools: `search_kb`, `get_note`, `list_modules`) ใช้ใน Claude Code/Desktop เพื่อให้ Claude ช่วยค้น/ตรวจ KB
 
+## AI status
+หน้า `/ai-status` บอกว่า provider ไหน active, มี key หรือยัง (ไม่แสดงค่า key) และมีปุ่ม Test connection ที่ยิงคำขอเล็กๆ 1 ครั้งเพื่อเช็กว่า key ใช้ได้จริง
+
 ## Run
 ```bash
 npm install

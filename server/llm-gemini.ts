@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai'
-import type { Block, Llm } from './llm'
+import { modelFor, type Block, type Llm } from './llm'
 
 export const toParts = (blocks: Block[]) =>
   blocks.map((b) => (b.type === 'text' ? { text: b.text } : { inlineData: { mimeType: b.source.media_type, data: b.source.data } }))
@@ -8,7 +8,7 @@ export function geminiLlm(): Llm {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set')
   const ai = new GoogleGenAI({ apiKey })
-  const model = process.env.GEMINI_MODEL ?? 'gemini-3.8-flash'
+  const model = modelFor('gemini')
   return async ({ system, content, tool, maxTokens = 8000 }) => {
     const res = await ai.models.generateContent({
       model,

@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
-import { FilePlus2, LayoutDashboard, Table2, TriangleAlert, FileText, CircleHelp, Library } from 'lucide-react'
+import { FilePlus2, LayoutDashboard, Table2, TriangleAlert, FileText, CircleHelp, Library, Activity } from 'lucide-react'
 import { useAssessment } from '@/lib/useAssessment'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 
@@ -12,7 +12,10 @@ const NAV = [
   { to: '/questions', label: 'Open questions', Icon: CircleHelp, Library },
   { to: '/summary', label: 'Executive summary', Icon: FileText },
 ]
-const REFERENCE = [{ to: '/knowledge-base', label: 'Knowledge base', Icon: Library }]
+const REFERENCE = [
+  { to: '/knowledge-base', label: 'Knowledge base', Icon: Library },
+  { to: '/ai-status', label: 'AI status', Icon: Activity },
+]
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const a = useAssessment()

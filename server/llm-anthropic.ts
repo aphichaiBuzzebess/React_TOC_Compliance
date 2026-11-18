@@ -1,9 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { Llm } from './llm'
+import { modelFor, type Llm } from './llm'
 
 export function anthropicLlm(): Llm {
   const client = new Anthropic() // reads ANTHROPIC_API_KEY
-  const model = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-5-5'
+  const model = modelFor('anthropic')
   return async ({ system, content, tool, maxTokens = 8000 }) => {
     const res = await client.messages.create({
       model,
