@@ -144,3 +144,29 @@ describe('summary pdf', () => {
     print.mockRestore()
   })
 })
+
+describe('retry open questions', () => {
+  it('re-checks coverage from the saved results without re-running the assessment', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      calls.push(url)
+      return { ok: true, json: async () => ({ topics: [{ function: 'Point', coverage: 'missing', reqIds: [], open: ['q'] }] }) } as Response
+    }))
+    useAssessmentStore.setState({ result: [req('R-001', 'full')], coverage: null, apiKey: 'k-123456789', error: 'old failure' })
+    await useAssessmentStore.getState().runCoverage()
+    const s = useAssessmentStore.getState()
+    expect(calls).toEqual(['/api/questions'])
+    expect(s.coverage).toHaveLength(1)
+    expect(s.result).toHaveLength(1)
+    expect(s.error).toBeNull()
+    expect(s.coverageBusy).toBe(false)
+  })
+
+  it('keeps the results and shows the error when the retry fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 400, json: async () => ({ error: 'quota exceeded' }) }) as Response))
+    useAssessmentStore.setState({ result: [req('R-001', 'full')], coverage: null, apiKey: 'k-123456789' })
+    await useAssessmentStore.getState().runCoverage()
+    expect(useAssessmentStore.getState().error).toBe('quota exceeded')
+    expect(useAssessmentStore.getState().result).toHaveLength(1)
+  })
+})

@@ -178,3 +178,39 @@ describe('connection test', () => {
     expect(r).toMatchObject({ ok: false, error: '401 invalid x-api-key ***' })
   })
 })
+
+describe('gemini output handling', () => {
+  const tool = { name: 't', description: 'd', schema: { type: 'object' } }
+  const ask = async (replies: { text?: string; finishReason?: string }[]) => {
+    const generateContent = vi.fn()
+    for (const r of replies) generateContent.mockResolvedValueOnce({ text: r.text, candidates: [{ finishReason: r.finishReason }] })
+    vi.resetModules()
+    vi.doMock('@google/genai', () => ({ GoogleGenAI: class { models = { generateContent } } }))
+    const { geminiLlm } = await import('../../server/llm-gemini')
+    const run = geminiLlm({ provider: 'gemini', apiKey: 'k', model: 'm' })({ system: 's', content: [], tool })
+    return { run, generateContent }
+  }
+  afterEach(() => vi.doUnmock('@google/genai'))
+
+  it('accepts JSON wrapped in a code fence or extra text', async () => {
+    const { run } = await ask([{ text: '```json\n{"a":1}\n```' }])
+    expect(await run).toEqual({ a: 1 })
+    const { run: run2 } = await ask([{ text: 'Here you go: {"b":2} done' }])
+    expect(await run2).toEqual({ b: 2 })
+  })
+
+  it('retries with a bigger limit when the answer was cut off', async () => {
+    const { run, generateContent } = await ask([{ text: '{"topics":[{"fun', finishReason: 'MAX_TOKENS' }, { text: '{"topics":[]}', finishReason: 'STOP' }])
+    expect(await run).toEqual({ topics: [] })
+    const limits = generateContent.mock.calls.map((c) => c[0].config.maxOutputTokens)
+    expect(limits[0]).toBeGreaterThanOrEqual(16384)
+    expect(limits[1]).toBe(limits[0] * 2)
+  })
+
+  it('gives up after 3 tries and names the finish reason', async () => {
+    const bad = { text: '{"x":', finishReason: 'MAX_TOKENS' }
+    const { run, generateContent } = await ask([bad, bad, bad])
+    await expect(run).rejects.toThrow(/3 tries \(finish reason: MAX_TOKENS\)/)
+    expect(generateContent).toHaveBeenCalledTimes(3)
+  })
+})

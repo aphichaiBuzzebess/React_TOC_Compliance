@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { useAssessment } from '@/lib/useAssessment'
 import type { FunctionCoverage } from '@/lib/types'
+import { Link } from 'react-router-dom'
 import { Alert, Button, Card, EmptyState, PageHeader } from '@/components/ui'
 
 const TONE = {
@@ -14,7 +15,7 @@ const toText = (rows: FunctionCoverage[]) =>
   rows.filter((r) => r.open.length).map((r) => `${r.function}\n${r.open.map((q) => `- ${q}`).join('\n')}`).join('\n\n')
 
 function QuestionsContent() {
-  const rows = useAssessmentStore((s) => s.coverage)
+  const { coverage: rows, apiKey, coverageBusy, error, runCoverage } = useAssessmentStore()
   const [copied, setCopied] = useState(false)
   const openCount = rows?.reduce((n, r) => n + r.open.length, 0) ?? 0
 
@@ -32,7 +33,14 @@ function QuestionsContent() {
     <>
       <PageHeader title="Open questions for customer" action={rows && openCount > 0 ? <Button onClick={copy}>{copied ? 'Copied' : 'Copy all questions'}</Button> : undefined} />
       {!rows ? (
-        <Alert tone="warning" title="ยังไม่มีผลตรวจคำถามค้าง">รัน assessment ใหม่เพื่อให้ระบบเทียบ TOR กับ Basic Question</Alert>
+        <div className="flex flex-col gap-3">
+          <Alert tone="warning" title="ยังไม่มีผลตรวจคำถามค้าง">ผลประเมิน compliance ยังอยู่ครบ ตรวจเฉพาะคำถามค้างซ้ำได้โดยไม่ต้องรันประเมินใหม่ทั้งหมด</Alert>
+          {error && <p role="alert" className="m-0 text-[#CF1322]">{error}</p>}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="primary" disabled={!apiKey || coverageBusy} onClick={runCoverage}>{coverageBusy ? 'กำลังตรวจ…' : 'ตรวจคำถามค้างอีกครั้ง'}</Button>
+            {!apiKey && <span className="text-muted">ต้องใส่ API key ก่อนที่ <Link to="/ai-settings" className="text-brand-text underline">AI settings</Link></span>}
+          </div>
+        </div>
       ) : (
         <>
           <Alert tone="info" title={`${openCount} คำถามที่ TOR ยังไม่ตอบ`}>

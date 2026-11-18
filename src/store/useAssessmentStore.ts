@@ -33,6 +33,8 @@ interface AssessmentState {
   setModel: (m: string) => void
   setApiKey: (k: string) => void
   runReal: () => Promise<void>
+  coverageBusy: boolean
+  runCoverage: () => Promise<void>
   reset: () => void
   setFilter: (f: 'all' | StatusKey) => void
   setQuery: (q: string) => void
@@ -61,6 +63,7 @@ export const useAssessmentStore = create<AssessmentState>()(
       running: false,
       startedAt: null,
       detail: '',
+      coverageBusy: false,
       error: null,
       file: null,
       customer: '',
@@ -120,6 +123,18 @@ export const useAssessmentStore = create<AssessmentState>()(
           set({ result, coverage: Array.isArray(coverage) ? coverage : null, error: Array.isArray(coverage) ? null : `ประเมินสำเร็จ แต่สร้างคำถามค้างไม่ได้: ${coverage.message}`, selId: result[0]?.id ?? null, valid: {}, filter: 'all', query: '', step: STEPS.length, running: false, startedAt: null, detail: '' })
         } catch (e) {
           set({ running: false, startedAt: null, detail: '', step: -1, error: e instanceof Error ? e.message : 'Assessment failed' })
+        }
+      },
+      runCoverage: async () => {
+        const { result, apiKey } = get()
+        if (!result || !apiKey) return
+        set({ coverageBusy: true, error: null })
+        try {
+          const requirements: RawReq[] = result.map(({ id, module, text }) => ({ id, module, text }))
+          const { topics } = await api<{ topics: FunctionCoverage[] }>('/api/questions', get(), { body: JSON.stringify({ requirements }), headers: { 'content-type': 'application/json' } })
+          set({ coverage: topics, coverageBusy: false })
+        } catch (e) {
+          set({ coverageBusy: false, error: e instanceof Error ? e.message : 'Open-question check failed' })
         }
       },
       reset: () => set({ step: -1, running: false, error: null, startedAt: null, detail: '' }),
