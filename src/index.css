@@ -29,7 +29,10 @@
 }
 
 @layer base {
-  html { font-size: 106.25%; scroll-behavior: smooth; scroll-padding-top: 6rem; } /* keeps focused and anchored items clear of the sticky bar */ /* Thai glyphs run small; this lifts rem sizes ~6% */
+  html { font-size: 106.25%; scroll-behavior: smooth; } /* Thai glyphs run small; this lifts rem sizes ~6% */
+  @media (min-width: 80rem) {
+    html { scroll-padding-top: 6rem; } /* the top bar is sticky from xl: keep focused and anchored items clear of it */
+  }
   body {
     margin: 0;
     background: var(--color-canvas);

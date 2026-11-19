@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import App from '@/App'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
@@ -236,5 +237,84 @@ describe('accessibility fixes', () => {
     for (const th of screen.getAllByRole('columnheader')) expect(th).toHaveAttribute('scope', 'col')
     expect(screen.getByRole('button', { name: 'R-002' })).toHaveAttribute('aria-current', 'true')
     expect(screen.getByRole('button', { name: 'R-001' })).not.toHaveAttribute('aria-current')
+  })
+})
+
+describe('compliance matrix review flow', () => {
+  const mk = (id: string, module: string, s: Req['s'], text: string): Req => ({ id, module, s, conf: '80%', text, reason: `reason for ${id}`, evidence: `evidence for ${id}`, rec: `rec for ${id}` })
+  const data = [
+    mk('R-001', 'Member', 'full', 'สมัครสมาชิกผ่าน LINE'),
+    mk('R-002', 'Member', 'custom', 'รวมบัญชีสมาชิก'),
+    mk('R-003', 'Point', 'integ', 'ส่งคะแนนเข้า SAP'),
+    mk('R-004', 'Point', 'verify', 'โอนคะแนนข้าม Brand'),
+  ]
+  const panel = () => within(screen.getByRole('complementary', { name: 'Requirement detail' }))
+
+  beforeEach(() => {
+    useAssessmentStore.setState({ result: data, selId: 'R-001', filter: 'all', query: '', valid: {} })
+  })
+
+  it('shows the detail of the row you picked, next to it', async () => {
+    const user = userEvent.setup()
+    open('/matrix')
+    expect(panel().getByText('reason for R-001')).toBeInTheDocument()
+    await user.click(screen.getByText('ส่งคะแนนเข้า SAP')) // click anywhere on the row, not just the ID
+    expect(panel().getByText('reason for R-003')).toBeInTheDocument()
+    expect(panel().getByText('evidence for R-003')).toBeInTheDocument()
+    expect(panel().getByText('rec for R-003')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'R-003' })).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('steps with next/previous inside the filtered rows and shows the position', async () => {
+    const user = userEvent.setup()
+    open('/matrix')
+    await user.selectOptions(screen.getByLabelText('Module'), 'Point')
+    await user.click(screen.getByRole('button', { name: 'R-003' }))
+    expect(panel().getByText('1 / 2')).toBeInTheDocument()
+    expect(panel().getByRole('button', { name: 'Previous requirement' })).toBeDisabled()
+    await user.click(panel().getByRole('button', { name: 'Next requirement' }))
+    expect(panel().getByText('reason for R-004')).toBeInTheDocument()
+    expect(panel().getByText('2 / 2')).toBeInTheDocument()
+    expect(panel().getByRole('button', { name: 'Next requirement' })).toBeDisabled()
+  })
+
+  it('filters by module and status, and clears the filters', async () => {
+    const user = userEvent.setup()
+    open('/matrix')
+    await user.selectOptions(screen.getByLabelText('Module'), 'Member')
+    expect(screen.queryByRole('button', { name: 'R-003' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Customization Required/ }))
+    expect(screen.getByRole('button', { name: 'R-002' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'R-001' })).not.toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: 'ล้างตัวกรอง' })[0])
+    expect(screen.getByRole('button', { name: 'R-004' })).toBeInTheDocument()
+  })
+
+  it('confirming records the result and moves on to the next requirement', async () => {
+    const user = userEvent.setup()
+    open('/matrix')
+    await user.click(panel().getByRole('button', { name: /Confirm result/ }))
+    expect(useAssessmentStore.getState().valid['R-001']).toBe('ok')
+    expect(useAssessmentStore.getState().selId).toBe('R-002')
+    expect(panel().getByText('reason for R-002')).toBeInTheDocument()
+    await user.click(panel().getByRole('button', { name: 'Flag for review' }))
+    expect(useAssessmentStore.getState().valid['R-002']).toBe('flag')
+    expect(screen.getByText(/ยืนยันแล้ว 1 · ติดธง 1 · ยังไม่ตรวจ 2/)).toBeInTheDocument()
+  })
+
+  it('moves the selection with the arrow keys', async () => {
+    const user = userEvent.setup()
+    open('/matrix')
+    screen.getByRole('button', { name: 'R-001' }).focus()
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+    expect(useAssessmentStore.getState().selId).toBe('R-003')
+    await user.keyboard('{ArrowUp}')
+    expect(useAssessmentStore.getState().selId).toBe('R-002')
+  })
+
+  it('keeps long unbroken text (URLs) from stretching the table', () => {
+    useAssessmentStore.setState({ result: [mk('R-001', 'Member', 'full', 'ดูที่ https://www.example.com/th/member/history')] })
+    open('/matrix')
+    for (const el of screen.getAllByText(/https:\/\/www\.example\.com/)) expect(el.className).toContain('wrap-anywhere')
   })
 })
