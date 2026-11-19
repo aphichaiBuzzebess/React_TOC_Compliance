@@ -74,7 +74,7 @@ type Variant = 'default' | 'primary' | 'dark' | 'ghost' | 'success' | 'danger'
 const VARIANTS: Record<Variant, string> = {
   default: 'border-line-strong bg-white text-ink hover:border-ink',
   success: 'border-line-strong bg-white text-ink hover:border-ink', // same as default: orange is for the main action only
-  primary: 'border-amber bg-amber text-ink hover:border-amber-hover hover:bg-amber-hover',
+  primary: 'border-amber bg-amber text-ink hover:border-amber-hover hover:bg-amber-hover disabled:border-line-strong disabled:bg-tint disabled:text-muted disabled:opacity-100 disabled:hover:bg-tint', // disabled reads as gray, not as a washed-out amber
   dark: 'border-amber bg-amber text-ink hover:border-amber-hover hover:bg-amber-hover', // same fill; kept as a name for use on the dark band
   ghost: 'border-transparent bg-transparent text-ink underline-offset-4 hover:underline',
   danger: 'border-line-strong bg-white text-[#a23a3a] hover:border-[#a23a3a]',

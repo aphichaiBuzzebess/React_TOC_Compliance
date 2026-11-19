@@ -43,6 +43,19 @@ function Preview() {
   )
 }
 
+/** The numbered marker of a step: amber and ticked when done, solid ink when it is the one to do now. */
+function Marker({ n, done, current }: { n: number; done: boolean; current: boolean }) {
+  return (
+    <span
+      className={`flex size-7 flex-none items-center justify-center rounded-full border text-xs font-semibold ${
+        done ? 'border-amber bg-amber text-ink' : current ? 'border-ink bg-ink text-white' : 'border-line-strong bg-white text-muted'
+      }`}
+    >
+      {done ? '✓' : n}
+    </span>
+  )
+}
+
 export default function NewAssessment() {
   const nav = useNavigate()
   const last = useAssessment()
@@ -50,38 +63,30 @@ export default function NewAssessment() {
   const done = step >= STEPS.length
   const ai = AI_PROVIDERS.find((p) => p.id === provider)
   const runLabel = done ? `Completed · ${result?.length ?? 0} requirements assessed` : running ? `Running step ${step + 1} of ${STEPS.length}` : 'Ready to run'
-  const blocker = done || running ? null : !file && !apiKey ? 'เลือกไฟล์ TOR และใส่ API key ที่ AI settings ก่อน' : !file ? 'เลือกไฟล์ TOR ก่อน' : !apiKey ? 'ใส่ API key ที่ AI settings ก่อน' : null
 
-  // What the person still has to do, in order. The first undone item is the current one.
-  const todo = [
-    { done: !!apiKey, title: 'ใส่ AI key', note: apiKey ? `${ai?.label} · ${model}` : 'Claude หรือ Gemini ของคุณเอง ไม่ถูกเก็บ', link: { to: '/ai-settings', text: apiKey ? 'เปลี่ยน' : 'ตั้งค่า AI' } },
-    { done: !!file, title: 'เลือกไฟล์ TOR', note: file ? file.name : 'PDF, DOCX หรือ XLSX ไม่เกิน 4 MB' },
-    { done, title: 'กด Run', note: done ? `เสร็จแล้ว · ${result?.length ?? 0} ข้อ` : running ? 'กำลังทำงาน ดูความคืบหน้าด้านล่าง' : apiKey && file ? 'พร้อมแล้ว' : 'ทำข้อ 1 และ 2 ก่อน' },
-  ]
-  const current = todo.findIndex((t) => !t.done)
+  const blocker = done || running ? null : !apiKey && !file ? 'ใส่ AI key และเลือกไฟล์ TOR ก่อน' : !apiKey ? 'ใส่ AI key ก่อน' : !file ? 'เลือกไฟล์ TOR ก่อน' : null
+  const runNote = done ? `เสร็จแล้ว · ${result?.length ?? 0} ข้อ` : running ? 'กำลังทำงาน ดูความคืบหน้าด้านล่าง' : (blocker ?? 'พร้อมแล้ว')
+  // Steps in order; the first one not yet done is the current one.
+  const flags = [!!apiKey, !!file, done]
+  const current = flags.findIndex((f) => !f)
 
   const start = () => {
     void runReal()
-    document.getElementById('workflow')?.scrollIntoView?.({ block: 'center' }) // the progress is below the hero: bring it into view
+    document.getElementById('workflow')?.scrollIntoView?.({ block: 'center' }) // the progress is below: bring it into view
   }
 
   return (
     <>
       {last && !running && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-line bg-white px-5 py-3">
-          <p className="m-0 text-sm">
-            <span className="font-semibold">ผลประเมินล่าสุด</span>
-            <span className="text-muted"> · {last.total} ข้อ · ต้องตรวจสอบ {last.counts.verify} · ต้องพัฒนา/เชื่อมระบบ {last.counts.custom + last.counts.integ}</span>
-          </p>
-          <div className="flex gap-2">
-            <Button variant="default" className="min-h-11" onClick={() => nav('/dashboard')}>Dashboard</Button>
-            <Button variant="default" className="min-h-11" onClick={() => nav('/matrix')}>Matrix</Button>
-          </div>
-        </div>
+        <p className="m-0 -mb-4 flex flex-wrap items-center gap-x-4 text-sm text-muted">
+          <span><span className="font-semibold text-ink">ผลประเมินล่าสุด</span> · {last.total} ข้อ · ต้องตรวจสอบ {last.counts.verify} · ต้องพัฒนา/เชื่อมระบบ {last.counts.custom + last.counts.integ}</span>
+          <Link to="/dashboard" className="inline-flex min-h-11 items-center font-medium text-amber-text underline underline-offset-4">Dashboard</Link>
+          <Link to="/matrix" className="inline-flex min-h-11 items-center font-medium text-amber-text underline underline-offset-4">Matrix</Link>
+        </p>
       )}
 
-      <section className="grid items-start gap-x-12 gap-y-6 lg:grid-cols-[1fr_minmax(0,460px)]">
-        <div className="flex flex-col gap-5 lg:col-start-1 lg:row-start-1">
+      <section className="grid items-start gap-x-12 gap-y-6 lg:grid-cols-[1fr_minmax(0,500px)]">
+        <div className="flex flex-col gap-5">
           <Eyebrow>TOR compliance × AI</Eyebrow>
           <h1 className="m-0 text-[clamp(2rem,3.7vw,3rem)] leading-[1.08] text-ink">
             Read the TOR.<br />Match the evidence.<br />
@@ -90,55 +95,58 @@ export default function NewAssessment() {
           <p className="m-0 hidden max-w-xl text-base leading-8 text-muted sm:block">อัปโหลด TOR แล้วดูว่าข้อไหน Product รองรับ ข้อไหนต้องพัฒนา และอะไรต้องถามลูกค้า</p>
         </div>
 
-        <ol aria-label="ขั้นตอน" className="order-3 m-0 flex max-w-xl list-none flex-col gap-3 p-0 lg:order-none lg:col-start-1 lg:row-start-2">
-            {todo.map((t, i) => (
-              <li key={t.title} className="flex items-start gap-3" aria-current={i === current ? 'step' : undefined}>
-                <span
-                  className={`mt-0.5 flex size-7 flex-none items-center justify-center rounded-full border text-xs font-semibold ${
-                    t.done ? 'border-amber bg-amber text-ink' : i === current ? 'border-ink bg-ink text-white' : 'border-line-strong bg-white text-muted'
-                  }`}
-                >
-                  {t.done ? '✓' : i + 1}
-                </span>
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className={`text-[15px] ${i === current ? 'font-semibold text-ink' : 'font-medium text-ink'}`}>{t.title}</span>
-                  <span className="break-words text-sm text-muted wrap-anywhere">{t.note}</span>
-                </div>
-                {t.link && (
-                  <Link to={t.link.to} className="inline-flex min-h-11 flex-none items-center text-sm font-medium text-amber-text underline underline-offset-4">{t.link.text}</Link>
-                )}
-              </li>
-            ))}
-        </ol>
+        {/* One surface, three numbered steps: the instructions are the form. */}
+        <Card>
+          <ol aria-label="ขั้นตอน" className="m-0 list-none p-0">
+            <li aria-current={current === 0 ? 'step' : undefined} className="flex items-start gap-3 px-5 py-4">
+              <Marker n={1} done={flags[0]} current={current === 0} />
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="font-semibold">ใส่ AI key</span>
+                <span className="text-sm text-muted wrap-anywhere">{apiKey ? `${ai?.label} · ${model}` : 'Claude หรือ Gemini ของคุณเอง ไม่ถูกเก็บ'}</span>
+              </div>
+              <Link to="/ai-settings" className="inline-flex min-h-11 flex-none items-center text-sm font-medium text-amber-text underline underline-offset-4">{apiKey ? 'เปลี่ยน' : 'ตั้งค่า AI'}</Link>
+            </li>
 
-        <Card title="Input" className="order-2 lg:order-none lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          <div className="flex flex-col gap-4 p-5">
-            <div className="flex flex-col gap-2">
-              <span className="font-medium">Customer TOR document</span>
-              <label htmlFor="torFile" className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-line-strong bg-canvas p-5 text-center transition-colors hover:border-ink has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink">
-                {file ? <FileText aria-hidden size={28} strokeWidth={1.5} className="text-amber-text" /> : <Upload aria-hidden size={28} strokeWidth={1.5} className="text-amber-text" />}
-                <span className="break-words font-medium text-amber-text underline underline-offset-4 wrap-anywhere">{file ? file.name : 'เลือกไฟล์ TOR'}</span>
-                <span className="text-xs text-muted">{file ? `${(file.size / 1024).toFixed(0)} KB · กดเพื่อเปลี่ยนไฟล์` : 'PDF, DOCX or XLSX · up to 4 MB'}</span>
-                <input id="torFile" type="file" accept=".pdf,.docx,.xlsx" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              </label>
-            </div>
-            <div className="flex flex-col gap-2">
-              <label htmlFor="custName" className="font-medium">Customer <span className="font-normal text-muted">(ไม่บังคับ)</span></label>
-              <input id="custName" type="text" placeholder="Customer name" value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-white px-3 text-sm" />
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              {!done && <Button variant="primary" arrow disabled={running || !file || !apiKey} aria-describedby={blocker ? 'run-hint' : undefined} onClick={start}>{running ? 'Assessing…' : 'Run assessment'}</Button>}
-              {done && (
-                <>
-                  <Button variant="primary" arrow onClick={() => nav('/dashboard')}>View results</Button>
-                  <Button onClick={reset}>Run again</Button>
-                </>
-              )}
-              {blocker && <p id="run-hint" className="m-0 w-full text-sm text-muted">{blocker}</p>}
-            </div>
-            {error && <p role="alert" className="m-0 text-[#a23a3a]">{error}</p>}
-            <p className="m-0 text-xs leading-5 text-muted">เทียบกับ <Link to="/knowledge-base" className="font-medium text-amber-text underline underline-offset-4">Knowledge base</Link> ของ Product (Obsidian vault <code>kb/</code>) แก้ note แล้ว deploy ใหม่ ผลประเมินจึงจะอิงข้อมูลล่าสุด</p>
-          </div>
+            <li aria-current={current === 1 ? 'step' : undefined} className="flex items-start gap-3 border-t border-line px-5 py-4">
+              <Marker n={2} done={flags[1]} current={current === 1} />
+              <div className="flex min-w-0 flex-1 flex-col gap-3">
+                <span className="font-semibold">เลือกไฟล์ TOR</span>
+                <label htmlFor="torFile" className="flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border border-line-strong bg-white px-4 transition-colors hover:border-ink has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink">
+                  {file ? <FileText aria-hidden size={20} strokeWidth={1.5} className="flex-none text-muted" /> : <Upload aria-hidden size={20} strokeWidth={1.5} className="flex-none text-muted" />}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className={`truncate text-sm ${file ? 'font-medium text-ink' : 'text-muted'}`}>{file ? file.name : 'ยังไม่ได้เลือกไฟล์'}</span>
+                    <span className="text-xs text-muted">{file ? `${(file.size / 1024).toFixed(0)} KB` : 'PDF, DOCX หรือ XLSX ไม่เกิน 4 MB'}</span>
+                  </span>
+                  <span className="flex-none text-sm font-medium text-amber-text underline underline-offset-4">{file ? 'เปลี่ยน' : 'เลือกไฟล์'}</span>
+                  <input id="torFile" type="file" accept=".pdf,.docx,.xlsx" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                </label>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="custName" className="text-sm text-muted">ชื่อลูกค้า (ไม่บังคับ)</label>
+                  <input id="custName" type="text" placeholder="Customer name" value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-white px-3 text-sm" />
+                </div>
+              </div>
+            </li>
+
+            <li aria-current={current === 2 ? 'step' : undefined} className="flex items-start gap-3 border-t border-line px-5 py-4">
+              <Marker n={3} done={flags[2]} current={current === 2} />
+              <div className="flex min-w-0 flex-1 flex-col gap-3">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-semibold">กด Run</span>
+                  <span id={blocker ? 'run-hint' : undefined} className="text-sm text-muted">{runNote}</span>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {!done && <Button variant="primary" arrow disabled={running || !file || !apiKey} aria-describedby={blocker ? 'run-hint' : undefined} onClick={start}>{running ? 'Assessing…' : 'Run assessment'}</Button>}
+                  {done && (
+                    <>
+                      <Button variant="primary" arrow onClick={() => nav('/dashboard')}>View results</Button>
+                      <Button onClick={reset}>Run again</Button>
+                    </>
+                  )}
+                </div>
+                {error && <p role="alert" className="m-0 text-sm text-[#a23a3a]">{error}</p>}
+              </div>
+            </li>
+          </ol>
         </Card>
       </section>
 
@@ -184,8 +192,8 @@ export default function NewAssessment() {
         <div className="grid items-center gap-8 px-6 pb-6 pt-2 lg:grid-cols-2">
           <div className="flex flex-col gap-4">
             <p className="m-0 leading-7 text-muted">
-              ระบบอ่าน TOR แล้วแยกเป็น requirement จัดโมดูล เทียบกับ Knowledge base ของ Product ตัดสินสถานะพร้อมหลักฐาน และสรุปหัวข้อที่ TOR ยังไม่ตอบเทียบกับ Basic Question ของ BA
-              ถ้าไม่มีหลักฐานใน KB จะตอบ Need Verification ไม่เดา
+              ระบบอ่าน TOR แล้วแยกเป็น requirement จัดโมดูล เทียบกับ <Link to="/knowledge-base" className="font-medium text-amber-text underline underline-offset-4">Knowledge base</Link> ของ Product (Obsidian vault <code>kb/</code>) ตัดสินสถานะพร้อมหลักฐาน และสรุปหัวข้อที่ TOR ยังไม่ตอบเทียบกับ Basic Question ของ BA
+              ถ้าไม่มีหลักฐานใน KB จะตอบ Need Verification ไม่เดา แก้ note แล้ว deploy ใหม่ ผลประเมินจึงจะอิงข้อมูลล่าสุด
             </p>
             <div className="flex flex-wrap gap-2">
               {['แยก requirement', 'เทียบกับหลักฐาน', 'คำถามค้างถึงลูกค้า', 'Export Excel', 'PDF สรุป'].map((c) => <Pill key={c}>{c}</Pill>)}

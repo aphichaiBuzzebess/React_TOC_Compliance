@@ -67,22 +67,27 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1240px] flex-1 flex-col gap-10 px-5 py-8 focus:outline-none sm:px-10 lg:py-10">
-        <div className="print:hidden -mb-6 -mt-3 flex flex-wrap items-center gap-x-5 gap-y-0 text-xs text-muted">
+        <div className={`print:hidden flex flex-wrap items-center gap-x-5 gap-y-0 text-xs text-muted ${pathname === '/' && !running ? 'hidden' : '-mb-6 -mt-3'}`}>
           {running && startedAt && (
             <Link to="/" className="flex items-center gap-2 rounded-full border border-line-strong bg-white px-3 py-1 font-medium text-ink no-underline">
               <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-amber" />
               กำลังประเมิน… <Elapsed since={startedAt} />
             </Link>
           )}
-          <span className="flex items-center gap-1.5">
-            <span className="font-medium text-ink">{customer || 'Customer TOR'}</span>
-            <span aria-hidden>·</span>
-            <span>{a ? `${a.total} requirements` : 'ยังไม่มี TOR'}</span>
-          </span>
-          <Link to="/ai-settings" className="flex min-h-11 items-center gap-1.5 text-muted no-underline hover:text-ink">
-            <span aria-hidden className={`size-1.5 rounded-full ${apiKey ? 'bg-amber' : 'bg-line-strong'}`} />
-            {apiKey ? `${ai?.label.split(' ')[0]} · ${model}` : 'ยังไม่ได้ใส่ AI key'}
-          </Link>
+          {/* The home page shows this itself (last result, key step), so the strip would only repeat it there. */}
+          {pathname !== '/' && (
+            <>
+              <span className="flex items-center gap-1.5">
+                <span className="font-medium text-ink">{customer || 'Customer TOR'}</span>
+                <span aria-hidden>·</span>
+                <span>{a ? `${a.total} requirements` : 'ยังไม่มี TOR'}</span>
+              </span>
+              <Link to="/ai-settings" className="flex min-h-11 items-center gap-1.5 text-muted no-underline hover:text-ink">
+                <span aria-hidden className={`size-1.5 rounded-full ${apiKey ? 'bg-amber' : 'bg-line-strong'}`} />
+                {apiKey ? `${ai?.label.split(' ')[0]} · ${model}` : 'ยังไม่ได้ใส่ AI key'}
+              </Link>
+            </>
+          )}
         </div>
         {children}
       </main>

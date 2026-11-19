@@ -226,7 +226,7 @@ describe('accessibility fixes', () => {
   it('says why Run is disabled', () => {
     useAssessmentStore.setState({ file: null, apiKey: '' })
     open('/')
-    const hint = screen.getByText('เลือกไฟล์ TOR และใส่ API key ที่ AI settings ก่อน')
+    const hint = screen.getByText('ใส่ AI key และเลือกไฟล์ TOR ก่อน')
     expect(screen.getByRole('button', { name: /Run assessment/ })).toHaveAttribute('aria-describedby', hint.id)
   })
 
@@ -332,7 +332,7 @@ describe('home: task first', () => {
     expect(items).toHaveLength(3)
     expect(items[0]).toHaveAttribute('aria-current', 'step') // key comes first
     expect(items[0]).toHaveTextContent('ใส่ AI key')
-    expect(items[2]).toHaveTextContent('ทำข้อ 1 และ 2 ก่อน')
+    expect(items[2]).toHaveTextContent('ใส่ AI key และเลือกไฟล์ TOR ก่อน')
   })
 
   it('ticks steps off as the key and file arrive, and then Run is ready', () => {
@@ -359,8 +359,9 @@ describe('home: task first', () => {
     useAssessmentStore.setState({ result: [req('R-001', 'verify'), req('R-002', 'integ')] })
     open('/')
     expect(screen.getByText('ผลประเมินล่าสุด')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Matrix' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Dashboard' })).toBeInTheDocument()
+    const row = within(screen.getByText('ผลประเมินล่าสุด').closest('p')!) // the top bar has links with the same names
+    expect(row.getByRole('link', { name: 'Matrix' })).toHaveAttribute('href', '/matrix')
+    expect(row.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '/dashboard')
   })
 
   it('has no last-result card before the first assessment', () => {
@@ -374,5 +375,22 @@ describe('home: task first', () => {
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('API key not valid')
     expect(document.getElementById('workflow')!.contains(alert)).toBe(false)
+  })
+})
+
+describe('home: one container style', () => {
+  it('keeps the steps and the form in a single surface, with no dashed drop box and no nested cards', () => {
+    open('/')
+    const list = screen.getByRole('list', { name: 'ขั้นตอน' })
+    const surface = list.closest('section')!
+    expect(surface.contains(document.getElementById('torFile')!)).toBe(true) // upload is step 2
+    expect(surface.contains(screen.getByLabelText(/ชื่อลูกค้า/))).toBe(true)
+    expect(surface.contains(screen.getByRole('button', { name: /Run assessment/ }))).toBe(true) // Run is step 3
+    expect(document.querySelector('.border-dashed')).toBeNull() // drag-and-drop is not supported, so nothing should look like a drop target
+  })
+
+  it('shows a disabled Run as gray rather than a faded primary', () => {
+    open('/')
+    expect(screen.getByRole('button', { name: /Run assessment/ }).className).toContain('disabled:bg-tint')
   })
 })
