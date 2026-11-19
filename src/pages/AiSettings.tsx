@@ -7,6 +7,7 @@ import type { PingResult } from '@/lib/types'
 
 const CUSTOM = '__custom'
 const INPUT = 'h-11 w-full max-w-md rounded-lg border border-line-strong px-[11px] text-sm'
+const SELECT = 'h-11 w-full max-w-md rounded-lg border border-line-strong bg-white text-sm' // padding and chevron come from index.css
 
 export default function AiSettings() {
   const s = useAssessmentStore()
@@ -51,7 +52,7 @@ export default function AiSettings() {
 
           <div className="flex flex-col gap-2">
             <label htmlFor="model" className="font-medium">Model</label>
-            <select id="model" value={custom ? CUSTOM : s.model} onChange={(e) => { if (e.target.value === CUSTOM) { setCustom(true); s.setModel('') } else { setCustom(false); s.setModel(e.target.value) } setResult(null) }} className={INPUT}>
+            <select id="model" value={custom ? CUSTOM : s.model} onChange={(e) => { if (e.target.value === CUSTOM) { setCustom(true); s.setModel('') } else { setCustom(false); s.setModel(e.target.value) } setResult(null) }} className={SELECT}>
               {prov.models.map((m) => <option key={m} value={m}>{m}</option>)}
               <option value={CUSTOM}>Custom…</option>
             </select>

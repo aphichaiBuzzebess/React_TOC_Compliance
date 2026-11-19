@@ -49,6 +49,15 @@
     line-height: 1.12;
   }
   button { font-family: inherit; cursor: pointer; }
+  /* One look for every dropdown: our own chevron with room on the right, instead of the browser's, which sits tight against the border. */
+  select {
+    appearance: none;
+    padding-inline: 11px 2.5rem; /* 11px on the left matches the text inputs */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2366645c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.875rem center;
+    background-size: 1rem;
+  }
   a { color: var(--color-ink); }
   :focus-visible { outline: 2px solid var(--color-ink); outline-offset: 3px; }
   ::selection { background: #fde3b0; }

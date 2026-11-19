@@ -107,7 +107,7 @@ function MatrixContent({ a }: { a: Assessment }) {
             className="h-11 min-w-[220px] flex-[1_1_300px] rounded-lg border border-line-strong bg-white px-3 text-sm"
           />
           <label htmlFor="mod" className="sr-only">Module</label>
-          <select id="mod" value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-white px-3 text-sm">
+          <select id="mod" value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-white text-sm">
             <option value="all">All modules</option>
             {modules.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
