@@ -6,7 +6,7 @@ import { Button, Card, PageHeader } from '@/components/ui'
 import type { PingResult } from '@/lib/types'
 
 const CUSTOM = '__custom'
-const INPUT = 'h-9 w-full max-w-md rounded-md border border-[#D9D9D9] px-[11px] text-sm'
+const INPUT = 'h-11 w-full max-w-md rounded-lg border border-line-strong px-[11px] text-sm'
 
 export default function AiSettings() {
   const s = useAssessmentStore()
@@ -31,13 +31,13 @@ export default function AiSettings() {
 
   return (
     <>
-      <PageHeader crumb="Reference" title="AI settings" />
+      <PageHeader crumb="Reference" title="AI settings" lead="เลือก AI และโมเดล แล้วใส่ API key ของคุณเอง key ไม่ถูกเก็บ ค่าใช้จ่ายเป็นของบัญชีคุณ" />
       <Card title="Provider and model">
         <div className="flex flex-col gap-5 p-6">
           <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
             <legend className="mb-1 p-0 font-medium">AI provider</legend>
             {AI_PROVIDERS.map((p) => (
-              <label key={p.id} className="flex min-h-8 items-center gap-2">
+              <label key={p.id} className="flex min-h-11 items-center gap-2">
                 <input type="radio" name="provider" checked={s.provider === p.id} onChange={() => { s.setProvider(p.id); setCustom(false); setResult(null) }} className="size-4 accent-brand" />
                 {p.label}
               </label>

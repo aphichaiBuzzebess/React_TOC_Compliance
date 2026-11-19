@@ -5,10 +5,10 @@ import { ORDER, STATUS } from '@/data/tor'
 import { useAssessment } from '@/lib/useAssessment'
 import { exportXlsx } from '@/lib/exportXlsx'
 import type { Assessment } from '@/lib/assessment'
-import { Button, Card, PageHeader, StatusBadge, EmptyState } from '@/components/ui'
+import { Button, Card, PageHeader, StatusBadge, EmptyState, metaLabel } from '@/components/ui'
 
-const LABEL = 'text-xs font-bold uppercase tracking-[0.06em] text-muted'
-const TH = 'border-b border-line bg-[#FAFAFA] px-4 py-3 text-left font-medium'
+const LABEL = metaLabel
+const TH = `border-b border-line bg-tint px-4 py-3 text-left ${metaLabel}`
 
 function MatrixContent({ a }: { a: Assessment }) {
   const [exportError, setExportError] = useState<string | null>(null)
@@ -30,9 +30,9 @@ function MatrixContent({ a }: { a: Assessment }) {
   return (
     <>
       {exportError && <p role="alert" className="m-0 text-[#CF1322]">{exportError}</p>}
-      <PageHeader title="Compliance matrix" action={<Button variant="success" onClick={doExport}>Export Excel</Button>} />
+      <PageHeader title="Compliance matrix" lead="ตาราง requirement ทั้งหมดพร้อมเหตุผลและหลักฐาน กดรหัสเพื่อดูรายละเอียดและยืนยันผล" action={<Button variant="success" onClick={doExport}>Export Excel</Button>} />
 
-      <div className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-white px-6 py-4">
+      <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-line bg-white px-6 py-4">
         <label htmlFor="q" className="sr-only">Search requirements</label>
         <input
           id="q"
@@ -40,7 +40,7 @@ function MatrixContent({ a }: { a: Assessment }) {
           placeholder="Search ID, requirement or module"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="h-9 flex-[1_1_260px] rounded-md border border-[#D9D9D9] px-[11px] text-sm"
+          className="h-11 flex-[1_1_260px] rounded-lg border border-line-strong px-[11px] text-sm"
         />
         <div className="flex flex-wrap gap-2">
           {chips.map((c) => {
@@ -51,7 +51,7 @@ function MatrixContent({ a }: { a: Assessment }) {
                 type="button"
                 aria-pressed={on}
                 onClick={() => setFilter(c.key)}
-                className={`min-h-9 rounded-full border px-3 text-[13px] ${on ? 'border-brand bg-brand-soft font-medium text-brand-text' : 'border-[#D9D9D9] bg-white'}`}
+                className={`min-h-11 rounded-full border px-3 text-[13px] ${on ? 'border-brand bg-brand-soft font-medium text-brand-text' : 'border-line-strong bg-white'}`}
               >
                 {c.label} · {c.count}
               </button>
@@ -60,7 +60,7 @@ function MatrixContent({ a }: { a: Assessment }) {
         </div>
       </div>
 
-      <details className="rounded-md border border-line bg-white px-6 py-3">
+      <details className="rounded-[10px] border border-line bg-white px-6 py-3">
         <summary className="cursor-pointer font-medium">ความหมายของสถานะ</summary>
         <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
           {ORDER.map((k) => (
@@ -104,12 +104,12 @@ function MatrixContent({ a }: { a: Assessment }) {
           <div className="px-6 py-3 text-xs text-muted">Showing {rows.length} rows of {a.total} · select an ID to see evidence</div>
         </Card>
 
-        <aside aria-label="Requirement detail" className="min-w-0 flex-[1_1_320px] rounded-md border border-line bg-white">
+        <aside aria-label="Requirement detail" className="min-w-0 flex-[1_1_320px] rounded-[10px] border border-line bg-white">
           {sel ? (
             <>
               <div className="flex flex-col gap-2 border-b border-line px-6 py-4">
                 <span className="font-mono text-[13px] text-brand-text">{sel.id} · {sel.module}</span>
-                <h2 className="m-0 text-base font-medium text-[#262626]">{sel.text}</h2>
+                <h2 className="m-0 text-xl text-ink">{sel.text}</h2>
                 <div className="flex flex-wrap items-center gap-2"><StatusBadge s={sel.s} /><span className="text-xs text-muted">Confidence {sel.conf}</span></div>
                 <p className="m-0 text-xs text-muted">{STATUS[sel.s].hint}</p>
               </div>
@@ -146,5 +146,5 @@ function MatrixContent({ a }: { a: Assessment }) {
 
 export default function Matrix() {
   const a = useAssessment()
-  return a ? <MatrixContent a={a} /> : <EmptyState title="Compliance matrix" />
+  return a ? <MatrixContent a={a} /> : <EmptyState title="Compliance matrix" lead="ตาราง requirement ทั้งหมดพร้อมเหตุผลและหลักฐาน กดรหัสเพื่อดูรายละเอียดและยืนยันผล" />
 }

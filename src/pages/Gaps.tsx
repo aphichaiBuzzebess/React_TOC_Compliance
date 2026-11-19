@@ -6,18 +6,18 @@ import { Alert, PageHeader, StatusBadge, EmptyState } from '@/components/ui'
 function GapsContent({ a }: { a: Assessment }) {
   return (
     <>
-      <PageHeader title="Feature gap & recommendation" />
+      <PageHeader title="Feature gap & recommendation" lead="รายการที่ต้องพัฒนาเพิ่ม เชื่อมระบบ หรือ Product ยังไม่รองรับ พร้อมคำแนะนำ" />
       <Alert tone="info" title={`${gapCount(a)} requirements need work beyond configuration`}>
         These need customization or integration, or the product does not support them. Effort and cost estimates are not part of this prototype.
       </Alert>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
         {a.gaps.map((g) => (
-          <article key={g.ids} className="flex flex-col gap-3 rounded-md border border-line bg-white px-6 py-5">
+          <article key={g.ids} className="flex flex-col gap-3 rounded-[10px] border border-line bg-white px-6 py-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-mono text-[13px] text-brand-text">{g.ids}</span>
               <StatusBadge s={g.s} />
             </div>
-            <h2 className="m-0 text-base font-medium text-[#262626]">{g.title}</h2>
+            <h2 className="m-0 text-xl text-ink">{g.title}</h2>
             <p className="m-0 text-muted">{g.gap}</p>
             <div className="flex flex-col gap-0.5 rounded-md border border-brand-line bg-brand-soft p-3">
               <span className="text-xs font-bold text-brand-text">Recommended</span>
@@ -32,5 +32,5 @@ function GapsContent({ a }: { a: Assessment }) {
 
 export default function Gaps() {
   const a = useAssessment()
-  return a ? <GapsContent a={a} /> : <EmptyState title="Feature gap & recommendation" />
+  return a ? <GapsContent a={a} /> : <EmptyState title="Feature gap & recommendation" lead="รายการที่ต้องพัฒนาเพิ่ม เชื่อมระบบ หรือ Product ยังไม่รองรับ พร้อมคำแนะนำ" />
 }

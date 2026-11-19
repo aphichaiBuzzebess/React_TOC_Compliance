@@ -16,7 +16,7 @@ function DashboardContent({ a }: { a: Assessment }) {
   ]
   return (
     <>
-      <PageHeader title="Coverage dashboard" action={<Button onClick={() => nav('/matrix')}>Open compliance matrix</Button>} />
+      <PageHeader title="Coverage dashboard" lead="ภาพรวมว่าข้อไหนใน TOR ที่ Product รองรับ ต้องตั้งค่า ต้องพัฒนาเพิ่ม หรือยังตัดสินไม่ได้" action={<Button onClick={() => nav('/matrix')}>Open compliance matrix</Button>} />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         {kpis.map((k) => <StatCard key={k.label} {...k} suffix="reqs" />)}
       </div>
@@ -43,11 +43,11 @@ function DashboardContent({ a }: { a: Assessment }) {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] border-collapse">
             <thead>
-              <tr className="bg-[#FAFAFA] text-left font-medium">
-                <th className="border-b border-line px-6 py-3 font-medium">Module</th>
-                <th className="border-b border-line px-4 py-3 text-right font-medium">Requirements</th>
-                <th className="border-b border-line px-4 py-3 text-right font-medium">Fully supported</th>
-                <th className="w-[40%] border-b border-line py-3 pl-4 pr-6 font-medium">Coverage</th>
+              <tr className="bg-tint text-left">
+                <th className="border-b border-line px-6 py-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Module</th>
+                <th className="border-b border-line px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Requirements</th>
+                <th className="border-b border-line px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Fully supported</th>
+                <th className="w-[40%] border-b border-line py-3 pl-4 pr-6 text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Coverage</th>
               </tr>
             </thead>
             <tbody>
@@ -58,7 +58,7 @@ function DashboardContent({ a }: { a: Assessment }) {
                   <td className="border-b border-line px-4 py-3 text-right">{full}</td>
                   <td className="border-b border-line py-3 pl-4 pr-6">
                     <div className="flex items-center gap-3">
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-line"><div className="h-2 bg-brand" style={{ width: pct(full, total) }} /></div>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-line"><div className="h-2 bg-sec-blue" style={{ width: pct(full, total) }} /></div>
                       <span className="w-11 text-right text-xs text-muted">{pct(full, total)}</span>
                     </div>
                   </td>
@@ -74,5 +74,5 @@ function DashboardContent({ a }: { a: Assessment }) {
 
 export default function Dashboard() {
   const a = useAssessment()
-  return a ? <DashboardContent a={a} /> : <EmptyState title="Coverage dashboard" />
+  return a ? <DashboardContent a={a} /> : <EmptyState title="Coverage dashboard" lead="ภาพรวมว่าข้อไหนใน TOR ที่ Product รองรับ ต้องตั้งค่า ต้องพัฒนาเพิ่ม หรือยังตัดสินไม่ได้" />
 }

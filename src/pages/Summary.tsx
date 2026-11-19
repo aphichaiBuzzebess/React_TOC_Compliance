@@ -5,7 +5,7 @@ import { fit, gapCount } from '@/lib/assessment'
 import { useAssessment } from '@/lib/useAssessment'
 import { exportPdf } from '@/lib/exportPdf'
 import type { Assessment } from '@/lib/assessment'
-import { Alert, Button, PageHeader, EmptyState } from '@/components/ui'
+import { Alert, Button, PageHeader, EmptyState, metaLabel } from '@/components/ui'
 
 function SummaryContent({ a }: { a: Assessment }) {
   const confirmed = useAssessmentStore((s) => Object.values(s.valid).filter((v) => v === 'ok').length)
@@ -35,28 +35,28 @@ function SummaryContent({ a }: { a: Assessment }) {
   const strongest = [...a.modules].filter((m) => m[2] > 0).sort((x, y) => y[2] / y[1] - x[2] / x[1]).slice(0, 3).map((m) => m[0]).join(', ')
   return (
     <>
-      <PageHeader title="Executive summary" action={<Button disabled={busy} onClick={download}>{busy ? 'กำลังสร้าง PDF…' : 'Download PDF'}</Button>} />
+      <PageHeader title="Executive summary" lead="สรุปสำหรับผู้บริหารจากผลประเมินล่าสุด ดาวน์โหลดเป็น PDF ได้" action={<Button disabled={busy} onClick={download}>{busy ? 'กำลังสร้าง PDF…' : 'Download PDF'}</Button>} />
       {error && <p role="alert" className="m-0 text-[#CF1322]">{error}</p>}
-      <section ref={page} className="flex max-w-[880px] flex-col gap-6 rounded-md border border-line bg-white p-8">
+      <section ref={page} className="flex max-w-[880px] flex-col gap-6 rounded-[10px] border border-line bg-white p-8">
         <span className="text-xs text-muted">TOR Scouter · {customer || 'Customer TOR'} · {today}</span>
         <div className="flex flex-wrap gap-8">
           {stats.map((s) => (
             <div key={s.label} className="flex flex-col">
-              <span className="text-xs text-muted">{s.label}</span>
-              <span className="text-[38px] font-medium leading-tight text-[#262626]">{s.value}</span>
+              <span className={metaLabel}>{s.label}</span>
+              <span className="font-serif text-[44px] leading-tight text-ink">{s.value}</span>
               <span className="text-xs text-muted">{s.note}</span>
             </div>
           ))}
         </div>
         <div className="flex flex-col gap-2">
-          <h2 className="m-0 text-base font-medium text-[#262626]">Assessment</h2>
+          <h2 className="m-0 text-xl text-ink">Assessment</h2>
           <p className="m-0 leading-[1.7]">
             Product รองรับ TOR ได้ {fit(a)} จาก {a.total} ข้อ ทั้งแบบพร้อมใช้งานและตั้งค่าเพิ่มเติม{strongest ? ` โมดูลที่รองรับเต็มรูปแบบมากที่สุดคือ ${strongest}` : ''} ส่วนที่ต้องเตรียมคือ
             Integration {a.counts.integ} ข้อ และ Customization {a.counts.custom} ข้อ
           </p>
         </div>
         <div className="flex flex-col gap-2">
-          <h2 className="m-0 text-base font-medium text-[#262626]">Before committing scope</h2>
+          <h2 className="m-0 text-xl text-ink">Before committing scope</h2>
           <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5">
             <li>ยืนยัน {a.counts.verify} ข้อที่ Need Verification กับ Product team</li>
             <li>แยก Integration {a.counts.integ} ข้อเป็น Phase ที่ชัดเจน</li>
@@ -73,5 +73,5 @@ function SummaryContent({ a }: { a: Assessment }) {
 
 export default function Summary() {
   const a = useAssessment()
-  return a ? <SummaryContent a={a} /> : <EmptyState title="Executive summary" />
+  return a ? <SummaryContent a={a} /> : <EmptyState title="Executive summary" lead="สรุปสำหรับผู้บริหารจากผลประเมินล่าสุด ดาวน์โหลดเป็น PDF ได้" />
 }

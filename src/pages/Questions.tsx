@@ -31,7 +31,7 @@ function QuestionsContent() {
 
   return (
     <>
-      <PageHeader title="Open questions for customer" action={rows && openCount > 0 ? <Button onClick={copy}>{copied ? 'Copied' : 'Copy all questions'}</Button> : undefined} />
+      <PageHeader crumb="Questions" title="Open questions for customer" lead="หัวข้อ Basic Question ที่ TOR ยังตอบไม่ครบ ใช้ถามลูกค้าก่อนยืนยัน scope" action={rows && openCount > 0 ? <Button onClick={copy}>{copied ? 'Copied' : 'Copy all questions'}</Button> : undefined} />
       {!rows ? (
         <div className="flex flex-col gap-3">
           <Alert tone="warning" title="ยังไม่มีผลตรวจคำถามค้าง">ผลประเมิน compliance ยังอยู่ครบ ตรวจเฉพาะคำถามค้างซ้ำได้โดยไม่ต้องรันประเมินใหม่ทั้งหมด</Alert>
@@ -51,7 +51,7 @@ function QuestionsContent() {
               <Card key={r.function}>
                 <div className="flex flex-col gap-3 px-6 py-5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="m-0 text-base font-medium text-[#262626]">{r.function}</h2>
+                    <h2 className="m-0 text-xl text-ink">{r.function}</h2>
                     <span className={`whitespace-nowrap rounded border px-2 text-xs leading-5 ${TONE[r.coverage].cls}`}>{TONE[r.coverage].label}</span>
                   </div>
                   {r.reqIds.length > 0 && <span className="font-mono text-[13px] text-brand-text">{r.reqIds.join(', ')}</span>}
@@ -72,5 +72,5 @@ function QuestionsContent() {
 
 export default function Questions() {
   const a = useAssessment()
-  return a ? <QuestionsContent /> : <EmptyState title="Open questions for customer" />
+  return a ? <QuestionsContent /> : <EmptyState crumb="Questions" title="Open questions for customer" lead="หัวข้อ Basic Question ที่ TOR ยังตอบไม่ครบ ใช้ถามลูกค้าก่อนยืนยัน scope" />
 }

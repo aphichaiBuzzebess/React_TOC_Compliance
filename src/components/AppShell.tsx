@@ -1,76 +1,111 @@
 import { Fragment, type ReactNode } from 'react'
-import { Elapsed } from '@/components/ui'
-import { NavLink } from 'react-router-dom'
-import { FilePlus2, LayoutDashboard, Table2, TriangleAlert, FileText, CircleHelp, Library, Settings2 } from 'lucide-react'
+import { Link, NavLink } from 'react-router-dom'
+import { Elapsed, metaLabel } from '@/components/ui'
+import { AI_PROVIDERS } from '@/data/models'
 import { useAssessment } from '@/lib/useAssessment'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 
-const NAV = [
-  { to: '/', label: 'New assessment', Icon: FilePlus2 },
-  { to: '/dashboard', label: 'Coverage dashboard', Icon: LayoutDashboard },
-  { to: '/matrix', label: 'Compliance matrix', Icon: Table2 },
-  { to: '/gaps', label: 'Gap & recommendation', Icon: TriangleAlert },
-  { to: '/questions', label: 'Open questions', Icon: CircleHelp, Library },
-  { to: '/summary', label: 'Executive summary', Icon: FileText },
+const GROUPS = [
+  {
+    title: 'Assessment',
+    items: [
+      { to: '/', label: 'New assessment' },
+      { to: '/dashboard', label: 'Coverage dashboard' },
+      { to: '/matrix', label: 'Compliance matrix' },
+      { to: '/gaps', label: 'Gap & recommendation' },
+      { to: '/questions', label: 'Open questions' },
+      { to: '/summary', label: 'Executive summary' },
+    ],
+  },
+  {
+    title: 'Reference',
+    items: [
+      { to: '/knowledge-base', label: 'Knowledge base' },
+      { to: '/ai-settings', label: 'AI settings' },
+    ],
+  },
 ]
-const REFERENCE = [
-  { to: '/knowledge-base', label: 'Knowledge base', Icon: Library },
-  { to: '/ai-settings', label: 'AI settings', Icon: Settings2 },
-]
+
+/** A thin ring around a dot: the "scouter" lens. Drawn here so no third-party mark is used. */
+function Mark() {
+  return (
+    <svg aria-hidden="true" width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <circle cx="13" cy="13" r="11" />
+      <circle cx="13" cy="13" r="3.2" fill="currentColor" stroke="none" />
+      <path d="M13 2v4M13 20v4M2 13h4M20 13h4" strokeLinecap="round" />
+    </svg>
+  )
+}
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const a = useAssessment()
-  const customer = useAssessmentStore((s) => s.customer)
-  const { running, startedAt } = useAssessmentStore()
+  const { customer, running, startedAt, provider, model, apiKey } = useAssessmentStore()
+  const ai = AI_PROVIDERS.find((p) => p.id === provider)
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="print:hidden flex h-14 flex-none items-center justify-between gap-4 border-b border-line bg-white px-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28">
-            <circle cx="14" cy="14" r="13" fill="#F9A601" />
-            <circle cx="14" cy="14" r="8" fill="#080909" />
-            <circle cx="14" cy="14" r="3.5" fill="#F9A601" />
-          </svg>
-          <span className="whitespace-nowrap text-base font-bold text-[#1F1F1F]">TOR Scouter</span>
-          <span className="hidden whitespace-nowrap text-xs text-muted sm:inline">Compliance &amp; Feature Gap Agent</span>
-        </div>
-        <div className="flex items-center gap-3">
-          {running && startedAt && (
-            <NavLink to="/" className="whitespace-nowrap rounded border border-brand bg-brand-soft px-2 py-0.5 text-xs font-medium text-brand-text no-underline">
-              กำลังประเมิน… <Elapsed since={startedAt} />
-            </NavLink>
-          )}
-          <span className="whitespace-nowrap rounded border border-[#FFE58F] bg-[#FFFBE6] px-2 py-0.5 text-xs font-medium text-[#AD6800]">Prototype</span>
-          <span aria-label="Signed-in user" className="flex size-8 items-center justify-center rounded-full border border-brand-line bg-brand-soft text-xs font-bold text-brand-text">PM</span>
-        </div>
-      </header>
-      <div className="flex flex-1 flex-wrap items-stretch">
-        <nav aria-label="Main" className="print:hidden flex flex-[1_1_232px] flex-col gap-1 bg-ink px-2 py-4 md:max-w-[232px]">
-          {[['Assessment', NAV], ['Reference', REFERENCE]].map(([title, items]) => (
-            <Fragment key={title as string}>
-              <span className="px-4 pb-1 pt-3 text-[11px] font-bold uppercase tracking-[0.08em] text-white/65">{title as string}</span>
-          {(items as typeof NAV).map(({ to, label, Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end
-              className={({ isActive }) =>
-                `flex min-h-11 items-center gap-3 rounded-md px-4 text-sm ${isActive ? 'bg-brand font-medium text-ink' : 'text-white/85 hover:bg-white/10'}`
-              }
-            >
-              <Icon aria-hidden size={18} />
-              {label}
-            </NavLink>
-          ))}
-            </Fragment>
-          ))}
-          <div className="mt-4 flex flex-col gap-1 border-t border-white/10 px-4 py-3">
-            <span className="text-[11px] text-white/65">Current TOR</span>
-            <span className="text-[13px] font-medium text-white/90">{customer || 'Customer TOR'}</span>
-            <span className="text-xs text-white/65">{a ? `${a.total} requirements` : 'ยังไม่มี TOR'}</span>
+    <div className="min-h-screen bg-canvas">
+      <div className="mx-auto grid max-w-[1480px] grid-cols-[minmax(0,1fr)] lg:grid-cols-[232px_minmax(0,1fr)] xl:grid-cols-[232px_minmax(0,1fr)_210px]">
+        <aside className="print:hidden flex flex-col gap-6 px-6 py-6 lg:sticky lg:top-0 lg:h-screen lg:px-7 lg:py-9">
+          <Link to="/" className="flex items-center gap-2.5 text-ink no-underline">
+            <Mark />
+            <span className="font-serif text-[24px] leading-none">TOR Scouter</span>
+          </Link>
+
+          <nav aria-label="Main" className="flex flex-col gap-5">
+            {GROUPS.map((g) => (
+              <Fragment key={g.title}>
+                <div className="flex flex-col gap-0.5">
+                  <span className={`${metaLabel} mb-1`}>{g.title}</span>
+                  <div className="flex gap-x-4 gap-y-0.5 overflow-x-auto lg:flex-col lg:overflow-visible">
+                    {g.items.map((it) => (
+                      <NavLink
+                        key={it.to}
+                        to={it.to}
+                        end
+                        className={({ isActive }) =>
+                          `flex min-h-11 items-center whitespace-nowrap text-[15px] no-underline transition-colors duration-150 lg:min-h-9 ${isActive ? 'font-medium text-ink' : 'text-muted hover:text-ink'}`
+                        }
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <span aria-hidden className={`mr-2 size-1.5 flex-none rounded-full ${isActive ? 'bg-ink' : 'bg-transparent'}`} />
+                            {it.label}
+                          </>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
+              </Fragment>
+            ))}
+          </nav>
+
+          <div className="mt-auto flex flex-col gap-3 border-t border-line pt-4 text-xs text-muted">
+            {running && startedAt && (
+              <NavLink to="/" className="flex w-fit items-center gap-2 rounded-md border border-line-strong bg-white px-2.5 py-1 font-medium text-ink no-underline">
+                <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-sec-teal" />
+                กำลังประเมิน… <Elapsed since={startedAt} />
+              </NavLink>
+            )}
+            <div className="flex flex-col gap-0.5">
+              <span className={metaLabel}>Current TOR</span>
+              <span className="text-[13px] font-medium text-ink">{customer || 'Customer TOR'}</span>
+              <span>{a ? `${a.total} requirements` : 'ยังไม่มี TOR'}</span>
+            </div>
+            <Link to="/ai-settings" className="flex items-center gap-2 text-muted no-underline hover:text-ink">
+              <span aria-hidden className={`size-1.5 rounded-full ${apiKey ? 'bg-sec-teal' : 'bg-line-strong'}`} />
+              {apiKey ? `${ai?.label.split(' ')[0]} · ${model}` : 'ยังไม่ได้ใส่ AI key'}
+            </Link>
+            <span className="text-[11px]">Prototype</span>
           </div>
-        </nav>
-        <main className="flex min-w-0 flex-[999_1_560px] flex-col gap-6 p-6">{children}</main>
+        </aside>
+
+        <main className="flex min-w-0 flex-col gap-8 border-line px-5 py-8 sm:px-8 lg:border-x lg:px-10 lg:py-12">{children}</main>
+
+        <div className="print:hidden hidden flex-col items-start gap-3 px-8 py-9 xl:flex">
+          <Link to="/ai-settings" aria-label="AI settings" className="text-[15px] text-muted no-underline hover:text-ink">AI settings →</Link>
+          <Link to="/knowledge-base" className="text-[15px] text-muted no-underline hover:text-ink">Knowledge base</Link>
+        </div>
       </div>
     </div>
   )

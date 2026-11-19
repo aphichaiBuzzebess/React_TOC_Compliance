@@ -56,13 +56,13 @@ export default function KnowledgeBase() {
 
   return (
     <>
-      <PageHeader crumb="Reference" title="Product knowledge base" />
+      <PageHeader crumb="Reference" title="Product knowledge base" lead="ความรู้ของ Product ที่ระบบใช้เป็นหลักฐานตอนประเมิน อ่านอย่างเดียว แก้ใน Obsidian" />
       {!notes ? (
         <Card title="Access">
           <div className="flex flex-wrap items-end gap-3 p-6">
             <div className="flex flex-col gap-2">
               <label htmlFor="kbCode" className="font-medium">Access code <span className="font-normal text-muted">(ถ้าผู้ดูแลระบบกำหนด)</span></label>
-              <input id="kbCode" type="password" autoComplete="off" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && accessCode && load()} className="h-9 w-64 rounded-md border border-[#D9D9D9] px-[11px] text-sm" />
+              <input id="kbCode" type="password" autoComplete="off" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && accessCode && load()} className="h-11 w-64 rounded-lg border border-line-strong px-[11px] text-sm" />
             </div>
             <Button variant="primary" disabled={!accessCode || loading} onClick={load}>{loading ? 'Loading…' : 'Open knowledge base'}</Button>
             {error && <p role="alert" className="m-0 w-full text-[#CF1322]">{error}</p>}
@@ -73,7 +73,7 @@ export default function KnowledgeBase() {
           <Card className="flex-[1_1_280px]">
             <div className="flex flex-col gap-3 p-4">
               <label htmlFor="kbq" className="sr-only">Search notes</label>
-              <input id="kbq" type="search" placeholder={`Search ${notes.length} notes`} value={query} onChange={(e) => setQuery(e.target.value)} className="h-9 rounded-md border border-[#D9D9D9] px-[11px] text-sm" />
+              <input id="kbq" type="search" placeholder={`Search ${notes.length} notes`} value={query} onChange={(e) => setQuery(e.target.value)} className="h-11 rounded-lg border border-line-strong px-[11px] text-sm" />
               {groups.length === 0 && <p className="m-0 py-4 text-center text-muted">No matching note</p>}
               {groups.map(([module, items]) => (
                 <div key={module} className="flex flex-col gap-1">
@@ -93,7 +93,7 @@ export default function KnowledgeBase() {
               <div className="flex flex-col gap-4 p-6">
                 <div className="flex flex-col gap-2">
                   <span className="font-mono text-[13px] text-brand-text">{note.path}</span>
-                  <h2 className="m-0 text-xl font-medium text-[#262626]">{note.title}</h2>
+                  <h2 className="m-0 text-2xl text-ink">{note.title}</h2>
                   <div className="flex flex-wrap items-center gap-2"><StatusBadge s={note.support} /><span className="text-xs text-muted">{note.module} · updated {note.updated}</span></div>
                 </div>
                 <p className="m-0 whitespace-pre-wrap leading-[1.7]"><Body text={note.body} open={setSel} /></p>
