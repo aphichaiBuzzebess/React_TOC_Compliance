@@ -12,7 +12,7 @@ function GapsContent({ a }: { a: Assessment }) {
       </Alert>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
         {a.gaps.map((g, i) => (
-          <article key={g.ids} className="relative flex flex-col gap-3 rounded-[10px] border border-line bg-white px-6 py-5">
+          <article key={g.ids} className="relative flex flex-col gap-3 rounded-[10px] border border-line bg-surface px-6 py-5">
             <CornerNo n={i + 1} />
             <div className="flex flex-wrap items-center gap-3 pr-8">
               <span className="font-mono text-[13px] text-brand-text">{g.ids}</span>

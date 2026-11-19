@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TOR Scouter</title>
+    <script>
+      // Set the theme before the first paint, so a dark user does not see a white flash.
+      try {
+        var t = (JSON.parse(localStorage.getItem('tor-scouter') || '{}').state || {}).theme || 'system'
+        var d = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.dataset.theme = d ? 'dark' : 'light'
+      } catch (e) {}
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=Inter:wght@400;500;600&family=Noto+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet" />

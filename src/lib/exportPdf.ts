@@ -11,7 +11,15 @@ export function pageSlices(canvasH: number, sliceH: number): { y: number; h: num
  */
 export async function exportPdf(el: HTMLElement, fileName: string) {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas-pro'), import('jspdf')])
-  const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true })
+  // The PDF is paper: draw it with the light palette even if the screen is dark, then put the page back.
+  el.classList.add('force-light')
+  let canvas: HTMLCanvasElement
+  try {
+    await new Promise((r) => requestAnimationFrame(r)) // let the new colours apply before capture
+    canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true })
+  } finally {
+    el.classList.remove('force-light')
+  }
   const pdf = new jsPDF({ unit: 'pt', format: 'a4' })
   const margin = 36
   const imgW = pdf.internal.pageSize.getWidth() - margin * 2

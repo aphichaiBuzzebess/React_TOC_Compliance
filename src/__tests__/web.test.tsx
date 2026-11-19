@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -159,6 +161,31 @@ describe('summary pdf', () => {
   })
 })
 
+describe('dark mode', () => {
+  it('the header button switches the theme, announces it, and the choice is remembered', async () => {
+    const user = userEvent.setup()
+    useAssessmentStore.setState({ theme: 'system' })
+    open('/')
+    const btn = screen.getByRole('button', { name: 'โหมดมืด' })
+    expect(btn).toHaveAttribute('aria-pressed', 'false')
+    await user.click(btn)
+    expect(useAssessmentStore.getState().theme).toBe('dark')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(screen.getByRole('button', { name: 'โหมดมืด' })).toHaveAttribute('aria-pressed', 'true')
+    expect(JSON.parse(localStorage.getItem('tor-scouter') ?? '{}').state.theme).toBe('dark')
+    await user.click(screen.getByRole('button', { name: 'โหมดมืด' }))
+    expect(document.documentElement.dataset.theme).toBe('light')
+  })
+
+  it('has no colours hardcoded in the pages: every colour comes from the palette', () => {
+    const files = ['src/components/ui.tsx', 'src/components/AppShell.tsx', 'src/pages/Dashboard.tsx', 'src/pages/Matrix.tsx', 'src/pages/Gaps.tsx', 'src/pages/Questions.tsx', 'src/pages/Summary.tsx', 'src/pages/KnowledgeBase.tsx', 'src/pages/AiSettings.tsx']
+    for (const f of files) {
+      const text = readFileSync(join(process.cwd(), f), 'utf8')
+      expect(text, f).not.toMatch(/bg-white|text-\[#|bg-\[#|border-\[#/)
+    }
+  })
+})
+
 describe('retry open questions', () => {
   it('re-checks coverage from the saved results without re-running the assessment', async () => {
     const calls: string[] = []
@@ -192,9 +219,25 @@ describe('accessibility fixes', () => {
   }
   const ratio = (a: string, b: string) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05)
 
-  it('every status badge has at least 4.5:1 text contrast', async () => {
-    const { STATUS } = await import('@/data/tor')
-    for (const [k, s] of Object.entries(STATUS)) expect(ratio(s.fg, s.bg), `${k} ${s.fg} on ${s.bg}`).toBeGreaterThanOrEqual(4.5)
+  // The palette lives in index.css: a light set and a dark set. Read both from there, so the test cannot drift from the real colours.
+  const css = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8')
+  const block = (open: string) => css.slice(css.indexOf(open), css.indexOf('\n  }', css.indexOf(open)) > 0 && open.startsWith(':root[') ? css.indexOf('\n  }', css.indexOf(open)) : css.indexOf('\n}', css.indexOf(open)))
+  const vars = (text: string) => Object.fromEntries([...text.matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((m) => [m[1], m[2]]))
+  const themes = { light: vars(block(':root,\n.force-light')), dark: { ...vars(block(':root,\n.force-light')), ...vars(block(":root[data-theme='dark']")) } }
+
+  it.each(['light', 'dark'] as const)('%s: every status badge has at least 4.5:1 text contrast', (t) => {
+    const v = themes[t]
+    for (const k of ['full', 'config', 'custom', 'integ', 'none', 'verify']) expect(ratio(v[`st-${k}-fg`], v[`st-${k}-bg`]), `${k} ${v[`st-${k}-fg`]} on ${v[`st-${k}-bg`]}`).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it.each(['light', 'dark'] as const)('%s: body, muted, link, error and success text read on every surface they sit on', (t) => {
+    const v = themes[t]
+    for (const bg of ['c-canvas', 'c-surface', 'c-tint']) {
+      for (const fg of ['c-ink', 'c-muted', 'c-amber-text', 'c-danger', 'c-success']) expect(ratio(v[fg], v[bg]), `${t}: ${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5)
+    }
+    expect(ratio(v['c-amber-text'], v['c-amber-soft']), `${t}: amber-text on amber-soft`).toBeGreaterThanOrEqual(4.5)
+    expect(ratio(v['c-on-amber'], '#f9a601'), 'text on the amber fill').toBeGreaterThanOrEqual(4.5)
+    expect(ratio(v['c-inverse'], v['c-ink']), `${t}: text on an ink fill`).toBeGreaterThanOrEqual(4.5)
   })
 
   it.each([

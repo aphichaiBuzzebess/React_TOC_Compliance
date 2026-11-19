@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { MotionConfig } from 'motion/react'
 import { useAssessmentStore } from './store/useAssessmentStore'
+import { useResolvedTheme } from './lib/theme'
 import AppShell from './components/AppShell'
 import NewAssessment from './pages/NewAssessment'
 import Dashboard from './pages/Dashboard'
@@ -14,6 +15,10 @@ import AiSettings from './pages/AiSettings'
 
 export default function App() {
   const accessCode = useAssessmentStore((s) => s.accessCode)
+  const theme = useResolvedTheme()
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+  }, [theme])
   useEffect(() => {
     void useAssessmentStore.getState().loadServerDefault()
   }, [accessCode])

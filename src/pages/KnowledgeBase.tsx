@@ -65,7 +65,7 @@ export default function KnowledgeBase() {
               <input id="kbCode" type="password" autoComplete="off" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && accessCode && load()} className="h-11 w-64 rounded-lg border border-line-strong px-[11px] text-sm" />
             </div>
             <Button variant="primary" disabled={!accessCode || loading} onClick={load}>{loading ? 'Loading…' : 'Open knowledge base'}</Button>
-            {error && <p role="alert" className="m-0 w-full text-[#CF1322]">{error}</p>}
+            {error && <p role="alert" className="m-0 w-full text-danger">{error}</p>}
           </div>
         </Card>
       ) : (
@@ -79,9 +79,9 @@ export default function KnowledgeBase() {
                 <div key={module} className="flex flex-col gap-1">
                   <span className="px-1 text-xs font-bold uppercase tracking-[0.08em] text-muted">{module}</span>
                   {items.map((n) => (
-                    <button key={n.path} type="button" onClick={() => setSel(n.path)} aria-current={n.path === sel} className={`flex min-h-10 items-center justify-between gap-2 rounded-md border-0 px-3 text-left text-sm ${n.path === sel ? 'bg-brand-soft font-medium text-brand-text' : 'bg-transparent hover:bg-[#FAFAFA]'}`}>
+                    <button key={n.path} type="button" onClick={() => setSel(n.path)} aria-current={n.path === sel} className={`flex min-h-10 items-center justify-between gap-2 rounded-md border-0 px-3 text-left text-sm ${n.path === sel ? 'bg-brand-soft font-medium text-brand-text' : 'bg-transparent hover:bg-tint'}`}>
                       <span className="min-w-0 truncate">{n.title}</span>
-                      <span className="size-2 flex-none rounded-full" style={{ background: { full: '#52C41A', config: '#1677FF', custom: '#FAAD14', integ: '#434343', none: '#FF4D4F', verify: '#BFBFBF' }[n.support] }} />
+                      <span className="size-2 flex-none rounded-full" style={{ background: `var(--st-${n.support}-dot)` }} />
                     </button>
                   ))}
                 </div>

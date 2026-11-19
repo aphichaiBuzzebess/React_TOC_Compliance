@@ -24,6 +24,8 @@ interface AssessmentState {
   provider: ProviderId
   model: string
   apiKey: string // memory only: never persisted
+  theme: 'system' | 'light' | 'dark' // follows the device until the user picks one
+  setTheme: (t: 'system' | 'light' | 'dark') => void
   serverDefault: { provider: ProviderId; model: string } | null // the operator's AI, if the server offers one (no key here)
   loadServerDefault: () => Promise<void>
   result: Req[] | null // null until a TOR has been assessed
@@ -95,6 +97,8 @@ export const useAssessmentStore = create<AssessmentState>()(
       provider: 'anthropic',
       model: defaultModel('anthropic'),
       apiKey: '',
+      theme: 'system',
+      setTheme: (theme) => set({ theme }),
       serverDefault: null,
       loadServerDefault: async () => {
         try {
@@ -203,7 +207,7 @@ export const useAssessmentStore = create<AssessmentState>()(
     // Keep the result and PM validation across refresh; the key and access code are never persisted.
     {
       name: 'tor-scouter',
-      partialize: (s) => ({ result: s.result, coverage: s.coverage, valid: s.valid, selId: s.selId, customer: s.customer, provider: s.provider, model: s.model }),
+      partialize: (s) => ({ theme: s.theme, result: s.result, coverage: s.coverage, valid: s.valid, selId: s.selId, customer: s.customer, provider: s.provider, model: s.model }),
     },
   ),
 )

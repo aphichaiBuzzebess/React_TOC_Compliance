@@ -6,9 +6,9 @@ import { Link } from 'react-router-dom'
 import { Alert, Button, Card, CornerNo, EmptyState, PageHeader } from '@/components/ui'
 
 const TONE = {
-  covered: { label: 'TOR ตอบแล้ว', cls: 'border-[#B7EB8F] bg-[#F6FFED] text-[#237804]' },
-  partial: { label: 'ตอบบางส่วน', cls: 'border-[#FFE58F] bg-[#FFFBE6] text-[#8A5600]' },
-  missing: { label: 'TOR ไม่ได้พูดถึง', cls: 'border-[#FFCCC7] bg-[#FFF2F0] text-[#CF1322]' },
+  covered: { label: 'TOR ตอบแล้ว', cls: 'border-[var(--st-full-bd)] bg-[var(--st-full-bg)] text-[var(--st-full-fg)]' },
+  partial: { label: 'ตอบบางส่วน', cls: 'border-[var(--st-custom-bd)] bg-[var(--st-custom-bg)] text-[var(--st-custom-fg)]' },
+  missing: { label: 'TOR ไม่ได้พูดถึง', cls: 'border-[var(--st-none-bd)] bg-[var(--st-none-bg)] text-[var(--st-none-fg)]' },
 } as const
 
 const toText = (rows: FunctionCoverage[]) =>
@@ -36,7 +36,7 @@ function QuestionsContent() {
       {!rows ? (
         <div className="flex flex-col gap-3">
           <Alert tone="warning" title="ยังไม่มีผลตรวจคำถามค้าง">ผลประเมิน compliance ยังอยู่ครบ ตรวจเฉพาะคำถามค้างซ้ำได้โดยไม่ต้องรันประเมินใหม่ทั้งหมด</Alert>
-          {error && <p role="alert" className="m-0 text-[#CF1322]">{error}</p>}
+          {error && <p role="alert" className="m-0 text-danger">{error}</p>}
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="primary" disabled={!aiReady || coverageBusy} onClick={runCoverage}>{coverageBusy ? 'กำลังตรวจ…' : 'ตรวจคำถามค้างอีกครั้ง'}</Button>
             {!aiReady && <span className="text-muted">ต้องใส่ API key ก่อนที่ <Link to="/ai-settings" className="text-brand-text underline">AI settings</Link></span>}

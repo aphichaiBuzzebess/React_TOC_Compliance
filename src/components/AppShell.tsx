@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Moon, Sun } from 'lucide-react'
 import { motion } from 'motion/react'
 import { ease } from '@/components/motion'
 import { Elapsed } from '@/components/ui'
@@ -7,6 +8,7 @@ import { AI_PROVIDERS } from '@/data/models'
 import { NAV, navIndex } from '@/data/nav'
 import { useAssessment } from '@/lib/useAssessment'
 import { activeAi, useAssessmentStore } from '@/store/useAssessmentStore'
+import { useResolvedTheme } from '@/lib/theme'
 
 /** Two honeycomb cells (a nod to Buzzebees) overlapping on a rising diagonal: the see-through overlap is where the requirement meets the evidence. */
 const MARK_PATH =
@@ -25,6 +27,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
   const { customer, running, startedAt } = useAssessmentStore()
   const use = useAssessmentStore(activeAi)
+  const theme = useResolvedTheme()
+  const setTheme = useAssessmentStore((s) => s.setTheme)
   const ai = AI_PROVIDERS.find((p) => p.id === use?.provider)
 
   // Each route gets its own tab title, and a new page starts at its top, not wherever the last one was scrolled to.
@@ -36,9 +40,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
-      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-white">ข้ามไปเนื้อหาหลัก</a>
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-inverse">ข้ามไปเนื้อหาหลัก</a>
       <header className="print:hidden z-30 border-b border-line bg-canvas xl:sticky xl:top-0">
-        <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-8 gap-y-1 px-5 py-3 sm:px-10">
+        <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 sm:px-10">
           <Link to="/" className="flex min-h-11 items-center gap-3 text-ink no-underline">
             <Mark />
             <span className="flex flex-col leading-none">
@@ -47,11 +51,23 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
 
-          {pathname !== '/' && (
-            <Link to="/" className="order-2 ml-auto inline-flex min-h-11 items-center gap-2 rounded-full border border-amber bg-amber px-5 text-sm font-semibold text-ink no-underline transition-colors hover:bg-amber-hover xl:order-3 xl:ml-0">
-              New assessment <span aria-hidden>→</span>
-            </Link>
-          )}
+          <div className="order-2 ml-auto flex items-center gap-2 xl:order-3 xl:ml-0">
+            <button
+              type="button"
+              aria-pressed={theme === 'dark'}
+              aria-label="โหมดมืด"
+              title={theme === 'dark' ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'}
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="flex size-11 items-center justify-center rounded-full border border-transparent bg-transparent text-muted transition-colors hover:text-ink"
+            >
+              {theme === 'dark' ? <Sun aria-hidden size={18} /> : <Moon aria-hidden size={18} />}
+            </button>
+            {pathname !== '/' && (
+              <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-amber bg-amber px-5 text-sm font-semibold text-on-amber no-underline transition-colors hover:bg-amber-hover ">
+                New assessment <span aria-hidden>→</span>
+              </Link>
+            )}
+          </div>
 
           <nav aria-label="Main" className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto xl:order-2 xl:ml-auto xl:w-auto">
             {NAV.filter((n) => n.to !== '/').map((n) => (
@@ -60,7 +76,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 to={n.to}
                 end
                 className={({ isActive }) =>
-                  `flex min-h-11 items-center whitespace-nowrap px-2.5 text-[14px] no-underline decoration-2 underline-offset-[10px] transition-colors duration-150 ${isActive ? 'font-semibold text-ink underline' : 'text-[#4d4e46] hover:text-ink'}`
+                  `flex min-h-11 items-center whitespace-nowrap px-2 text-[14px] no-underline decoration-2 underline-offset-[10px] transition-colors duration-150 ${isActive ? 'font-semibold text-ink underline' : 'text-muted hover:text-ink'}`
                 }
               >
                 {n.short}
@@ -73,7 +89,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1240px] flex-1 flex-col gap-10 px-5 py-8 focus:outline-none sm:px-10 lg:py-10">
         <div className={`print:hidden flex flex-wrap items-center gap-x-5 gap-y-0 text-xs text-muted ${pathname === '/' && !running ? 'hidden' : '-mb-6 -mt-3'}`}>
           {running && startedAt && (
-            <Link to="/" className="flex items-center gap-2 rounded-full border border-line-strong bg-white px-3 py-1 font-medium text-ink no-underline">
+            <Link to="/" className="flex items-center gap-2 rounded-full border border-line-strong bg-surface px-3 py-1 font-medium text-ink no-underline">
               <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-amber" />
               กำลังประเมิน… <Elapsed since={startedAt} />
             </Link>

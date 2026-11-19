@@ -7,7 +7,7 @@ import type { PingResult } from '@/lib/types'
 
 const CUSTOM = '__custom'
 const INPUT = 'h-11 w-full max-w-md rounded-lg border border-line-strong px-[11px] text-sm'
-const SELECT = 'h-11 w-full max-w-md rounded-lg border border-line-strong bg-white text-sm' // padding and chevron come from index.css
+const SELECT = 'h-11 w-full max-w-md rounded-lg border border-line-strong bg-surface text-sm' // padding and chevron come from index.css
 
 export default function AiSettings() {
   const s = useAssessmentStore()
@@ -73,7 +73,7 @@ export default function AiSettings() {
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="primary" disabled={(!s.apiKey && !s.serverDefault) || !s.model || testing} onClick={test}>{testing ? 'Testing…' : 'Test connection'}</Button>
             {result && (
-              <span role="status" className={`flex items-center gap-1.5 text-sm ${result.ok ? 'text-[#237804]' : 'text-[#CF1322]'}`}>
+              <span role="status" className={`flex items-center gap-1.5 text-sm ${result.ok ? 'text-success' : 'text-danger'}`}>
                 {result.ok ? <CheckCircle2 aria-hidden size={16} /> : <CircleAlert aria-hidden size={16} />}
                 {result.ok ? `Working · ${s.apiKey ? s.model : s.serverDefault?.model} · ${result.ms} ms` : result.error}
               </span>

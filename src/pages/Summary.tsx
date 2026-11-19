@@ -36,8 +36,8 @@ function SummaryContent({ a }: { a: Assessment }) {
   return (
     <>
       <PageHeader title="Executive summary" lead="สรุปสำหรับผู้บริหารจากผลประเมินล่าสุด ดาวน์โหลดเป็น PDF ได้" action={<Button disabled={busy} onClick={download}>{busy ? 'กำลังสร้าง PDF…' : 'Download PDF'}</Button>} />
-      {error && <p role="alert" className="m-0 text-[#CF1322]">{error}</p>}
-      <section ref={page} className="flex max-w-[880px] flex-col gap-6 rounded-[10px] border border-line bg-white p-8">
+      {error && <p role="alert" className="m-0 text-danger">{error}</p>}
+      <section ref={page} className="flex max-w-[880px] flex-col gap-6 rounded-[10px] border border-line bg-surface p-8">
         <span className="text-xs text-muted">TOR Scouter · {customer || 'Customer TOR'} · {today}</span>
         <div className="flex flex-wrap gap-8">
           {stats.map((s) => (

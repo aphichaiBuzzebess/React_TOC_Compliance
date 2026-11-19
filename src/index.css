@@ -1,31 +1,103 @@
 @import "tailwindcss";
 
 /* Buzzebees palette: amber #F9A601 and black on warm paper. Amber is a fill (buttons, highlight, marks) and is never used
-   as text on a light background (1.8:1); amber-text #895B01 carries small amber-toned text at 5.4:1+. */
+   as text on a light background (1.8:1); amber-text carries small amber-toned text at 5.4:1+.
+
+   The palette lives in plain variables (--c-*), so one place holds the light set, one the dark set. Tailwind's colour
+   names (bg-surface, text-muted…) point at them. The light set is also `.force-light`, for the one thing that must stay
+   on white paper whatever the theme (the PDF capture); dark applies on screen only, so print is always light. */
+:root,
+.force-light {
+  --c-canvas: #f7f5ef;
+  --c-surface: #ffffff;
+  --c-ink: #080909;
+  --c-inverse: #f7f5ef; /* text on an ink-coloured fill */
+  --c-on-amber: #080909; /* text on the amber fill: black in both themes */
+  --c-muted: #66645c;
+  --c-line: #e6e2d7;
+  --c-line-strong: #d3cebf;
+  --c-tint: #f0ece1;
+  --c-dark: #161616; /* the run band: dark in both themes */
+  --c-dark-line: #2c2c2c;
+  --c-amber-soft: #fef6e6;
+  --c-amber-line: #fde3b0;
+  --c-amber-text: #895b01;
+  --c-danger: #cf1322;
+  --c-success: #237804;
+
+  /* status colours: dot (charts, markers), fg/bg/bd (badges) */
+  --st-full-dot: #52c41a;   --st-full-fg: #237804;   --st-full-bg: #f6ffed;   --st-full-bd: #b7eb8f;
+  --st-config-dot: #1677ff; --st-config-fg: #0958d9; --st-config-bg: #e6f4ff; --st-config-bd: #91caff;
+  --st-custom-dot: #faad14; --st-custom-fg: #8a5600; --st-custom-bg: #fffbe6; --st-custom-bd: #ffe58f;
+  --st-integ-dot: #434343;  --st-integ-fg: #262626;  --st-integ-bg: #f5f5f5;  --st-integ-bd: #bfbfbf;
+  --st-none-dot: #ff4d4f;   --st-none-fg: #cf1322;   --st-none-bg: #fff2f0;   --st-none-bd: #ffccc7;
+  --st-verify-dot: #bfbfbf; --st-verify-fg: #595959; --st-verify-bg: #ffffff;  --st-verify-bd: #8c8c8c;
+}
+
+@media screen {
+  :root[data-theme='dark'] {
+    color-scheme: dark; /* native controls, scrollbars */
+    --c-canvas: #0e0e0d;
+    --c-surface: #181816;
+    --c-ink: #f4f1e8;
+    --c-inverse: #0e0e0d;
+    --c-muted: #a9a69a;
+    --c-line: #2b2a26;
+    --c-line-strong: #403e38;
+    --c-tint: #22211e;
+    --c-dark: #1f1e1b;
+    --c-dark-line: #36342f;
+    --c-amber-soft: #2a2110;
+    --c-amber-line: #4d3b10;
+    --c-amber-text: #f2b84b;
+    --c-danger: #ff7875;
+    --c-success: #73d13d;
+
+    --st-full-dot: #52c41a;   --st-full-fg: #95de64;   --st-full-bg: #15230f;   --st-full-bd: #274916;
+    --st-config-dot: #3c89ff; --st-config-fg: #69b1ff; --st-config-bg: #111d2c;  --st-config-bd: #15395b;
+    --st-custom-dot: #faad14; --st-custom-fg: #ffc53d; --st-custom-bg: #2b2111;  --st-custom-bd: #594214;
+    --st-integ-dot: #9a9a9a;  --st-integ-fg: #d9d9d9;  --st-integ-bg: #262626;   --st-integ-bd: #434343;
+    --st-none-dot: #ff4d4f;   --st-none-fg: #ff7875;   --st-none-bg: #2a1215;    --st-none-bd: #58181c;
+    --st-verify-dot: #8c8c8c; --st-verify-fg: #bfbfbf; --st-verify-bg: #181816;  --st-verify-bd: #595959;
+  }
+}
+
 @theme {
+  /* the run band is dark in both themes, so its greys are fixed */
+  --color-dark-muted: #b8b8b0;
+  --color-dark-edge: #4a4a4a;
+  --color-dark-raised: #262624;
+
   --font-sans: Inter, 'Noto Sans Thai', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
 
-  --color-canvas: #f7f5ef;
-  --color-ink: #080909;
-  --color-muted: #66645c;
-  --color-line: #e6e2d7;
-  --color-line-strong: #d3cebf;
-  --color-tint: #f0ece1;
-  --color-dark: #161616;
-  --color-dark-line: #2c2c2c;
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-ink: var(--c-ink);
+  --color-inverse: var(--c-inverse);
+  --color-on-amber: var(--c-on-amber);
+  --color-muted: var(--c-muted);
+  --color-line: var(--c-line);
+  --color-line-strong: var(--c-line-strong);
+  --color-tint: var(--c-tint);
+  --color-dark: var(--c-dark);
+  --color-dark-line: var(--c-dark-line);
+  --color-danger: var(--c-danger);
+  --color-success: var(--c-success);
 
   --color-amber: #f9a601;
   --color-amber-hover: #e39701;
-  --color-amber-soft: #fef6e6;
-  --color-amber-line: #fde3b0;
-  --color-amber-text: #895b01;
+  --color-amber-soft: var(--c-amber-soft);
+  --color-amber-line: var(--c-amber-line);
+  --color-amber-text: var(--c-amber-text);
 
   /* legacy names used by existing components */
-  --color-brand: #080909;
-  --color-brand-soft: #f0ece1;
-  --color-brand-line: #e6e2d7;
-  --color-brand-text: #895b01;
+  --color-brand: var(--c-ink);
+  --color-brand-soft: var(--c-tint);
+  --color-brand-line: var(--c-line);
+  --color-brand-text: var(--c-amber-text);
 }
 
 @layer base {
@@ -49,6 +121,8 @@
     line-height: 1.12;
   }
   button { font-family: inherit; cursor: pointer; }
+  input, select, textarea { color: inherit; background-color: var(--color-surface); }
+  ::placeholder { color: var(--color-muted); opacity: 0.8; }
   /* One look for every dropdown: our own chevron with room on the right, instead of the browser's, which sits tight against the border. */
   select {
     appearance: none;
@@ -58,9 +132,12 @@
     background-position: right 0.875rem center;
     background-size: 1rem;
   }
+  :root[data-theme='dark'] select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a9a69a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
   a { color: var(--color-ink); }
   :focus-visible { outline: 2px solid var(--color-ink); outline-offset: 3px; }
-  ::selection { background: #fde3b0; }
+  ::selection { background: var(--color-amber); color: #080909; }
 }
 
 @media (prefers-reduced-motion: reduce) {

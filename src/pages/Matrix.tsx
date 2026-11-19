@@ -17,7 +17,7 @@ function IconButton({ label, className = '', ...p }: { label: string } & React.B
       type="button"
       aria-label={label}
       {...p}
-      className={`inline-flex size-11 items-center justify-center rounded-full border border-line-strong bg-white text-ink transition-colors hover:border-ink disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+      className={`inline-flex size-11 items-center justify-center rounded-full border border-line-strong bg-surface text-ink transition-colors hover:border-ink disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
     />
   )
 }
@@ -92,10 +92,10 @@ function MatrixContent({ a }: { a: Assessment }) {
 
   return (
     <>
-      {exportError && <p role="alert" className="m-0 text-[#CF1322]">{exportError}</p>}
+      {exportError && <p role="alert" className="m-0 text-danger">{exportError}</p>}
       <PageHeader title="Compliance matrix" lead={LEAD} action={<Button variant="success" onClick={doExport}>Export Excel</Button>} />
 
-      <div className="flex flex-col gap-4 rounded-[10px] border border-line bg-white p-5">
+      <div className="flex flex-col gap-4 rounded-[10px] border border-line bg-surface p-5">
         <div className="flex flex-wrap items-center gap-3">
           <label htmlFor="q" className="sr-only">Search requirements</label>
           <input
@@ -104,10 +104,10 @@ function MatrixContent({ a }: { a: Assessment }) {
             placeholder="Search ID, requirement or module"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="h-11 min-w-[220px] flex-[1_1_300px] rounded-lg border border-line-strong bg-white px-3 text-sm"
+            className="h-11 min-w-[220px] flex-[1_1_300px] rounded-lg border border-line-strong bg-surface px-3 text-sm"
           />
           <label htmlFor="mod" className="sr-only">Module</label>
-          <select id="mod" value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-white text-sm">
+          <select id="mod" value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-surface text-sm">
             <option value="all">All modules</option>
             {modules.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
@@ -122,7 +122,7 @@ function MatrixContent({ a }: { a: Assessment }) {
                 type="button"
                 aria-pressed={on}
                 onClick={() => setFilter(c.key)}
-                className={`min-h-11 rounded-full border px-4 text-[13px] transition-colors ${on ? 'border-ink bg-ink font-medium text-white' : 'border-line-strong bg-white hover:border-ink'}`}
+                className={`min-h-11 rounded-full border px-4 text-[13px] transition-colors ${on ? 'border-ink bg-ink font-medium text-inverse' : 'border-line-strong bg-surface hover:border-ink'}`}
               >
                 {c.label} · {c.count}
               </button>
@@ -134,7 +134,7 @@ function MatrixContent({ a }: { a: Assessment }) {
         </p>
       </div>
 
-      <details className="rounded-[10px] border border-line bg-white">
+      <details className="rounded-[10px] border border-line bg-surface">
         <summary className="flex min-h-11 cursor-pointer items-center px-6 py-2 font-medium">ความหมายของสถานะ</summary>
         <ul className="m-0 flex list-none flex-col gap-2 p-0 px-6 pb-4 pt-1">
           {ORDER.map((k) => (
@@ -147,7 +147,7 @@ function MatrixContent({ a }: { a: Assessment }) {
       </details>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="min-w-0 rounded-[10px] border border-line bg-white">
+        <div className="min-w-0 rounded-[10px] border border-line bg-surface">
           <table className="w-full border-collapse">
             <caption className="sr-only">Requirements and their compliance status</caption>
             <thead>
@@ -180,7 +180,7 @@ function MatrixContent({ a }: { a: Assessment }) {
                       <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                         <span>{r.module}</span>
                         <span className="flex items-center gap-2 xl:hidden"><StatusBadge s={r.s} /><span className="tabular-nums">{r.conf}</span></span>
-                        {state && <span className={state === 'ok' ? 'font-medium text-[#237804]' : 'font-medium text-[#a23a3a]'}>{state === 'ok' ? '✓ ยืนยันแล้ว' : '⚑ ติดธง'}</span>}
+                        {state && <span className={state === 'ok' ? 'font-medium text-success' : 'font-medium text-danger'}>{state === 'ok' ? '✓ ยืนยันแล้ว' : '⚑ ติดธง'}</span>}
                       </p>
                     </td>
                     <td className="hidden border-b border-line px-4 py-3 align-top xl:table-cell"><StatusBadge s={r.s} /></td>
@@ -205,11 +205,11 @@ function MatrixContent({ a }: { a: Assessment }) {
           ref={panel}
           aria-label="Requirement detail"
           onKeyDown={(e) => e.key === 'Escape' && setSheetOpen(false)}
-          className={`${sheetOpen ? 'fixed inset-x-0 bottom-0 z-40 max-h-[62vh] overflow-y-auto rounded-t-2xl border-t border-line shadow-[0_-12px_32px_-12px_rgba(8,9,9,0.3)]' : 'hidden'} bg-white lg:static lg:top-6 lg:block lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:rounded-[10px] lg:border lg:shadow-none lg:sticky xl:top-24 xl:max-h-[calc(100vh-7.5rem)]`}
+          className={`${sheetOpen ? 'fixed inset-x-0 bottom-0 z-40 max-h-[62vh] overflow-y-auto rounded-t-2xl border-t border-line shadow-[0_-12px_32px_-12px_rgba(8,9,9,0.3)]' : 'hidden'} bg-surface lg:static lg:top-6 lg:block lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:rounded-[10px] lg:border lg:shadow-none lg:sticky xl:top-24 xl:max-h-[calc(100vh-7.5rem)]`}
         >
           {sel ? (
             <>
-              <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-line bg-white px-5 py-2.5">
+              <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-line bg-surface px-5 py-2.5">
                 <span className="font-mono text-[13px]">{sel.id} <span className="font-sans text-muted">· {sel.module}</span></span>
                 <div className="flex items-center gap-1">
                   {idx >= 0 && <span className="px-1 text-xs tabular-nums text-muted">{idx + 1} / {rows.length}</span>}
@@ -242,10 +242,10 @@ function MatrixContent({ a }: { a: Assessment }) {
                 </section>
               </div>
 
-              <div className="sticky bottom-0 flex flex-col gap-2 border-t border-line bg-white px-5 py-4">
+              <div className="sticky bottom-0 flex flex-col gap-2 border-t border-line bg-surface px-5 py-4">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-medium">PM validation</span>
-                  <span role="status" className={`text-xs ${v === 'ok' ? 'text-[#237804]' : v === 'flag' ? 'text-[#a23a3a]' : 'text-muted'}`}>
+                  <span role="status" className={`text-xs ${v === 'ok' ? 'text-success' : v === 'flag' ? 'text-danger' : 'text-muted'}`}>
                     {v === 'ok' ? 'Confirmed by PM' : v === 'flag' ? 'Flagged for review' : 'Not yet validated'}
                   </span>
                 </div>

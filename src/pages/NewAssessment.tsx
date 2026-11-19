@@ -13,9 +13,9 @@ function Preview() {
   const bars = [34, 48, 30, 56, 44, 62, 50, 70, 58, 80, 66, 92]
   const rows = ['Requirement ที่แยกได้', 'สถานะ compliance ต่อข้อ', 'คำถามที่ต้องถามลูกค้า']
   return (
-    <div aria-hidden className="hidden rotate-[-2deg] overflow-hidden rounded-xl border border-line bg-white shadow-[0_18px_40px_-24px_rgba(26,26,23,0.35)] lg:block">
-      <div className="flex items-center justify-between border-b border-line bg-[#f5efe0] px-4 py-2.5 text-xs text-muted">
-        <span className="flex gap-1.5">{[0, 1, 2].map((i) => <span key={i} className="size-2 rounded-full bg-[#e7dcc4]" />)}</span>
+    <div aria-hidden className="hidden rotate-[-2deg] overflow-hidden rounded-xl border border-line bg-surface shadow-[0_18px_40px_-24px_rgba(26,26,23,0.35)] lg:block">
+      <div className="flex items-center justify-between border-b border-line bg-tint px-4 py-2.5 text-xs text-muted">
+        <span className="flex gap-1.5">{[0, 1, 2].map((i) => <span key={i} className="size-2 rounded-full bg-line-strong" />)}</span>
         <span>TOR Scouter · ผลประเมิน</span>
         <span className="w-10" />
       </div>
@@ -35,7 +35,7 @@ function Preview() {
             <li key={r} className="flex items-center gap-3 border-t border-line py-3 text-sm">
               <span className="flex size-6 items-center justify-center rounded-full bg-amber-soft text-xs text-amber-text">✓</span>
               <span className="flex-1">{r}</span>
-              <span className="text-xs text-[#74756b]">{String(i + 1).padStart(2, '0')}</span>
+              <span className="text-xs text-muted">{String(i + 1).padStart(2, '0')}</span>
             </li>
           ))}
         </ul>
@@ -50,7 +50,7 @@ function Marker({ n, done, current }: { n: number; done: boolean; current: boole
   return (
     <span
       className={`flex size-7 flex-none items-center justify-center rounded-full border text-xs font-semibold ${
-        done ? 'border-amber bg-amber text-ink' : current ? 'border-ink bg-ink text-white' : 'border-line-strong bg-white text-muted'
+        done ? 'border-amber bg-amber text-on-amber' : current ? 'border-ink bg-ink text-inverse' : 'border-line-strong bg-surface text-muted'
       }`}
     >
       {done ? '✓' : n}
@@ -117,7 +117,7 @@ export default function NewAssessment() {
                   htmlFor="torFile"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => { e.preventDefault(); addFiles([...e.dataTransfer.files]) }}
-                  className="flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border border-line-strong bg-white px-4 transition-colors hover:border-ink has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink"
+                  className="flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border border-line-strong bg-surface px-4 transition-colors hover:border-ink has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink"
                 >
                   <Upload aria-hidden size={20} strokeWidth={1.5} className="flex-none text-muted" />
                   <span className="flex min-w-0 flex-1 flex-col">
@@ -150,7 +150,7 @@ export default function NewAssessment() {
                 )}
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="custName" className="text-sm text-muted">ชื่อลูกค้า (ไม่บังคับ)</label>
-                  <input id="custName" type="text" placeholder="Customer name" value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-white px-3 text-sm" />
+                  <input id="custName" type="text" placeholder="Customer name" value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-surface px-3 text-sm" />
                 </div>
               </div>
             </motion.li>
@@ -171,7 +171,7 @@ export default function NewAssessment() {
                     </>
                   )}
                 </div>
-                {error && <p role="alert" className="m-0 text-sm text-[#a23a3a]">{error}</p>}
+                {error && <p role="alert" className="m-0 text-sm text-danger">{error}</p>}
               </div>
             </motion.li>
           </ol>
@@ -194,7 +194,7 @@ export default function NewAssessment() {
       <section id="workflow" className="scroll-mt-24 rounded-[10px] border border-dark-line bg-dark text-white">
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-5">
           <h2 className="m-0 text-xl font-medium text-white">Agent workflow</h2>
-          <span className="text-xs text-[#b8b8b0]">{runLabel}</span>
+          <span className="text-xs text-dark-muted">{runLabel}</span>
         </div>
         {/* A thin amber line fills as the steps finish; it is a visual echo of the step list, so it is hidden from screen readers. */}
         <div aria-hidden className="mx-6 mt-4 h-0.5 overflow-hidden rounded-full bg-dark-line">
@@ -213,22 +213,22 @@ export default function NewAssessment() {
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 18 }}
                   className={`flex size-7 flex-none items-center justify-center rounded-full border text-xs font-semibold ${
-                    isDone ? 'border-amber bg-amber text-ink' : active ? 'animate-pulse border-white bg-white text-ink' : 'border-[#4a4a4a] text-[#b8b8b0]'
+                    isDone ? 'border-amber bg-amber text-on-amber' : active ? 'animate-pulse border-white bg-white text-on-amber' : 'border-dark-edge text-dark-muted'
                   }`}
                 >
                   {isDone ? '✓' : i + 1}
                 </motion.span>
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="font-medium text-white">{name}</span>
-                  <span className="text-xs leading-5 text-[#b8b8b0]">{desc}</span>
-                  <span className={`mt-1 text-xs font-medium ${isDone ? 'text-amber' : active ? 'text-white' : 'text-[#b8b8b0]'}`}>{isDone ? 'Done' : active ? 'Running…' : 'Pending'}</span>
+                  <span className="text-xs leading-5 text-dark-muted">{desc}</span>
+                  <span className={`mt-1 text-xs font-medium ${isDone ? 'text-amber' : active ? 'text-white' : 'text-dark-muted'}`}>{isDone ? 'Done' : active ? 'Running…' : 'Pending'}</span>
                 </div>
               </li>
             )
           })}
         </ol>
         {running && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-dark-line bg-[#232323] px-6 py-3 text-sm text-amber">
+          <div className="flex flex-wrap items-center gap-2 border-t border-dark-line bg-dark-raised px-6 py-3 text-sm text-amber">
             {/* Only this text is announced. The ticking timer stays visual so a screen reader is not interrupted every second. */}
             <p role="status" className="m-0">{detail}</p>
             {startedAt && <span aria-hidden className="font-medium">· <Elapsed since={startedAt} /></span>}
@@ -236,7 +236,7 @@ export default function NewAssessment() {
         )}
       </section>
 
-      <details className="rounded-[10px] border border-line bg-white">
+      <details className="rounded-[10px] border border-line bg-surface">
         <summary className="flex min-h-11 cursor-pointer items-center px-6 py-2 font-medium">ดูวิธีการทำงานและไฟล์ที่รองรับ</summary>
         <div className="grid items-center gap-8 px-6 pb-6 pt-2 lg:grid-cols-2">
           <div className="flex flex-col gap-4">
