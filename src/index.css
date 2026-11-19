@@ -1,32 +1,31 @@
 @import "tailwindcss";
 
-/* Warm cream page, white cards, near-black ink. One orange accent for actions and one highlighted headline line;
-   one dark band as the strongest break. Text colours are chosen to pass 4.5:1 on their backgrounds. */
+/* Buzzebees palette: amber #F9A601 and black on warm paper. Amber is a fill (buttons, highlight, marks) and is never used
+   as text on a light background (1.8:1); amber-text #895B01 carries small amber-toned text at 5.4:1+. */
 @theme {
   --font-sans: Inter, 'Noto Sans Thai', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  --color-canvas: #f3f3ec;
-  --color-ink: #1a1a17;
-  --color-muted: #6a6b62;
-  --color-line: #e2e2d9;
-  --color-line-strong: #cfcfc4;
-  --color-tint: #ecece3;
-  --color-dark: #2b2e26;
-  --color-dark-line: #3d4136;
+  --color-canvas: #f7f5ef;
+  --color-ink: #080909;
+  --color-muted: #66645c;
+  --color-line: #e6e2d7;
+  --color-line-strong: #d3cebf;
+  --color-tint: #f0ece1;
+  --color-dark: #161616;
+  --color-dark-line: #2c2c2c;
 
-  --color-accent: #e8541f;        /* large headline line only (3.3:1 on cream) */
-  --color-accent-strong: #bf3f0d; /* buttons with white text, small labels (5.3:1 / 4.8:1) */
-  --color-accent-dark: #f2693a;   /* fills and labels on the dark band, with ink text */
-  --color-leaf: #7fb63f;          /* decorative mark and checks */
-  --color-leaf-tint: #e8eedb;
-  --color-leaf-ink: #46552b;
+  --color-amber: #f9a601;
+  --color-amber-hover: #e39701;
+  --color-amber-soft: #fef6e6;
+  --color-amber-line: #fde3b0;
+  --color-amber-text: #895b01;
 
   /* legacy names used by existing components */
-  --color-brand: #1a1a17;
-  --color-brand-soft: #ecece3;
-  --color-brand-line: #e2e2d9;
-  --color-brand-text: #bf3f0d;
+  --color-brand: #080909;
+  --color-brand-soft: #f0ece1;
+  --color-brand-line: #e6e2d7;
+  --color-brand-text: #895b01;
 }
 
 @layer base {
@@ -49,7 +48,7 @@
   button { font-family: inherit; cursor: pointer; }
   a { color: var(--color-ink); }
   :focus-visible { outline: 2px solid var(--color-ink); outline-offset: 3px; }
-  ::selection { background: #f6d9cc; }
+  ::selection { background: #fde3b0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -6,17 +6,13 @@ import { NAV } from '@/data/nav'
 import { useAssessment } from '@/lib/useAssessment'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 
-/** Orange tile with a lens: ring, centre dot and four ticks. Drawn here, so no third-party mark is used. */
+/** Amber disc, black ring, amber centre: the bullseye of a scouter lens, in Buzzebees colours. */
 function Mark() {
   return (
     <svg aria-hidden="true" width="40" height="40" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="10" fill="#e8541f" />
-      <g fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round">
-        <circle cx="20" cy="20" r="9" />
-        <path d="M20 7v4M20 29v4M7 20h4M29 20h4" />
-      </g>
-      <circle cx="20" cy="20" r="3" fill="#fff" />
-      <circle cx="31.5" cy="8.5" r="2.4" fill="#7fb63f" />
+      <circle cx="20" cy="20" r="19" fill="#f9a601" />
+      <circle cx="20" cy="20" r="12" fill="#080909" />
+      <circle cx="20" cy="20" r="5.2" fill="#f9a601" />
     </svg>
   )
 }
@@ -45,7 +41,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </Link>
 
           {pathname !== '/' && (
-            <Link to="/" className="order-2 ml-auto inline-flex min-h-11 items-center gap-2 rounded-full border border-accent-strong bg-accent-strong px-5 text-sm font-semibold text-white no-underline transition-colors hover:bg-[#a53509] lg:order-3 lg:ml-0">
+            <Link to="/" className="order-2 ml-auto inline-flex min-h-11 items-center gap-2 rounded-full border border-amber bg-amber px-5 text-sm font-semibold text-ink no-underline transition-colors hover:bg-amber-hover lg:order-3 lg:ml-0">
               New assessment <span aria-hidden>→</span>
             </Link>
           )}
@@ -71,7 +67,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div className="print:hidden -mb-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted">
           {running && startedAt && (
             <Link to="/" className="flex items-center gap-2 rounded-full border border-line-strong bg-white px-3 py-1 font-medium text-ink no-underline">
-              <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-accent-strong" />
+              <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-amber" />
               กำลังประเมิน… <Elapsed since={startedAt} />
             </Link>
           )}
@@ -81,7 +77,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <span>{a ? `${a.total} requirements` : 'ยังไม่มี TOR'}</span>
           </span>
           <Link to="/ai-settings" className="flex items-center gap-1.5 text-muted no-underline hover:text-ink">
-            <span aria-hidden className={`size-1.5 rounded-full ${apiKey ? 'bg-leaf' : 'bg-line-strong'}`} />
+            <span aria-hidden className={`size-1.5 rounded-full ${apiKey ? 'bg-amber' : 'bg-line-strong'}`} />
             {apiKey ? `${ai?.label.split(' ')[0]} · ${model}` : 'ยังไม่ได้ใส่ AI key'}
           </Link>
         </div>

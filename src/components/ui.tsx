@@ -10,8 +10,8 @@ export const metaLabel = 'text-[11px] font-medium uppercase tracking-[0.08em] te
 /** "● 03 / Results": the dot and number sequence the pages like chapters of a document. */
 export function Eyebrow({ children, onDark = false }: { children: ReactNode; onDark?: boolean }) {
   return (
-    <span className={cn('flex items-center gap-2 text-xs font-medium uppercase tracking-[0.1em]', onDark ? 'text-accent-dark' : 'text-muted')}>
-      <span aria-hidden className={cn('size-1.5 rounded-full', onDark ? 'bg-accent-dark' : 'bg-accent-strong')} />
+    <span className={cn('flex items-center gap-2 text-xs font-medium uppercase tracking-[0.1em]', onDark ? 'text-amber' : 'text-muted')}>
+      <span aria-hidden className={cn('size-1.5 rounded-full', 'bg-amber')} />
       {children}
     </span>
   )
@@ -23,17 +23,20 @@ export const CornerNo = ({ n, onDark = false }: { n: number; onDark?: boolean })
 )
 
 export function Pill({ children }: { children: ReactNode }) {
-  return <span className="rounded-full border border-[#d5dfc0] bg-leaf-tint px-3 py-1 text-xs font-medium text-leaf-ink">{children}</span>
+  return <span className="rounded-full border border-amber-line bg-amber-soft px-3 py-1 text-xs font-medium text-amber-text">{children}</span>
 }
 
-/** Big tight headline; the last word takes the accent colour. */
+/** Amber marker behind the last words: the brand colour as a fill, since amber text on paper is unreadable. */
+export const highlight = 'rounded-lg bg-amber px-2.5 text-ink box-decoration-clone'
+
+/** Big tight headline; the last word is highlighted. */
 export function Headline({ text, className }: { text: string; className?: string }) {
   const words = text.trim().split(' ')
   const last = words.pop()
   return (
     <h1 className={cn('m-0 text-[clamp(2.25rem,4.6vw,3.5rem)] text-ink', className)}>
       {words.join(' ')}{words.length ? ' ' : ''}
-      <span className="text-accent">{last}</span>
+      <span className={highlight}>{last}</span>
     </h1>
   )
 }
@@ -71,8 +74,8 @@ type Variant = 'default' | 'primary' | 'dark' | 'ghost' | 'success' | 'danger'
 const VARIANTS: Record<Variant, string> = {
   default: 'border-line-strong bg-white text-ink hover:border-ink',
   success: 'border-line-strong bg-white text-ink hover:border-ink', // same as default: orange is for the main action only
-  primary: 'border-accent-strong bg-accent-strong text-white hover:border-[#a53509] hover:bg-[#a53509]',
-  dark: 'border-accent-dark bg-accent-dark text-ink hover:border-[#ff8559] hover:bg-[#ff8559]', // for use on the dark band
+  primary: 'border-amber bg-amber text-ink hover:border-amber-hover hover:bg-amber-hover',
+  dark: 'border-amber bg-amber text-ink hover:border-amber-hover hover:bg-amber-hover', // same fill; kept as a name for use on the dark band
   ghost: 'border-transparent bg-transparent text-ink underline-offset-4 hover:underline',
   danger: 'border-line-strong bg-white text-[#a23a3a] hover:border-[#a23a3a]',
 }
@@ -99,7 +102,7 @@ export function StatusBadge({ s }: { s: StatusKey }) {
 }
 
 export function Alert({ tone, title, children }: { tone: 'info' | 'warning'; title: string; children?: ReactNode }) {
-  const c = tone === 'info' ? 'border-line bg-white' : 'border-[#ecd9bc] bg-[#fbf3e8]'
+  const c = tone === 'info' ? 'border-line bg-white' : 'border-amber-line bg-amber-soft'
   return (
     <div role="status" className={cn('flex flex-col gap-1 rounded-[10px] border px-5 py-4', c)}>
       <span className="font-semibold text-ink">{title}</span>
@@ -128,7 +131,7 @@ export function EmptyState({ title, lead }: { title: string; lead?: string }) {
       <div className="flex flex-col items-center gap-4 rounded-[10px] border border-line bg-white px-6 py-20 text-center">
         <p className="m-0 text-3xl tracking-[-0.03em] text-ink">ยังไม่มีผลประเมิน</p>
         <p className="m-0 max-w-sm text-muted">อัปโหลด TOR แล้วรัน assessment ก่อน ผลจะแสดงที่หน้านี้</p>
-        <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-accent-strong bg-accent-strong px-5 text-sm font-semibold text-white no-underline hover:bg-[#a53509]">
+        <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-amber bg-amber px-5 text-sm font-semibold text-ink no-underline hover:bg-amber-hover">
           New assessment <span aria-hidden>→</span>
         </Link>
       </div>
