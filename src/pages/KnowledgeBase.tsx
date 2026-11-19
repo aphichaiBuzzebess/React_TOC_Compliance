@@ -77,7 +77,7 @@ export default function KnowledgeBase() {
               {groups.length === 0 && <p className="m-0 py-4 text-center text-muted">No matching note</p>}
               {groups.map(([module, items]) => (
                 <div key={module} className="flex flex-col gap-1">
-                  <span className="px-1 text-[11px] font-bold uppercase tracking-[0.08em] text-muted">{module}</span>
+                  <span className="px-1 text-xs font-bold uppercase tracking-[0.08em] text-muted">{module}</span>
                   {items.map((n) => (
                     <button key={n.path} type="button" onClick={() => setSel(n.path)} aria-current={n.path === sel} className={`flex min-h-10 items-center justify-between gap-2 rounded-md border-0 px-3 text-left text-sm ${n.path === sel ? 'bg-brand-soft font-medium text-brand-text' : 'bg-transparent hover:bg-[#FAFAFA]'}`}>
                       <span className="min-w-0 truncate">{n.title}</span>

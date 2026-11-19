@@ -42,12 +42,13 @@ function DashboardContent({ a }: { a: Assessment }) {
       <Card title="Coverage by module">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] border-collapse">
+            <caption className="sr-only">Coverage by module</caption>
             <thead>
               <tr className="bg-tint text-left">
-                <th className="border-b border-line px-6 py-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Module</th>
-                <th className="border-b border-line px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Requirements</th>
-                <th className="border-b border-line px-4 py-3 text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Fully supported</th>
-                <th className="w-[40%] border-b border-line py-3 pl-4 pr-6 text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Coverage</th>
+                <th scope="col" className="border-b border-line px-6 py-3 text-xs font-medium uppercase tracking-[0.08em] text-muted">Module</th>
+                <th scope="col" className="border-b border-line px-4 py-3 text-right text-xs font-medium uppercase tracking-[0.08em] text-muted">Requirements</th>
+                <th scope="col" className="border-b border-line px-4 py-3 text-right text-xs font-medium uppercase tracking-[0.08em] text-muted">Fully supported</th>
+                <th scope="col" className="w-[40%] border-b border-line py-3 pl-4 pr-6 text-xs font-medium uppercase tracking-[0.08em] text-muted">Coverage</th>
               </tr>
             </thead>
             <tbody>

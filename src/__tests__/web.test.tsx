@@ -183,3 +183,58 @@ describe('retry open questions', () => {
     expect(useAssessmentStore.getState().result).toHaveLength(1)
   })
 })
+
+describe('accessibility fixes', () => {
+  const lum = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  const ratio = (a: string, b: string) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05)
+
+  it('every status badge has at least 4.5:1 text contrast', async () => {
+    const { STATUS } = await import('@/data/tor')
+    for (const [k, s] of Object.entries(STATUS)) expect(ratio(s.fg, s.bg), `${k} ${s.fg} on ${s.bg}`).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it.each([
+    ['/dashboard', /Coverage dashboard/],
+    ['/matrix', /Compliance matrix/],
+    ['/knowledge-base', /Knowledge base/],
+  ])('%s sets its own tab title', (path, title) => {
+    open(path)
+    expect(document.title).toMatch(title)
+    expect(document.title).toContain('TOR Scouter')
+  })
+
+  it('offers a skip link to the main region', () => {
+    open('/dashboard')
+    const skip = screen.getByRole('link', { name: 'ข้ามไปเนื้อหาหลัก' })
+    expect(skip).toHaveAttribute('href', '#main')
+    expect(document.getElementById('main')).toBeInTheDocument()
+  })
+
+  it('keeps the ticking timer out of the live region', () => {
+    useAssessmentStore.setState({ running: true, step: 2, startedAt: Date.now() - 12_000, detail: 'ประเมินแล้ว 1/3 ชุด' })
+    open('/')
+    const live = screen.getByText('ประเมินแล้ว 1/3 ชุด')
+    expect(live).toHaveAttribute('role', 'status')
+    expect(live.textContent).not.toMatch(/\d+s/)
+    useAssessmentStore.setState({ running: false, startedAt: null, detail: '', step: -1 })
+  })
+
+  it('says why Run is disabled', () => {
+    useAssessmentStore.setState({ file: null, apiKey: '' })
+    open('/')
+    const hint = screen.getByText('เลือกไฟล์ TOR และใส่ API key ที่ AI settings ก่อน')
+    expect(screen.getByRole('button', { name: /Run assessment/ })).toHaveAttribute('aria-describedby', hint.id)
+  })
+
+  it('gives data tables a caption and column scopes, and marks the selected requirement', () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'full'), req('R-002', 'none')], selId: 'R-002' })
+    open('/matrix')
+    expect(screen.getByRole('table', { name: 'Requirements and their compliance status' })).toBeInTheDocument()
+    for (const th of screen.getAllByRole('columnheader')) expect(th).toHaveAttribute('scope', 'col')
+    expect(screen.getByRole('button', { name: 'R-002' })).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('button', { name: 'R-001' })).not.toHaveAttribute('aria-current')
+  })
+})

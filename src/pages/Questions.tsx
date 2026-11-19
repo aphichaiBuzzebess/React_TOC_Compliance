@@ -7,7 +7,7 @@ import { Alert, Button, Card, CornerNo, EmptyState, PageHeader } from '@/compone
 
 const TONE = {
   covered: { label: 'TOR ตอบแล้ว', cls: 'border-[#B7EB8F] bg-[#F6FFED] text-[#237804]' },
-  partial: { label: 'ตอบบางส่วน', cls: 'border-[#FFE58F] bg-[#FFFBE6] text-[#AD6800]' },
+  partial: { label: 'ตอบบางส่วน', cls: 'border-[#FFE58F] bg-[#FFFBE6] text-[#8A5600]' },
   missing: { label: 'TOR ไม่ได้พูดถึง', cls: 'border-[#FFCCC7] bg-[#FFF2F0] text-[#CF1322]' },
 } as const
 

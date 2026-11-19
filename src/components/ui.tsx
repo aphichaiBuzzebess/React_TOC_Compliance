@@ -5,7 +5,7 @@ import { STATUS, type StatusKey } from '@/data/tor'
 import { NAV, navIndex } from '@/data/nav'
 
 /** Small uppercase metadata label, the quiet way to name a field or a column. */
-export const metaLabel = 'text-[11px] font-medium uppercase tracking-[0.08em] text-muted'
+export const metaLabel = 'text-xs font-medium uppercase tracking-[0.08em] text-muted'
 
 /** "● 03 / Results": the dot and number sequence the pages like chapters of a document. */
 export function Eyebrow({ children, onDark = false }: { children: ReactNode; onDark?: boolean }) {
@@ -19,7 +19,7 @@ export function Eyebrow({ children, onDark = false }: { children: ReactNode; onD
 
 /** Faint sequence number in a card corner. */
 export const CornerNo = ({ n, onDark = false }: { n: number; onDark?: boolean }) => (
-  <span aria-hidden className={cn('absolute right-4 top-4 text-[11px] tabular-nums', onDark ? 'text-[#8d9183]' : 'text-[#8a8b81]')}>{String(n).padStart(2, '0')}</span>
+  <span aria-hidden className={cn('absolute right-4 top-4 text-xs tabular-nums', onDark ? 'text-[#8d9183]' : 'text-[#74756b]')}>{String(n).padStart(2, '0')}</span>
 )
 
 export function Pill({ children }: { children: ReactNode }) {

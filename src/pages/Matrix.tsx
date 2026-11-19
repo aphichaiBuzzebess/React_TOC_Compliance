@@ -60,9 +60,9 @@ function MatrixContent({ a }: { a: Assessment }) {
         </div>
       </div>
 
-      <details className="rounded-[10px] border border-line bg-white px-6 py-3">
-        <summary className="cursor-pointer font-medium">ความหมายของสถานะ</summary>
-        <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
+      <details className="rounded-[10px] border border-line bg-white">
+        <summary className="flex min-h-11 cursor-pointer items-center px-6 py-2 font-medium">ความหมายของสถานะ</summary>
+        <ul className="m-0 flex px-6 pb-4 pt-1 list-none flex-col gap-2 p-0">
           {ORDER.map((k) => (
             <li key={k} className="flex flex-wrap items-baseline gap-2">
               <span className="inline-block min-w-48 whitespace-nowrap rounded border px-2 text-xs leading-5" style={{ color: STATUS[k].fg, background: STATUS[k].bg, borderColor: STATUS[k].bd }}>{STATUS[k].label}</span>
@@ -76,20 +76,21 @@ function MatrixContent({ a }: { a: Assessment }) {
         <Card className="min-w-0 flex-[999_1_560px]">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse">
+              <caption className="sr-only">Requirements and their compliance status</caption>
               <thead>
                 <tr>
-                  <th className={`${TH} pl-6`}>ID</th>
-                  <th className={TH}>Requirement</th>
-                  <th className={TH}>Module</th>
-                  <th className={TH}>Status</th>
-                  <th className={`${TH} pr-6 text-right`}>Confidence</th>
+                  <th scope="col" className={`${TH} pl-6`}>ID</th>
+                  <th scope="col" className={TH}>Requirement</th>
+                  <th scope="col" className={TH}>Module</th>
+                  <th scope="col" className={TH}>Status</th>
+                  <th scope="col" className={`${TH} pr-6 text-right`}>Confidence</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id} className={r.id === selId ? 'bg-brand-soft' : 'bg-white'}>
                     <td className="whitespace-nowrap border-b border-line py-3 pl-6 pr-4 align-top font-mono text-[13px]">
-                      <button type="button" onClick={() => select(r.id)} className="border-0 bg-transparent p-0 text-brand-text underline">{r.id}</button>
+                      <button type="button" onClick={() => select(r.id)} aria-current={r.id === selId ? 'true' : undefined} className="-ml-2 inline-flex min-h-11 min-w-11 items-center justify-center border-0 bg-transparent px-2 text-brand-text underline">{r.id}</button>
                     </td>
                     <td className="border-b border-line px-4 py-3 align-top">{r.text}</td>
                     <td className="whitespace-nowrap border-b border-line px-4 py-3 align-top text-muted">{r.module}</td>

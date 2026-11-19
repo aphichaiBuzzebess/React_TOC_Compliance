@@ -11,7 +11,7 @@ function Preview() {
   const rows = ['Requirement ที่แยกได้', 'สถานะ compliance ต่อข้อ', 'คำถามที่ต้องถามลูกค้า']
   return (
     <div aria-hidden className="hidden rotate-[-2.5deg] overflow-hidden rounded-xl border border-line bg-white shadow-[0_18px_40px_-24px_rgba(26,26,23,0.35)] lg:block">
-      <div className="flex items-center justify-between border-b border-line bg-[#f5efe0] px-4 py-2.5 text-[11px] text-muted">
+      <div className="flex items-center justify-between border-b border-line bg-[#f5efe0] px-4 py-2.5 text-xs text-muted">
         <span className="flex gap-1.5">{[0, 1, 2].map((i) => <span key={i} className="size-2 rounded-full bg-[#e7dcc4]" />)}</span>
         <span>TOR Scouter · ผลประเมิน</span>
         <span className="w-10" />
@@ -22,7 +22,7 @@ function Preview() {
             <span className="text-lg font-semibold tracking-tight">TOR ทั้งฉบับ ในหน้าเดียว</span>
             <span className="text-xs text-muted">Coverage ของ Product</span>
           </div>
-          <span className="rounded-md bg-amber-soft px-2 py-0.5 text-[11px] font-medium text-amber-text">ภาพตัวอย่าง</span>
+          <span className="rounded-md bg-amber-soft px-2 py-0.5 text-xs font-medium text-amber-text">ภาพตัวอย่าง</span>
         </div>
         <div className="flex h-24 items-end gap-1.5">
           {bars.map((h, i) => <span key={i} style={{ height: `${h}%` }} className={`flex-1 rounded-sm ${i > 8 ? 'bg-amber' : 'bg-amber-line'}`} />)}
@@ -32,12 +32,12 @@ function Preview() {
             <li key={r} className="flex items-center gap-3 border-t border-line py-3 text-sm">
               <span className="flex size-6 items-center justify-center rounded-full bg-amber-soft text-xs text-amber-text">✓</span>
               <span className="flex-1">{r}</span>
-              <span className="text-[11px] text-[#8a8b81]">{String(i + 1).padStart(2, '0')}</span>
+              <span className="text-xs text-[#74756b]">{String(i + 1).padStart(2, '0')}</span>
             </li>
           ))}
         </ul>
       </div>
-      <div className="border-t border-line px-4 py-2.5 text-center text-[11px] text-muted">Interface preview · ไม่ใช่ข้อมูลจริง</div>
+      <div className="border-t border-line px-4 py-2.5 text-center text-xs text-muted">Interface preview · ไม่ใช่ข้อมูลจริง</div>
     </div>
   )
 }
@@ -46,6 +46,7 @@ export default function NewAssessment() {
   const nav = useNavigate()
   const { step, running, startedAt, detail, error, file, customer, provider, model, apiKey, result, setFile, setCustomer, runReal, reset } = useAssessmentStore()
   const done = step >= STEPS.length
+  const blocker = done || running ? null : !file && !apiKey ? 'เลือกไฟล์ TOR และใส่ API key ที่ AI settings ก่อน' : !file ? 'เลือกไฟล์ TOR ก่อน' : !apiKey ? 'ใส่ API key ที่ AI settings ก่อน' : null
   const runLabel = done ? `Completed · ${result?.length ?? 0} requirements assessed` : running ? `Running step ${step + 1} of ${STEPS.length}` : 'Ready to run'
 
   return (
@@ -77,20 +78,20 @@ export default function NewAssessment() {
       </section>
 
       <div className="flex flex-col items-center gap-3 border-y border-line py-6 text-center">
-        <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted">รองรับ</span>
+        <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted">รองรับ</span>
         <div className="flex flex-wrap justify-center gap-x-8 gap-y-1 text-sm font-medium text-[#5d5f4f]">
           {['PDF', 'DOCX', 'XLSX', 'Claude', 'Gemini', 'Obsidian KB'].map((t) => <span key={t}>{t}</span>)}
         </div>
       </div>
 
-      <section id="assess" className="flex scroll-mt-24 flex-col gap-6">
+      <section id="assess" className="flex flex-col gap-6">
         <Eyebrow>01 / เริ่มประเมิน</Eyebrow>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] items-start gap-6">
           <Card title="1. Input">
             <div className="flex flex-col gap-5 p-6">
               <div className="flex flex-col gap-2">
                 <span className="font-medium">Customer TOR document</span>
-                <label htmlFor="torFile" className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-line-strong bg-canvas p-6 text-center transition-colors hover:border-ink">
+                <label htmlFor="torFile" className="flex cursor-pointer has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink flex-col items-center gap-2 rounded-lg border border-dashed border-line-strong bg-canvas p-6 text-center transition-colors hover:border-ink">
                   <Upload aria-hidden size={30} strokeWidth={1.5} className="text-amber-text" />
                   <span className="font-medium text-amber-text underline underline-offset-4">เลือกไฟล์ TOR</span>
                   <span className="text-xs text-muted">PDF, DOCX or XLSX · up to 4 MB</span>
@@ -123,7 +124,7 @@ export default function NewAssessment() {
                   <span className="font-medium">{AI_PROVIDERS.find((p) => p.id === provider)?.label}</span>
                   <span className="text-xs text-muted">{model} · {apiKey ? 'พร้อมใช้งาน' : 'ยังไม่ได้ใส่ API key'}</span>
                 </div>
-                <Link to="/ai-settings" className="font-medium text-amber-text underline underline-offset-4">{apiKey ? 'เปลี่ยน' : 'ตั้งค่า AI'}</Link>
+                <Link to="/ai-settings" className="inline-flex min-h-11 items-center font-medium text-amber-text underline underline-offset-4">{apiKey ? 'เปลี่ยน' : 'ตั้งค่า AI'}</Link>
               </div>
             </div>
           </Card>
@@ -159,16 +160,18 @@ export default function NewAssessment() {
               })}
             </ol>
             {running && (
-              <p role="status" className="m-0 flex flex-wrap items-center gap-2 border-t border-dark-line bg-[#232323] px-6 py-3 text-sm text-amber">
-                <span>{detail}</span>
-                {startedAt && <span className="font-medium">· <Elapsed since={startedAt} /></span>}
-              </p>
+              <div className="flex flex-wrap items-center gap-2 border-t border-dark-line bg-[#232323] px-6 py-3 text-sm text-amber">
+                {/* Only this text is announced. The ticking timer stays visual so a screen reader is not interrupted every second. */}
+                <p role="status" className="m-0">{detail}</p>
+                {startedAt && <span aria-hidden className="font-medium">· <Elapsed since={startedAt} /></span>}
+              </div>
             )}
             {error && <p role="alert" className="m-0 px-6 pt-4 text-[#ff9b8a]">{error}</p>}
             <div className="flex flex-wrap gap-3 px-6 pb-6 pt-5">
               {!done && (
-                <Button variant="dark" arrow disabled={running || !file || !apiKey} onClick={runReal}>{running ? 'Assessing…' : 'Run assessment'}</Button>
+                <Button variant="dark" arrow disabled={running || !file || !apiKey} aria-describedby={blocker ? 'run-hint' : undefined} onClick={runReal}>{running ? 'Assessing…' : 'Run assessment'}</Button>
               )}
+              {blocker && <p id="run-hint" className="m-0 w-full text-sm text-[#b8b8b0]">{blocker}</p>}
               {done && (
                 <>
                   <Button variant="dark" arrow onClick={() => nav('/dashboard')}>View results</Button>
