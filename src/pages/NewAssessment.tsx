@@ -5,6 +5,8 @@ import { STEPS } from '@/data/tor'
 import { AI_PROVIDERS } from '@/data/models'
 import { useAssessment } from '@/lib/useAssessment'
 import { Button, Card, Elapsed, Eyebrow, Pill, highlight, metaLabel } from '@/components/ui'
+import { ease } from '@/components/motion'
+import { motion } from 'motion/react'
 
 /** Abstract product preview in a tilted window. Decorative: it shows the shape of the result, not data. */
 function Preview() {
@@ -81,8 +83,13 @@ export default function NewAssessment() {
         <div className="flex flex-col gap-5 lg:col-start-1 lg:row-start-1">
           <Eyebrow>TOR compliance × AI</Eyebrow>
           <h1 className="m-0 text-[clamp(2rem,3.7vw,3rem)] leading-[1.08] text-ink">
-            Read the TOR.<br />Match the evidence.<br />
-            <span className={highlight}>Know what to ask.</span>
+            {['Read the TOR.', 'Match the evidence.'].map((t, i) => (
+              <motion.span key={t} className="block" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease, delay: 0.05 + i * 0.1 }}>{t}</motion.span>
+            ))}
+            {/* The amber marker wipes in left to right; the negative insets keep its padding from being clipped. */}
+            <motion.span className="block" initial={{ clipPath: 'inset(-12px 100% -12px 0)' }} animate={{ clipPath: 'inset(-12px 0% -12px 0)' }} transition={{ duration: 0.8, ease, delay: 0.3 }}>
+              <span className={highlight}>Know what to ask.</span>
+            </motion.span>
           </h1>
           <p className="m-0 hidden max-w-xl text-base leading-8 text-muted sm:block">อัปโหลด TOR แล้วดูว่าข้อไหน Product รองรับ ข้อไหนต้องพัฒนา และอะไรต้องถามลูกค้า</p>
         </div>
@@ -90,16 +97,16 @@ export default function NewAssessment() {
         {/* One surface, three numbered steps: the instructions are the form. */}
         <Card className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <ol aria-label="ขั้นตอน" className="m-0 list-none p-0">
-            <li aria-current={current === 0 ? 'step' : undefined} className="flex items-start gap-3 px-5 py-4">
+            <motion.li initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.25 }} aria-current={current === 0 ? 'step' : undefined} className="flex items-start gap-3 px-5 py-4">
               <Marker n={1} done={flags[0]} current={current === 0} />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="font-semibold">ใส่ AI key</span>
                 <span className="text-sm text-muted wrap-anywhere">{apiKey ? `${ai?.label} · ${model}` : 'Claude หรือ Gemini ของคุณเอง ไม่ถูกเก็บ'}</span>
               </div>
               <Link to="/ai-settings" className="inline-flex min-h-11 flex-none items-center text-sm font-medium text-amber-text underline underline-offset-4">{apiKey ? 'เปลี่ยน' : 'ตั้งค่า AI'}</Link>
-            </li>
+            </motion.li>
 
-            <li aria-current={current === 1 ? 'step' : undefined} className="flex items-start gap-3 border-t border-line px-5 py-4">
+            <motion.li initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.35 }} aria-current={current === 1 ? 'step' : undefined} className="flex items-start gap-3 border-t border-line px-5 py-4">
               <Marker n={2} done={flags[1]} current={current === 1} />
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <span className="font-semibold">เลือกไฟล์ TOR</span>
@@ -117,9 +124,9 @@ export default function NewAssessment() {
                   <input id="custName" type="text" placeholder="Customer name" value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-white px-3 text-sm" />
                 </div>
               </div>
-            </li>
+            </motion.li>
 
-            <li aria-current={current === 2 ? 'step' : undefined} className="flex items-start gap-3 border-t border-line px-5 py-4">
+            <motion.li initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.45 }} aria-current={current === 2 ? 'step' : undefined} className="flex items-start gap-3 border-t border-line px-5 py-4">
               <Marker n={3} done={flags[2]} current={current === 2} />
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <div className="flex flex-col gap-0.5">
@@ -137,7 +144,7 @@ export default function NewAssessment() {
                 </div>
                 {error && <p role="alert" className="m-0 text-sm text-[#a23a3a]">{error}</p>}
               </div>
-            </li>
+            </motion.li>
           </ol>
         </Card>
 
@@ -160,19 +167,28 @@ export default function NewAssessment() {
           <h2 className="m-0 text-xl font-medium text-white">Agent workflow</h2>
           <span className="text-xs text-[#b8b8b0]">{runLabel}</span>
         </div>
+        {/* A thin amber line fills as the steps finish; it is a visual echo of the step list, so it is hidden from screen readers. */}
+        <div aria-hidden className="mx-6 mt-4 h-0.5 overflow-hidden rounded-full bg-dark-line">
+          <motion.div className="h-full origin-left bg-amber" initial={false} animate={{ scaleX: Math.min(step, STEPS.length) / STEPS.length }} transition={{ duration: 0.8, ease }} />
+        </div>
         <ol className="m-0 grid list-none gap-x-4 gap-y-1 p-6 sm:grid-cols-5">
           {STEPS.map(([name, desc], i) => {
             const isDone = step > i
             const active = step === i && running
             return (
               <li key={name} className="flex items-start gap-3 sm:flex-col sm:gap-2">
-                <span
+                {/* The marker pops when its state changes (key), and the running one pulses. */}
+                <motion.span
+                  key={isDone ? 'done' : active ? 'active' : 'idle'}
+                  initial={isDone || active ? { scale: 0.6 } : false}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 18 }}
                   className={`flex size-7 flex-none items-center justify-center rounded-full border text-xs font-semibold ${
-                    isDone ? 'border-amber bg-amber text-ink' : active ? 'border-white bg-white text-ink' : 'border-[#4a4a4a] text-[#b8b8b0]'
+                    isDone ? 'border-amber bg-amber text-ink' : active ? 'animate-pulse border-white bg-white text-ink' : 'border-[#4a4a4a] text-[#b8b8b0]'
                   }`}
                 >
                   {isDone ? '✓' : i + 1}
-                </span>
+                </motion.span>
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="font-medium text-white">{name}</span>
                   <span className="text-xs leading-5 text-[#b8b8b0]">{desc}</span>

@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { STATUS, type StatusKey } from '@/data/tor'
 import { NAV, navIndex } from '@/data/nav'
+import { CountUp, Reveal, ease } from '@/components/motion'
+import { motion } from 'motion/react'
 
 /** Small uppercase metadata label, the quiet way to name a field or a column. */
 export const metaLabel = 'text-xs font-medium uppercase tracking-[0.08em] text-muted'
@@ -48,8 +50,8 @@ export function PageHeader({ title, lead, action }: { title: string; lead?: stri
     <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
       <div className="flex min-w-0 max-w-3xl flex-col gap-4">
         {section && <Eyebrow>{String(i + 1).padStart(2, '0')} / {section}</Eyebrow>}
-        <Headline text={title} />
-        {lead && <p className="m-0 max-w-2xl text-base leading-8 text-muted">{lead}</p>}
+        <Reveal y={20}><Headline text={title} /></Reveal>
+        {lead && <Reveal delay={0.1}><p className="m-0 max-w-2xl text-base leading-8 text-muted">{lead}</p></Reveal>}
       </div>
       {action}
     </header>
@@ -58,7 +60,13 @@ export function PageHeader({ title, lead, action }: { title: string; lead?: stri
 
 export function Card({ title, right, children, className }: { title?: string; right?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={cn('relative rounded-[10px] border border-line bg-white', className)}>
+    <motion.section
+      className={cn('relative rounded-[10px] border border-line bg-white', className)}
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '0px 0px -8% 0px' }}
+      transition={{ duration: 0.6, ease }}
+    >
       {title && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-4">
           <h2 className="m-0 text-xl font-medium text-ink">{title}</h2>
@@ -66,7 +74,7 @@ export function Card({ title, right, children, className }: { title?: string; ri
         </div>
       )}
       {children}
-    </section>
+    </motion.section>
   )
 }
 
@@ -84,10 +92,10 @@ export function Button({ variant = 'default', arrow = false, className, children
     <button
       type="button"
       {...p}
-      className={cn('inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-5 text-sm font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50', VARIANTS[variant], className)}
+      className={cn('group inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-5 text-sm font-semibold transition duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] enabled:active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50', VARIANTS[variant], className)}
     >
       {children}
-      {arrow && <span aria-hidden>→</span>}
+      {arrow && <span aria-hidden className="transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] group-enabled:group-hover:translate-x-1">→</span>}
     </button>
   )
 }
@@ -113,14 +121,14 @@ export function Alert({ tone, title, children }: { tone: 'info' | 'warning'; tit
 
 export function StatCard({ label, value, suffix, foot, n }: { label: string; value: string; suffix: string; foot: string; n?: number }) {
   return (
-    <div className="relative flex flex-col gap-2 rounded-[10px] border border-line bg-white p-6">
+    <Reveal delay={((n ?? 1) - 1) * 0.07} className="relative flex flex-col gap-2 rounded-[10px] border border-line bg-white p-6 transition-[border-color,translate] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 hover:border-line-strong">
       {n && <CornerNo n={n} />}
       <span className={metaLabel}>{label}</span>
       <span className="text-[44px] leading-none tracking-[-0.03em] text-ink">
-        {value} <span className="text-sm tracking-normal text-muted">{suffix}</span>
+        {/^\d+$/.test(value) ? <CountUp value={Number(value)} /> : value} <span className="text-sm tracking-normal text-muted">{suffix}</span>
       </span>
       <span className="text-xs leading-5 text-muted">{foot}</span>
-    </div>
+    </Reveal>
   )
 }
 

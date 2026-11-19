@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { MotionConfig } from 'motion/react'
 import AppShell from './components/AppShell'
 import NewAssessment from './pages/NewAssessment'
 import Dashboard from './pages/Dashboard'
@@ -11,6 +12,7 @@ import AiSettings from './pages/AiSettings'
 
 export default function App() {
   return (
+    <MotionConfig reducedMotion="user">
     <AppShell>
       <Routes>
         <Route path="/" element={<NewAssessment />} />
@@ -24,5 +26,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>
+    </MotionConfig>
   )
 }

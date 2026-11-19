@@ -1,5 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
+import { motion } from 'motion/react'
+import { ease } from '@/components/motion'
 import { Elapsed } from '@/components/ui'
 import { AI_PROVIDERS } from '@/data/models'
 import { NAV, navIndex } from '@/data/nav'
@@ -89,7 +91,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
         </div>
-        {children}
+        {/* Opacity only: a transform here would trap the Matrix bottom sheet (position: fixed) inside this box. */}
+        <motion.div key={pathname} className="flex flex-col gap-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease }}>
+          {children}
+        </motion.div>
       </main>
 
       <footer className="print:hidden border-t border-line">

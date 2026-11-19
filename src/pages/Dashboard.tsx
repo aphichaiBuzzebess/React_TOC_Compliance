@@ -3,6 +3,7 @@ import { ORDER, STATUS, pct } from '@/data/tor'
 import { fit, gapCount } from '@/lib/assessment'
 import { useAssessment } from '@/lib/useAssessment'
 import type { Assessment } from '@/lib/assessment'
+import { Ring } from '@/components/motion'
 import { Button, Card, PageHeader, StatCard, EmptyState } from '@/components/ui'
 
 function DashboardContent({ a }: { a: Assessment }) {
@@ -23,18 +24,23 @@ function DashboardContent({ a }: { a: Assessment }) {
 
       <Card title="Compliance status">
         <div className="flex flex-col gap-5 p-6">
-          <div role="img" aria-label={`Status distribution across ${a.total} requirements`} className="flex h-6 gap-0.5 overflow-hidden rounded">
-            {ORDER.map((k) => <span key={k} className="h-6" style={{ width: pct(a.counts[k], a.total), background: STATUS[k].dot }} />)}
-          </div>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-x-6 gap-y-3">
-            {ORDER.map((k) => (
-              <div key={k} className="flex items-center gap-2.5">
-                <span className="size-2.5 flex-none rounded-sm" style={{ background: STATUS[k].dot }} />
-                <span className="min-w-0 flex-1">{STATUS[k].label}</span>
-                <span className="font-medium">{a.counts[k]}</span>
-                <span className="w-12 text-right text-xs text-muted">{pct(a.counts[k], a.total)}</span>
-              </div>
-            ))}
+          <div className="flex flex-col items-center gap-8 sm:flex-row">
+            <div role="img" aria-label={`Status distribution across ${a.total} requirements: ${a.counts.full} fully supported`}>
+              <Ring size={176} stroke={13} arcs={ORDER.map((k) => ({ value: a.total ? (a.counts[k] / a.total) * 100 : 0, color: STATUS[k].dot }))}>
+                <span className="text-[34px] leading-none tracking-[-0.03em] text-ink">{pct(a.counts.full, a.total)}</span>
+                <span className="mt-1 text-xs text-muted">Fully supported</span>
+              </Ring>
+            </div>
+            <div className="grid w-full flex-1 grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-x-6 gap-y-3">
+              {ORDER.map((k) => (
+                <div key={k} className="flex items-center gap-2.5">
+                  <span className="size-2.5 flex-none rounded-sm" style={{ background: STATUS[k].dot }} />
+                  <span className="min-w-0 flex-1">{STATUS[k].label}</span>
+                  <span className="font-medium">{a.counts[k]}</span>
+                  <span className="w-12 text-right text-xs text-muted">{pct(a.counts[k], a.total)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </Card>
@@ -59,8 +65,8 @@ function DashboardContent({ a }: { a: Assessment }) {
                   <td className="border-b border-line px-4 py-3 text-right">{full}</td>
                   <td className="border-b border-line py-3 pl-4 pr-6">
                     <div className="flex items-center gap-3">
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-line"><div className="h-2 bg-ink" style={{ width: pct(full, total) }} /></div>
-                      <span className="w-11 text-right text-xs text-muted">{pct(full, total)}</span>
+                      <span role="img" aria-label={`${name} coverage ${pct(full, total)}`}><Ring size={36} stroke={14} arcs={[{ value: total ? (full / total) * 100 : 0, color: 'var(--color-ink)' }]} /></span>
+                      <span className="text-sm font-medium">{pct(full, total)}</span>
                     </div>
                   </td>
                 </tr>
