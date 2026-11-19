@@ -4,7 +4,7 @@ import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { STEPS } from '@/data/tor'
 import { AI_PROVIDERS } from '@/data/models'
 import { useAssessment } from '@/lib/useAssessment'
-import { Button, Card, Elapsed, Eyebrow, Pill, highlight } from '@/components/ui'
+import { Button, Card, Elapsed, Eyebrow, Pill, highlight, metaLabel } from '@/components/ui'
 
 /** Abstract product preview in a tilted window. Decorative: it shows the shape of the result, not data. */
 function Preview() {
@@ -77,16 +77,8 @@ export default function NewAssessment() {
 
   return (
     <>
-      {last && !running && (
-        <p className="m-0 -mb-4 flex flex-wrap items-center gap-x-4 text-sm text-muted">
-          <span><span className="font-semibold text-ink">ผลประเมินล่าสุด</span> · {last.total} ข้อ · ต้องตรวจสอบ {last.counts.verify} · ต้องพัฒนา/เชื่อมระบบ {last.counts.custom + last.counts.integ}</span>
-          <Link to="/dashboard" className="inline-flex min-h-11 items-center font-medium text-amber-text underline underline-offset-4">Dashboard</Link>
-          <Link to="/matrix" className="inline-flex min-h-11 items-center font-medium text-amber-text underline underline-offset-4">Matrix</Link>
-        </p>
-      )}
-
-      <section className="grid items-start gap-x-12 gap-y-6 lg:grid-cols-[1fr_minmax(0,500px)]">
-        <div className="flex flex-col gap-5">
+      <section className="grid items-start gap-x-12 gap-y-6 lg:grid-cols-[1fr_minmax(0,500px)] lg:grid-rows-[auto_1fr]">
+        <div className="flex flex-col gap-5 lg:col-start-1 lg:row-start-1">
           <Eyebrow>TOR compliance × AI</Eyebrow>
           <h1 className="m-0 text-[clamp(2rem,3.7vw,3rem)] leading-[1.08] text-ink">
             Read the TOR.<br />Match the evidence.<br />
@@ -96,7 +88,7 @@ export default function NewAssessment() {
         </div>
 
         {/* One surface, three numbered steps: the instructions are the form. */}
-        <Card>
+        <Card className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <ol aria-label="ขั้นตอน" className="m-0 list-none p-0">
             <li aria-current={current === 0 ? 'step' : undefined} className="flex items-start gap-3 px-5 py-4">
               <Marker n={1} done={flags[0]} current={current === 0} />
@@ -148,6 +140,18 @@ export default function NewAssessment() {
             </li>
           </ol>
         </Card>
+
+        {/* Under the headline on wide screens, after the card on narrow ones, so the task always comes first. */}
+        {last && !running && (
+          <div className="flex flex-col gap-1.5 border-t border-line pt-5 lg:col-start-1 lg:row-start-2">
+            <span className={metaLabel}>ผลประเมินล่าสุด</span>
+            <p className="m-0 text-sm leading-6 text-muted">{last.total} ข้อ · ต้องตรวจสอบ {last.counts.verify} · ต้องพัฒนา/เชื่อมระบบ {last.counts.custom + last.counts.integ}</p>
+            <div className="flex flex-wrap gap-x-5">
+              <Link to="/dashboard" className="inline-flex min-h-11 items-center font-medium text-amber-text underline underline-offset-4">Dashboard</Link>
+              <Link to="/matrix" className="inline-flex min-h-11 items-center font-medium text-amber-text underline underline-offset-4">Matrix</Link>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* The one dark band: the run itself, five steps across. */}

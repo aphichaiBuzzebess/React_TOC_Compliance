@@ -359,9 +359,17 @@ describe('home: task first', () => {
     useAssessmentStore.setState({ result: [req('R-001', 'verify'), req('R-002', 'integ')] })
     open('/')
     expect(screen.getByText('ผลประเมินล่าสุด')).toBeInTheDocument()
-    const row = within(screen.getByText('ผลประเมินล่าสุด').closest('p')!) // the top bar has links with the same names
+    const row = within(screen.getByText('ผลประเมินล่าสุด').parentElement!) // the top bar has links with the same names
     expect(row.getByRole('link', { name: 'Matrix' })).toHaveAttribute('href', '/matrix')
     expect(row.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '/dashboard')
+  })
+
+  it('puts the last result after the card in reading order, so the task comes first', () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'verify')] })
+    open('/')
+    const card = screen.getByRole('list', { name: 'ขั้นตอน' }).closest('section')!
+    const last = screen.getByText('ผลประเมินล่าสุด')
+    expect(card.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('has no last-result card before the first assessment', () => {
