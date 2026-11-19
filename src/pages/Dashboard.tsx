@@ -31,7 +31,7 @@ function DashboardContent({ a }: { a: Assessment }) {
                 <span className="mt-1 text-xs text-muted">Fully supported</span>
               </Ring>
             </div>
-            <div className="grid w-full flex-1 grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-x-6 gap-y-3">
+            <div className="grid w-full flex-1 grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-x-8 gap-y-3">
               {ORDER.map((k) => (
                 <div key={k} className="flex items-center gap-2.5">
                   <span className="size-2.5 flex-none rounded-sm" style={{ background: STATUS[k].dot }} />

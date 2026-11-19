@@ -7,6 +7,7 @@ import type { FunctionCoverage, RawReq, Req, StatusKey } from '@/lib/types'
 type Validation = 'ok' | 'flag'
 const BATCH = 10
 const PARALLEL = 3
+const COVERAGE_PARTS = 4 // the topic check is split in this many short calls: one long call timed out (504) on big TORs
 const MAX_FILE = 4 * 1024 * 1024 // matches the server limit
 const MAX_FILES = 10
 const fileKey = (f: File) => `${f.name}:${f.size}:${f.lastModified}`
@@ -67,6 +68,16 @@ async function api<T>(path: string, auth: Auth, init: RequestInit): Promise<T> {
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`)
   return body as T
+}
+
+/** The open-question check, as COVERAGE_PARTS parallel calls over slices of the topic list, joined in order. */
+async function fetchCoverage(auth: Auth, requirements: RawReq[]): Promise<FunctionCoverage[]> {
+  const parts = await Promise.all(
+    Array.from({ length: COVERAGE_PARTS }, (_, part) =>
+      api<{ topics: FunctionCoverage[] }>('/api/questions', auth, { body: JSON.stringify({ requirements, part, of: COVERAGE_PARTS }), headers: { 'content-type': 'application/json' } }),
+    ),
+  )
+  return parts.flatMap((p) => p.topics)
 }
 
 export const useAssessmentStore = create<AssessmentState>()(
@@ -145,10 +156,7 @@ export const useAssessmentStore = create<AssessmentState>()(
           const batches: RawReq[][] = []
           for (let i = 0; i < requirements.length; i += BATCH) batches.push(requirements.slice(i, i + BATCH))
           // Independent of judging, so it runs alongside; a failure here must not lose the results.
-          const coverageP = api<{ topics: FunctionCoverage[] }>('/api/questions', auth, {
-            body: JSON.stringify({ requirements }),
-            headers: { 'content-type': 'application/json' },
-          }).then((r) => r.topics, (e: unknown) => (e instanceof Error ? e : new Error('Open-question check failed')))
+          const coverageP = fetchCoverage(auth, requirements).then((t) => t, (e: unknown) => (e instanceof Error ? e : new Error('Open-question check failed')))
           const out: Req[][] = []
           let next = 0
           let done = 0
@@ -178,8 +186,7 @@ export const useAssessmentStore = create<AssessmentState>()(
         set({ coverageBusy: true, error: null })
         try {
           const requirements: RawReq[] = result.map(({ id, module, text }) => ({ id, module, text }))
-          const { topics } = await api<{ topics: FunctionCoverage[] }>('/api/questions', get(), { body: JSON.stringify({ requirements }), headers: { 'content-type': 'application/json' } })
-          set({ coverage: topics, coverageBusy: false })
+          set({ coverage: await fetchCoverage(get(), requirements), coverageBusy: false })
         } catch (e) {
           set({ coverageBusy: false, error: e instanceof Error ? e.message : 'Open-question check failed' })
         }

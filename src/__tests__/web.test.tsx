@@ -169,8 +169,8 @@ describe('retry open questions', () => {
     useAssessmentStore.setState({ result: [req('R-001', 'full')], coverage: null, apiKey: 'k-123456789', error: 'old failure' })
     await useAssessmentStore.getState().runCoverage()
     const s = useAssessmentStore.getState()
-    expect(calls).toEqual(['/api/questions'])
-    expect(s.coverage).toHaveLength(1)
+    expect(calls).toEqual(['/api/questions', '/api/questions', '/api/questions', '/api/questions']) // the check is split in 4 short calls
+    expect(s.coverage).toHaveLength(4) // each fake call returns one topic; they are joined
     expect(s.result).toHaveLength(1)
     expect(s.error).toBeNull()
     expect(s.coverageBusy).toBe(false)

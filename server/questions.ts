@@ -44,8 +44,15 @@ const TOOL = {
   },
 }
 
-/** Which Basic Question topics does the TOR leave unanswered? One call for the whole TOR. */
+/** Part `part` of `of` roughly equal, contiguous slices of the topic list. Lets the check run as several short calls instead of one long one. */
+export function pickPart<T>(items: T[], part: number, of: number): T[] {
+  const size = Math.ceil(items.length / of)
+  return items.slice(part * size, (part + 1) * size)
+}
+
+/** Which Basic Question topics does the TOR leave unanswered? One call for the given topics. */
 export async function checkCoverage(llm: Llm, reqs: RawReq[], topics: Topic[]): Promise<FunctionCoverage[]> {
+  if (topics.length === 0) return []
   const prompt = [
     'TOR requirements:',
     ...reqs.map((r) => `- ${r.id} [${r.module}] ${r.text}`),

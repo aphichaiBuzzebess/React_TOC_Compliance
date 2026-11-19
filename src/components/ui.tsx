@@ -21,7 +21,7 @@ export function Eyebrow({ children, onDark = false }: { children: ReactNode; onD
 
 /** Faint sequence number in a card corner. */
 export const CornerNo = ({ n, onDark = false }: { n: number; onDark?: boolean }) => (
-  <span aria-hidden className={cn('absolute right-4 top-4 text-xs tabular-nums', onDark ? 'text-[#8d9183]' : 'text-[#74756b]')}>{String(n).padStart(2, '0')}</span>
+  <span aria-hidden className={cn('absolute right-6 top-6 text-xs leading-4 tabular-nums', onDark ? 'text-[#8d9183]' : 'text-[#74756b]')}>{String(n).padStart(2, '0')}</span>
 )
 
 export function Pill({ children }: { children: ReactNode }) {
@@ -123,11 +123,12 @@ export function StatCard({ label, value, suffix, foot, n }: { label: string; val
   return (
     <Reveal delay={((n ?? 1) - 1) * 0.07} className="relative flex flex-col gap-2 rounded-[10px] border border-line bg-white p-6 transition-[border-color,translate] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 hover:border-line-strong">
       {n && <CornerNo n={n} />}
-      <span className={metaLabel}>{label}</span>
+      {/* Two lines tall and clear of the corner number, so the figures line up across cards whether the label wraps or not. */}
+      <span className={cn(metaLabel, 'min-h-8 pr-8 leading-4')}>{label}</span>
       <span className="text-[44px] leading-none tracking-[-0.03em] text-ink">
         {/^\d+$/.test(value) ? <CountUp value={Number(value)} /> : value} <span className="text-sm tracking-normal text-muted">{suffix}</span>
       </span>
-      <span className="text-xs leading-5 text-muted">{foot}</span>
+      <span className="mt-auto pt-1 text-xs leading-5 text-muted">{foot}</span>
     </Reveal>
   )
 }
