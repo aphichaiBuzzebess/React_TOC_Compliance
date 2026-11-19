@@ -318,3 +318,61 @@ describe('compliance matrix review flow', () => {
     for (const el of screen.getAllByText(/https:\/\/www\.example\.com/)) expect(el.className).toContain('wrap-anywhere')
   })
 })
+
+describe('home: task first', () => {
+  const steps = () => within(screen.getByRole('list', { name: 'ขั้นตอน' }))
+
+  beforeEach(() => {
+    useAssessmentStore.setState({ result: null, coverage: null, file: null, apiKey: '', running: false, step: -1, error: null, detail: '', startedAt: null })
+  })
+
+  it('tells a first-time user what is missing, in order, and marks the current step', () => {
+    open('/')
+    const items = steps().getAllByRole('listitem')
+    expect(items).toHaveLength(3)
+    expect(items[0]).toHaveAttribute('aria-current', 'step') // key comes first
+    expect(items[0]).toHaveTextContent('ใส่ AI key')
+    expect(items[2]).toHaveTextContent('ทำข้อ 1 และ 2 ก่อน')
+  })
+
+  it('ticks steps off as the key and file arrive, and then Run is ready', () => {
+    useAssessmentStore.setState({ apiKey: 'k-123456789', file: new File(['x'], 'bangchak-tor.pdf') })
+    open('/')
+    const items = steps().getAllByRole('listitem')
+    expect(items[0]).toHaveTextContent('✓')
+    expect(items[1]).toHaveTextContent('bangchak-tor.pdf')
+    expect(items[2]).toHaveAttribute('aria-current', 'step')
+    expect(items[2]).toHaveTextContent('พร้อมแล้ว')
+    expect(screen.getByRole('button', { name: /Run assessment/ })).toBeEnabled()
+  })
+
+  it('puts the upload before the progress band, so the work is not buried under explanation', () => {
+    open('/')
+    const upload = document.getElementById('torFile')!
+    const band = document.getElementById('workflow')!
+    expect(upload.compareDocumentPosition(band) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // the long explanation is collapsed by default
+    expect(document.querySelector('details')).not.toHaveAttribute('open')
+  })
+
+  it('shows returning users their last result with shortcuts, and hides it while a run is in progress', () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'verify'), req('R-002', 'integ')] })
+    open('/')
+    expect(screen.getByText('ผลประเมินล่าสุด')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Matrix' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dashboard' })).toBeInTheDocument()
+  })
+
+  it('has no last-result card before the first assessment', () => {
+    open('/')
+    expect(screen.queryByText('ผลประเมินล่าสุด')).not.toBeInTheDocument()
+  })
+
+  it('shows a failure next to the Run button, not buried in the progress band', () => {
+    useAssessmentStore.setState({ error: 'API key not valid. Please pass a valid API key.' })
+    open('/')
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('API key not valid')
+    expect(document.getElementById('workflow')!.contains(alert)).toBe(false)
+  })
+})

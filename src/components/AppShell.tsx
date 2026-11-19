@@ -66,7 +66,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1240px] flex-1 flex-col gap-10 px-5 py-10 focus:outline-none sm:px-10 lg:py-14">
+      <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1240px] flex-1 flex-col gap-10 px-5 py-8 focus:outline-none sm:px-10 lg:py-10">
         <div className="print:hidden -mb-6 -mt-3 flex flex-wrap items-center gap-x-5 gap-y-0 text-xs text-muted">
           {running && startedAt && (
             <Link to="/" className="flex items-center gap-2 rounded-full border border-line-strong bg-white px-3 py-1 font-medium text-ink no-underline">
