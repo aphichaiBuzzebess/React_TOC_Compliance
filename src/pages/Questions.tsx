@@ -3,7 +3,7 @@ import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { useAssessment } from '@/lib/useAssessment'
 import type { FunctionCoverage } from '@/lib/types'
 import { Link } from 'react-router-dom'
-import { Alert, Button, Card, EmptyState, PageHeader } from '@/components/ui'
+import { Alert, Button, Card, CornerNo, EmptyState, PageHeader } from '@/components/ui'
 
 const TONE = {
   covered: { label: 'TOR ตอบแล้ว', cls: 'border-[#B7EB8F] bg-[#F6FFED] text-[#237804]' },
@@ -31,7 +31,7 @@ function QuestionsContent() {
 
   return (
     <>
-      <PageHeader crumb="Questions" title="Open questions for customer" lead="หัวข้อ Basic Question ที่ TOR ยังตอบไม่ครบ ใช้ถามลูกค้าก่อนยืนยัน scope" action={rows && openCount > 0 ? <Button onClick={copy}>{copied ? 'Copied' : 'Copy all questions'}</Button> : undefined} />
+      <PageHeader title="Open questions for customer" lead="หัวข้อ Basic Question ที่ TOR ยังตอบไม่ครบ ใช้ถามลูกค้าก่อนยืนยัน scope" action={rows && openCount > 0 ? <Button onClick={copy}>{copied ? 'Copied' : 'Copy all questions'}</Button> : undefined} />
       {!rows ? (
         <div className="flex flex-col gap-3">
           <Alert tone="warning" title="ยังไม่มีผลตรวจคำถามค้าง">ผลประเมิน compliance ยังอยู่ครบ ตรวจเฉพาะคำถามค้างซ้ำได้โดยไม่ต้องรันประเมินใหม่ทั้งหมด</Alert>
@@ -47,11 +47,12 @@ function QuestionsContent() {
             เทียบ requirement ของ TOR กับหัวข้อ Basic Question ของ BA ใช้ถามลูกค้าก่อนยืนยัน scope
           </Alert>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
-            {rows.map((r) => (
+            {rows.map((r, i) => (
               <Card key={r.function}>
                 <div className="flex flex-col gap-3 px-6 py-5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="m-0 text-xl text-ink">{r.function}</h2>
+                  <CornerNo n={i + 1} />
+                  <div className="flex flex-wrap items-center gap-3 pr-8">
+                    <h2 className="m-0 text-xl font-medium text-ink">{r.function}</h2>
                     <span className={`whitespace-nowrap rounded border px-2 text-xs leading-5 ${TONE[r.coverage].cls}`}>{TONE[r.coverage].label}</span>
                   </div>
                   {r.reqIds.length > 0 && <span className="font-mono text-[13px] text-brand-text">{r.reqIds.join(', ')}</span>}
@@ -72,5 +73,5 @@ function QuestionsContent() {
 
 export default function Questions() {
   const a = useAssessment()
-  return a ? <QuestionsContent /> : <EmptyState crumb="Questions" title="Open questions for customer" lead="หัวข้อ Basic Question ที่ TOR ยังตอบไม่ครบ ใช้ถามลูกค้าก่อนยืนยัน scope" />
+  return a ? <QuestionsContent /> : <EmptyState title="Open questions for customer" lead="หัวข้อ Basic Question ที่ TOR ยังตอบไม่ครบ ใช้ถามลูกค้าก่อนยืนยัน scope" />
 }

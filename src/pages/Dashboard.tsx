@@ -18,7 +18,7 @@ function DashboardContent({ a }: { a: Assessment }) {
     <>
       <PageHeader title="Coverage dashboard" lead="ภาพรวมว่าข้อไหนใน TOR ที่ Product รองรับ ต้องตั้งค่า ต้องพัฒนาเพิ่ม หรือยังตัดสินไม่ได้" action={<Button onClick={() => nav('/matrix')}>Open compliance matrix</Button>} />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
-        {kpis.map((k) => <StatCard key={k.label} {...k} suffix="reqs" />)}
+        {kpis.map((k, i) => <StatCard key={k.label} {...k} n={i + 1} suffix="reqs" />)}
       </div>
 
       <Card title="Compliance status">
@@ -58,7 +58,7 @@ function DashboardContent({ a }: { a: Assessment }) {
                   <td className="border-b border-line px-4 py-3 text-right">{full}</td>
                   <td className="border-b border-line py-3 pl-4 pr-6">
                     <div className="flex items-center gap-3">
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-line"><div className="h-2 bg-sec-blue" style={{ width: pct(full, total) }} /></div>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-line"><div className="h-2 bg-ink" style={{ width: pct(full, total) }} /></div>
                       <span className="w-11 text-right text-xs text-muted">{pct(full, total)}</span>
                     </div>
                   </td>

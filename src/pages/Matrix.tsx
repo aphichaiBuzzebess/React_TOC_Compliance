@@ -109,7 +109,7 @@ function MatrixContent({ a }: { a: Assessment }) {
             <>
               <div className="flex flex-col gap-2 border-b border-line px-6 py-4">
                 <span className="font-mono text-[13px] text-brand-text">{sel.id} · {sel.module}</span>
-                <h2 className="m-0 text-xl text-ink">{sel.text}</h2>
+                <h2 className="m-0 text-xl font-medium text-ink">{sel.text}</h2>
                 <div className="flex flex-wrap items-center gap-2"><StatusBadge s={sel.s} /><span className="text-xs text-muted">Confidence {sel.conf}</span></div>
                 <p className="m-0 text-xs text-muted">{STATUS[sel.s].hint}</p>
               </div>

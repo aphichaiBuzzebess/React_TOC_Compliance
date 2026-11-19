@@ -56,7 +56,7 @@ export default function KnowledgeBase() {
 
   return (
     <>
-      <PageHeader crumb="Reference" title="Product knowledge base" lead="ความรู้ของ Product ที่ระบบใช้เป็นหลักฐานตอนประเมิน อ่านอย่างเดียว แก้ใน Obsidian" />
+      <PageHeader title="Product knowledge base" lead="ความรู้ของ Product ที่ระบบใช้เป็นหลักฐานตอนประเมิน อ่านอย่างเดียว แก้ใน Obsidian" />
       {!notes ? (
         <Card title="Access">
           <div className="flex flex-wrap items-end gap-3 p-6">
@@ -93,7 +93,7 @@ export default function KnowledgeBase() {
               <div className="flex flex-col gap-4 p-6">
                 <div className="flex flex-col gap-2">
                   <span className="font-mono text-[13px] text-brand-text">{note.path}</span>
-                  <h2 className="m-0 text-2xl text-ink">{note.title}</h2>
+                  <h2 className="m-0 text-2xl font-medium text-ink">{note.title}</h2>
                   <div className="flex flex-wrap items-center gap-2"><StatusBadge s={note.support} /><span className="text-xs text-muted">{note.module} · updated {note.updated}</span></div>
                 </div>
                 <p className="m-0 whitespace-pre-wrap leading-[1.7]"><Body text={note.body} open={setSel} /></p>

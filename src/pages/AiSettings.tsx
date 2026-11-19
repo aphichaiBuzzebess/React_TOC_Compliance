@@ -31,7 +31,7 @@ export default function AiSettings() {
 
   return (
     <>
-      <PageHeader crumb="Reference" title="AI settings" lead="เลือก AI และโมเดล แล้วใส่ API key ของคุณเอง key ไม่ถูกเก็บ ค่าใช้จ่ายเป็นของบัญชีคุณ" />
+      <PageHeader title="AI settings" lead="เลือก AI และโมเดล แล้วใส่ API key ของคุณเอง key ไม่ถูกเก็บ ค่าใช้จ่ายเป็นของบัญชีคุณ" />
       <Card title="Provider and model">
         <div className="flex flex-col gap-5 p-6">
           <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">

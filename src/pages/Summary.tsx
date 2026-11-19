@@ -43,20 +43,20 @@ function SummaryContent({ a }: { a: Assessment }) {
           {stats.map((s) => (
             <div key={s.label} className="flex flex-col">
               <span className={metaLabel}>{s.label}</span>
-              <span className="font-serif text-[44px] leading-tight text-ink">{s.value}</span>
+              <span className="text-[44px] leading-none tracking-[-0.03em] text-ink">{s.value}</span>
               <span className="text-xs text-muted">{s.note}</span>
             </div>
           ))}
         </div>
         <div className="flex flex-col gap-2">
-          <h2 className="m-0 text-xl text-ink">Assessment</h2>
+          <h2 className="m-0 text-xl font-medium text-ink">Assessment</h2>
           <p className="m-0 leading-[1.7]">
             Product รองรับ TOR ได้ {fit(a)} จาก {a.total} ข้อ ทั้งแบบพร้อมใช้งานและตั้งค่าเพิ่มเติม{strongest ? ` โมดูลที่รองรับเต็มรูปแบบมากที่สุดคือ ${strongest}` : ''} ส่วนที่ต้องเตรียมคือ
             Integration {a.counts.integ} ข้อ และ Customization {a.counts.custom} ข้อ
           </p>
         </div>
         <div className="flex flex-col gap-2">
-          <h2 className="m-0 text-xl text-ink">Before committing scope</h2>
+          <h2 className="m-0 text-xl font-medium text-ink">Before committing scope</h2>
           <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5">
             <li>ยืนยัน {a.counts.verify} ข้อที่ Need Verification กับ Product team</li>
             <li>แยก Integration {a.counts.integ} ข้อเป็น Phase ที่ชัดเจน</li>

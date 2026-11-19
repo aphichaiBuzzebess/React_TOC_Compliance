@@ -1,34 +1,36 @@
 @import "tailwindcss";
 
-/* Quiet, catalogued look: warm paper, hairlines, a literary serif for statements, a small grotesk for everything else.
-   Colour is for coding sections and statuses only; large surfaces stay neutral. */
+/* Warm cream page, white cards, near-black ink. One orange accent for actions and one highlighted headline line;
+   one dark band as the strongest break. Text colours are chosen to pass 4.5:1 on their backgrounds. */
 @theme {
   --font-sans: Inter, 'Noto Sans Thai', system-ui, sans-serif;
-  --font-serif: 'EB Garamond', 'Noto Serif Thai', Georgia, serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
-  --color-canvas: #fafaf8;
-  --color-ink: #171716;
-  --color-muted: #6b6c67; /* 5:1 on canvas; the reference's lighter gray fails 4.5:1 */
-  --color-line: #e4e5e1;
-  --color-line-strong: #d3d4cf;
-  --color-tint: #f4f4f0;
+  --color-canvas: #f3f3ec;
+  --color-ink: #1a1a17;
+  --color-muted: #6a6b62;
+  --color-line: #e2e2d9;
+  --color-line-strong: #cfcfc4;
+  --color-tint: #ecece3;
+  --color-dark: #2b2e26;
+  --color-dark-line: #3d4136;
 
-  /* primary action and selected state */
-  --color-brand: #171716;
-  --color-brand-soft: #f1f1ed;
-  --color-brand-line: #e4e5e1;
-  --color-brand-text: #3d5a76;
+  --color-accent: #e8541f;        /* large headline line only (3.3:1 on cream) */
+  --color-accent-strong: #bf3f0d; /* buttons with white text, small labels (5.3:1 / 4.8:1) */
+  --color-accent-dark: #f2693a;   /* fills and labels on the dark band, with ink text */
+  --color-leaf: #7fb63f;          /* decorative mark and checks */
+  --color-leaf-tint: #e8eedb;
+  --color-leaf-ink: #46552b;
 
-  /* section coding */
-  --color-sec-blue: #536b83;
-  --color-sec-teal: #3f7774;
-  --color-sec-ochre: #8a6b2d;
-  --color-sec-plum: #765567;
+  /* legacy names used by existing components */
+  --color-brand: #1a1a17;
+  --color-brand-soft: #ecece3;
+  --color-brand-line: #e2e2d9;
+  --color-brand-text: #bf3f0d;
 }
 
 @layer base {
-  html { font-size: 106.25%; } /* Thai glyphs run small; this lifts every rem-based size ~6% */
+  html { font-size: 106.25%; scroll-behavior: smooth; } /* Thai glyphs run small; this lifts rem sizes ~6% */
   body {
     margin: 0;
     background: var(--color-canvas);
@@ -40,18 +42,18 @@
     -webkit-font-smoothing: antialiased;
   }
   h1, h2 {
-    font-family: var(--font-serif);
     font-weight: 400;
-    letter-spacing: -0.005em;
-    line-height: 1.3; /* Thai tone marks need the room */
+    letter-spacing: -0.03em; /* tight, for the large Latin headlines */
+    line-height: 1.12;
   }
   button { font-family: inherit; cursor: pointer; }
-  a { color: var(--color-brand-text); }
-  :focus-visible { outline: 2px solid var(--color-sec-blue); outline-offset: 2px; }
-  ::selection { background: #e6ebf0; }
+  a { color: var(--color-ink); }
+  :focus-visible { outline: 2px solid var(--color-ink); outline-offset: 3px; }
+  ::selection { background: #f6d9cc; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
   * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
 
