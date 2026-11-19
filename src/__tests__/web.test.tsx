@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import App from '@/App'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import type { Req } from '@/lib/types'
 import { pageSlices } from '@/lib/exportPdf'
+import { Logo, logoPath, spreadFor } from '@/components/Logo'
 
 const { exportPdfMock } = vi.hoisted(() => ({ exportPdfMock: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/exportPdf', async (orig) => ({ ...(await orig<typeof import('@/lib/exportPdf')>()), exportPdf: exportPdfMock }))
@@ -158,6 +159,49 @@ describe('summary pdf', () => {
   it('splits a tall page into A4-sized slices', () => {
     expect(pageSlices(2500, 1000)).toEqual([{ y: 0, h: 1000 }, { y: 1000, h: 1000 }, { y: 2000, h: 500 }])
     expect(pageSlices(800, 1000)).toEqual([{ y: 0, h: 800 }])
+  })
+})
+
+describe('animated logo', () => {
+  const rest = readFileSync(join(process.cwd(), 'public/favicon.svg'), 'utf8').match(/ d="([^"]+)"/)![1]
+  const pathOf = (c: HTMLElement) => c.querySelector('path')!.getAttribute('d')
+
+  it('at rest it is exactly the logo file, so the code and the brand files cannot drift apart', () => {
+    expect(logoPath(1)).toBe(rest)
+  })
+
+  it('progress moves the cells: none = apart, done = the logo at rest', () => {
+    expect(spreadFor(1)).toBe(1)
+    expect(spreadFor(0)).toBeGreaterThan(2)
+    const done = render(<Logo progress={1} />)
+    expect(pathOf(done.container)).toBe(rest)
+    const none = render(<Logo progress={0} />)
+    expect(pathOf(none.container)).not.toBe(rest)
+    expect(pathOf(none.container)).toBe(logoPath(spreadFor(0)))
+  })
+
+  it('parting on hover and closing again: it ends exactly at rest and never crosses past it by much', async () => {
+    const { container, rerender } = render(<Logo active />)
+    expect(pathOf(container)).toBe(logoPath(1.3))
+    const xs: number[] = []
+    const sample = () => xs.push(+pathOf(container)!.split(' ')[0].slice(1))
+    rerender(<Logo active={false} />)
+    const timer = setInterval(sample, 20)
+    await waitFor(() => expect(pathOf(container)).toBe(rest), { timeout: 4000 })
+    clearInterval(timer)
+    const restX = +rest.split(' ')[0].slice(1)
+    // the first vertex starts left of rest (cells apart) and may overshoot a hair past it, but not far
+    expect(Math.max(...xs)).toBeLessThan(restX + 3)
+  })
+
+  it('is decorative: hidden from screen readers', () => {
+    const { container } = render(<Logo />)
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('the header logo is in the page and the app still renders with it', () => {
+    open('/')
+    expect(screen.getByRole('link', { name: /TOR Scouter/ }).querySelector('svg path')).not.toBeNull()
   })
 })
 

@@ -6,6 +6,7 @@ import { AI_PROVIDERS } from '@/data/models'
 import { useAssessment } from '@/lib/useAssessment'
 import { Button, Card, Elapsed, Eyebrow, Pill, highlight, metaLabel } from '@/components/ui'
 import { ease } from '@/components/motion'
+import { Logo } from '@/components/Logo'
 import { motion } from 'motion/react'
 
 /** Abstract product preview in a tilted window. Decorative: it shows the shape of the result, not data. */
@@ -193,7 +194,10 @@ export default function NewAssessment() {
       {/* The one dark band: the run itself, five steps across. */}
       <section id="workflow" className="scroll-mt-24 rounded-[10px] border border-dark-line bg-dark text-white">
         <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-5">
-          <h2 className="m-0 text-xl font-medium text-white">Agent workflow</h2>
+          <div className="flex items-center gap-3">
+            <Logo size={32} progress={done ? 1 : running ? Math.max(step, 0) / STEPS.length : 0} />
+            <h2 className="m-0 text-xl font-medium text-white">Agent workflow</h2>
+          </div>
           <span className="text-xs text-dark-muted">{runLabel}</span>
         </div>
         {/* A thin amber line fills as the steps finish; it is a visual echo of the step list, so it is hidden from screen readers. */}
