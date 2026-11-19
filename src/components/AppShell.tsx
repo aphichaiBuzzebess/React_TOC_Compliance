@@ -6,7 +6,7 @@ import { Elapsed } from '@/components/ui'
 import { AI_PROVIDERS } from '@/data/models'
 import { NAV, navIndex } from '@/data/nav'
 import { useAssessment } from '@/lib/useAssessment'
-import { useAssessmentStore } from '@/store/useAssessmentStore'
+import { activeAi, useAssessmentStore } from '@/store/useAssessmentStore'
 
 /** Amber disc, black ring, amber centre: the bullseye of a scouter lens, in Buzzebees colours. */
 function Mark() {
@@ -22,8 +22,9 @@ function Mark() {
 export default function AppShell({ children }: { children: ReactNode }) {
   const a = useAssessment()
   const { pathname } = useLocation()
-  const { customer, running, startedAt, provider, model, apiKey } = useAssessmentStore()
-  const ai = AI_PROVIDERS.find((p) => p.id === provider)
+  const { customer, running, startedAt } = useAssessmentStore()
+  const use = useAssessmentStore(activeAi)
+  const ai = AI_PROVIDERS.find((p) => p.id === use?.provider)
 
   // Each route gets its own tab title, and a new page starts at its top, not wherever the last one was scrolled to.
   useEffect(() => {
@@ -85,8 +86,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 <span>{a ? `${a.total} requirements` : 'ยังไม่มี TOR'}</span>
               </span>
               <Link to="/ai-settings" className="flex min-h-11 items-center gap-1.5 text-muted no-underline hover:text-ink">
-                <span aria-hidden className={`size-1.5 rounded-full ${apiKey ? 'bg-amber' : 'bg-line-strong'}`} />
-                {apiKey ? `${ai?.label.split(' ')[0]} · ${model}` : 'ยังไม่ได้ใส่ AI key'}
+                <span aria-hidden className={`size-1.5 rounded-full ${use ? 'bg-amber' : 'bg-line-strong'}`} />
+                {use ? `${ai?.label.split(' ')[0]} · ${use.model}` : 'ยังไม่ได้ใส่ AI key'}
               </Link>
             </>
           )}

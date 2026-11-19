@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { FileText, Upload } from 'lucide-react'
-import { useAssessmentStore } from '@/store/useAssessmentStore'
+import { FileText, Image as ImageIcon, Upload, X } from 'lucide-react'
+import { activeAi, hasAi, useAssessmentStore } from '@/store/useAssessmentStore'
 import { STEPS } from '@/data/tor'
 import { AI_PROVIDERS } from '@/data/models'
 import { useAssessment } from '@/lib/useAssessment'
@@ -61,15 +61,18 @@ function Marker({ n, done, current }: { n: number; done: boolean; current: boole
 export default function NewAssessment() {
   const nav = useNavigate()
   const last = useAssessment()
-  const { step, running, startedAt, detail, error, file, customer, provider, model, apiKey, result, setFile, setCustomer, runReal, reset } = useAssessmentStore()
+  const { step, running, startedAt, detail, error, files, customer, result, addFiles, removeFile, setCustomer, runReal, reset } = useAssessmentStore()
+  const aiReady = useAssessmentStore(hasAi)
+  const use = useAssessmentStore(activeAi)
   const done = step >= STEPS.length
-  const ai = AI_PROVIDERS.find((p) => p.id === provider)
+  const hasFiles = files.length > 0
+  const ai = AI_PROVIDERS.find((p) => p.id === use?.provider)
   const runLabel = done ? `Completed · ${result?.length ?? 0} requirements assessed` : running ? `Running step ${step + 1} of ${STEPS.length}` : 'Ready to run'
 
-  const blocker = done || running ? null : !apiKey && !file ? 'ใส่ AI key และเลือกไฟล์ TOR ก่อน' : !apiKey ? 'ใส่ AI key ก่อน' : !file ? 'เลือกไฟล์ TOR ก่อน' : null
+  const blocker = done || running ? null : !aiReady && !hasFiles ? 'ใส่ AI key และเลือกไฟล์ TOR ก่อน' : !aiReady ? 'ใส่ AI key ก่อน' : !hasFiles ? 'เลือกไฟล์ TOR ก่อน' : null
   const runNote = done ? `เสร็จแล้ว · ${result?.length ?? 0} ข้อ` : running ? 'กำลังทำงาน ดูความคืบหน้าด้านล่าง' : (blocker ?? 'พร้อมแล้ว')
   // Steps in order; the first one not yet done is the current one.
-  const flags = [!!apiKey, !!file, done]
+  const flags = [aiReady, hasFiles, done]
   const current = flags.findIndex((f) => !f)
 
   const start = () => {
@@ -101,24 +104,50 @@ export default function NewAssessment() {
               <Marker n={1} done={flags[0]} current={current === 0} />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="font-semibold">ใส่ AI key</span>
-                <span className="text-sm text-muted wrap-anywhere">{apiKey ? `${ai?.label} · ${model}` : 'Claude หรือ Gemini ของคุณเอง ไม่ถูกเก็บ'}</span>
+                <span className="text-sm text-muted wrap-anywhere">{use ? `${ai?.label} · ${use.model}${use.own ? '' : ' · ค่าจากเซิร์ฟเวอร์'}` : 'Claude หรือ Gemini ของคุณเอง ไม่ถูกเก็บ'}</span>
               </div>
-              <Link to="/ai-settings" className="inline-flex min-h-11 flex-none items-center text-sm font-medium text-amber-text underline underline-offset-4">{apiKey ? 'เปลี่ยน' : 'ตั้งค่า AI'}</Link>
+              <Link to="/ai-settings" className="inline-flex min-h-11 flex-none items-center text-sm font-medium text-amber-text underline underline-offset-4">{use ? 'เปลี่ยน' : 'ตั้งค่า AI'}</Link>
             </motion.li>
 
             <motion.li initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.35 }} aria-current={current === 1 ? 'step' : undefined} className="flex items-start gap-3 border-t border-line px-5 py-4">
               <Marker n={2} done={flags[1]} current={current === 1} />
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <span className="font-semibold">เลือกไฟล์ TOR</span>
-                <label htmlFor="torFile" className="flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border border-line-strong bg-white px-4 transition-colors hover:border-ink has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink">
-                  {file ? <FileText aria-hidden size={20} strokeWidth={1.5} className="flex-none text-muted" /> : <Upload aria-hidden size={20} strokeWidth={1.5} className="flex-none text-muted" />}
+                <label
+                  htmlFor="torFile"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => { e.preventDefault(); addFiles([...e.dataTransfer.files]) }}
+                  className="flex min-h-14 cursor-pointer items-center gap-3 rounded-lg border border-line-strong bg-white px-4 transition-colors hover:border-ink has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink"
+                >
+                  <Upload aria-hidden size={20} strokeWidth={1.5} className="flex-none text-muted" />
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className={`truncate text-sm ${file ? 'font-medium text-ink' : 'text-muted'}`}>{file ? file.name : 'ยังไม่ได้เลือกไฟล์'}</span>
-                    <span className="text-xs text-muted">{file ? `${(file.size / 1024).toFixed(0)} KB` : 'PDF, DOCX หรือ XLSX ไม่เกิน 4 MB'}</span>
+                    <span className={`truncate text-sm ${hasFiles ? 'font-medium text-ink' : 'text-muted'}`}>{hasFiles ? `เลือกแล้ว ${files.length} ไฟล์` : 'ยังไม่ได้เลือกไฟล์'}</span>
+                    <span className="text-xs text-muted">PDF, DOCX, XLSX หรือรูปภาพ · ลากมาวางได้ · ไฟล์ละไม่เกิน 4 MB</span>
                   </span>
-                  <span className="flex-none text-sm font-medium text-amber-text underline underline-offset-4">{file ? 'เปลี่ยน' : 'เลือกไฟล์'}</span>
-                  <input id="torFile" type="file" accept=".pdf,.docx,.xlsx" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                  <span className="flex-none text-sm font-medium text-amber-text underline underline-offset-4">{hasFiles ? 'เพิ่มไฟล์' : 'เลือกไฟล์'}</span>
+                  <input
+                    id="torFile"
+                    type="file"
+                    multiple
+                    accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp,.gif"
+                    className="sr-only"
+                    onChange={(e) => { addFiles([...(e.target.files ?? [])]); e.target.value = '' }}
+                  />
                 </label>
+                {hasFiles && (
+                  <ul aria-label="ไฟล์ที่เลือก" className="m-0 flex list-none flex-col p-0">
+                    {files.map((f, i) => (
+                      <li key={`${f.name}:${f.size}:${f.lastModified}`} className="flex items-center gap-3 border-t border-line first:border-t-0">
+                        {f.type.startsWith('image/') ? <ImageIcon aria-hidden size={18} strokeWidth={1.5} className="flex-none text-muted" /> : <FileText aria-hidden size={18} strokeWidth={1.5} className="flex-none text-muted" />}
+                        <span className="min-w-0 flex-1 truncate text-sm text-ink">{f.name}</span>
+                        <span className="flex-none text-xs text-muted">{(f.size / 1024).toFixed(0)} KB</span>
+                        <button type="button" aria-label={`เอา ${f.name} ออก`} disabled={running} onClick={() => removeFile(i)} className="flex size-11 flex-none items-center justify-center rounded-full text-muted transition-colors hover:text-ink disabled:opacity-50">
+                          <X aria-hidden size={16} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className="flex flex-col gap-1.5">
                   <label htmlFor="custName" className="text-sm text-muted">ชื่อลูกค้า (ไม่บังคับ)</label>
                   <input id="custName" type="text" placeholder="Customer name" value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-white px-3 text-sm" />
@@ -134,7 +163,7 @@ export default function NewAssessment() {
                   <span id={blocker ? 'run-hint' : undefined} className="text-sm text-muted">{runNote}</span>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {!done && <Button variant="primary" arrow disabled={running || !file || !apiKey} aria-describedby={blocker ? 'run-hint' : undefined} onClick={start}>{running ? 'Assessing…' : 'Run assessment'}</Button>}
+                  {!done && <Button variant="primary" arrow disabled={running || !hasFiles || !aiReady} aria-describedby={blocker ? 'run-hint' : undefined} onClick={start}>{running ? 'Assessing…' : 'Run assessment'}</Button>}
                   {done && (
                     <>
                       <Button variant="primary" arrow onClick={() => nav('/dashboard')}>View results</Button>
@@ -218,7 +247,7 @@ export default function NewAssessment() {
             <div className="flex flex-wrap gap-2">
               {['แยก requirement', 'เทียบกับหลักฐาน', 'คำถามค้างถึงลูกค้า', 'Export Excel', 'PDF สรุป'].map((c) => <Pill key={c}>{c}</Pill>)}
             </div>
-            <p className="m-0 text-sm text-muted">รองรับ PDF · DOCX · XLSX · Claude · Gemini · Obsidian KB</p>
+            <p className="m-0 text-sm text-muted">รองรับ PDF · DOCX · XLSX · รูปภาพ · Claude · Gemini · Obsidian KB</p>
           </div>
           <Preview />
         </div>

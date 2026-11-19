@@ -22,6 +22,8 @@ TOR (pdf/docx/xlsx) ─► api/extract.ts ─► requirements ─┬─► api/j
 ## AI settings
 ทุกคนกรอก provider, model และ API key ของตัวเองที่หน้า `/ai-settings` (Claude หรือ Gemini, เลือกโมเดลจากรายการหรือพิมพ์เอง) key อยู่ในหน่วยความจำของหน้าเว็บเท่านั้น ไม่ถูกเก็บทั้งในเบราว์เซอร์และ server ถูกส่งไปกับคำขอแต่ละครั้งเพื่อใช้เรียก AI ค่าใช้จ่ายเป็นของบัญชีผู้ใช้ มีปุ่ม Test connection
 
+ถ้าอยากให้มี AI ตั้งต้นให้คนที่ไม่ใส่ key ให้ตั้ง `LLM_PROVIDER` กับ `<PROVIDER>_API_KEY` (เช่น `GEMINI_API_KEY`, เลือก `GEMINI_MODEL` ได้) ใน `.env.local` หรือใน env ของ Vercel เซิร์ฟเวอร์จะใช้ค่านี้เมื่อคำขอไม่มี key และไม่ส่ง key นี้ออกไปที่เบราว์เซอร์เลย คนที่ใส่ key ของตัวเองจะใช้ key ของตัวเองเสมอ เว็บ production ที่ไม่มี `ACCESS_CODE` จะไม่ใช้ค่านี้ เพื่อไม่ให้คนแปลกหน้าใช้ key ของคุณ
+
 ## Run
 ```bash
 npm install

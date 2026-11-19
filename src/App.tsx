@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { MotionConfig } from 'motion/react'
+import { useAssessmentStore } from './store/useAssessmentStore'
 import AppShell from './components/AppShell'
 import NewAssessment from './pages/NewAssessment'
 import Dashboard from './pages/Dashboard'
@@ -11,6 +13,10 @@ import KnowledgeBase from './pages/KnowledgeBase'
 import AiSettings from './pages/AiSettings'
 
 export default function App() {
+  const accessCode = useAssessmentStore((s) => s.accessCode)
+  useEffect(() => {
+    void useAssessmentStore.getState().loadServerDefault()
+  }, [accessCode])
   return (
     <MotionConfig reducedMotion="user">
     <AppShell>

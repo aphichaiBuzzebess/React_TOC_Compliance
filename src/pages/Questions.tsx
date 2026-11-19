@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAssessmentStore } from '@/store/useAssessmentStore'
+import { hasAi, useAssessmentStore } from '@/store/useAssessmentStore'
 import { useAssessment } from '@/lib/useAssessment'
 import type { FunctionCoverage } from '@/lib/types'
 import { Link } from 'react-router-dom'
@@ -15,7 +15,8 @@ const toText = (rows: FunctionCoverage[]) =>
   rows.filter((r) => r.open.length).map((r) => `${r.function}\n${r.open.map((q) => `- ${q}`).join('\n')}`).join('\n\n')
 
 function QuestionsContent() {
-  const { coverage: rows, apiKey, coverageBusy, error, runCoverage } = useAssessmentStore()
+  const aiReady = useAssessmentStore(hasAi)
+  const { coverage: rows, coverageBusy, error, runCoverage } = useAssessmentStore()
   const [copied, setCopied] = useState(false)
   const openCount = rows?.reduce((n, r) => n + r.open.length, 0) ?? 0
 
@@ -37,8 +38,8 @@ function QuestionsContent() {
           <Alert tone="warning" title="ยังไม่มีผลตรวจคำถามค้าง">ผลประเมิน compliance ยังอยู่ครบ ตรวจเฉพาะคำถามค้างซ้ำได้โดยไม่ต้องรันประเมินใหม่ทั้งหมด</Alert>
           {error && <p role="alert" className="m-0 text-[#CF1322]">{error}</p>}
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="primary" disabled={!apiKey || coverageBusy} onClick={runCoverage}>{coverageBusy ? 'กำลังตรวจ…' : 'ตรวจคำถามค้างอีกครั้ง'}</Button>
-            {!apiKey && <span className="text-muted">ต้องใส่ API key ก่อนที่ <Link to="/ai-settings" className="text-brand-text underline">AI settings</Link></span>}
+            <Button variant="primary" disabled={!aiReady || coverageBusy} onClick={runCoverage}>{coverageBusy ? 'กำลังตรวจ…' : 'ตรวจคำถามค้างอีกครั้ง'}</Button>
+            {!aiReady && <span className="text-muted">ต้องใส่ API key ก่อนที่ <Link to="/ai-settings" className="text-brand-text underline">AI settings</Link></span>}
           </div>
         </div>
       ) : (

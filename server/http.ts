@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto'
 import { PROVIDERS, type LlmConfig, type Provider } from './llm.js'
+import { defaultModel } from '../src/data/models.js'
 
 const json = (body: unknown, status = 200) => Response.json(body, { status })
 
@@ -13,8 +14,25 @@ export function guard(req: Request): Response | null {
   return null
 }
 
-/** The caller's own provider, model and key, read from headers for this one request. Never stored or logged. */
+/** The operator's default AI, from LLM_PROVIDER plus <PROVIDER>_API_KEY and optional <PROVIDER>_MODEL (e.g. GEMINI_API_KEY).
+ *  Opt-in by LLM_PROVIDER. A public production site without ACCESS_CODE ignores it, so nobody else can spend the operator's key. */
+export function serverDefault(): LlmConfig | null {
+  const provider = (process.env.LLM_PROVIDER ?? '').trim().toLowerCase() as Provider
+  if (!PROVIDERS.includes(provider)) return null
+  if (!process.env.ACCESS_CODE && process.env.VERCEL_ENV === 'production') return null
+  const P = provider.toUpperCase()
+  const apiKey = (process.env[`${P}_API_KEY`] ?? '').trim()
+  if (!apiKey) return null
+  return { provider, apiKey, model: (process.env[`${P}_MODEL`] ?? '').trim() || defaultModel(provider) }
+}
+
+/** The caller's own provider, model and key, read from headers for this one request. Never stored or logged.
+ *  A caller who sends no key gets the operator's default, if there is one. */
 export function llmFromRequest(req: Request): LlmConfig {
+  if (!(req.headers.get('x-llm-key') ?? '').trim()) {
+    const d = serverDefault()
+    if (d) return d
+  }
   const provider = (req.headers.get('x-llm-provider') ?? '').toLowerCase()
   const apiKey = (req.headers.get('x-llm-key') ?? '').trim()
   const model = (req.headers.get('x-llm-model') ?? '').trim()
@@ -50,7 +68,7 @@ export async function handle(req: Request, run: () => Promise<unknown>): Promise
   try {
     return json(await run())
   } catch (e) {
-    const msg = errorMessage(e, req.headers.get('x-llm-key') ?? '')
+    const msg = errorMessage(e, req.headers.get('x-llm-key') || serverDefault()?.apiKey || '')
     console.error(msg) // message only, never the error object (it may carry request headers)
     return json({ error: msg }, 400)
   }

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { CheckCircle2, CircleAlert } from 'lucide-react'
 import { authHeaders, useAssessmentStore } from '@/store/useAssessmentStore'
 import { AI_PROVIDERS } from '@/data/models'
-import { Button, Card, PageHeader } from '@/components/ui'
+import { Alert, Button, Card, PageHeader } from '@/components/ui'
 import type { PingResult } from '@/lib/types'
 
 const CUSTOM = '__custom'
@@ -34,6 +34,11 @@ export default function AiSettings() {
       <PageHeader title="AI settings" lead="เลือก AI และโมเดล แล้วใส่ API key ของคุณเอง key ไม่ถูกเก็บ ค่าใช้จ่ายเป็นของบัญชีคุณ" />
       <Card title="Provider and model">
         <div className="flex flex-col gap-5 p-6">
+          {s.serverDefault && (
+            <Alert tone="info" title="เซิร์ฟเวอร์มี AI ตั้งไว้ให้แล้ว">
+              {AI_PROVIDERS.find((p) => p.id === s.serverDefault?.provider)?.label} · {s.serverDefault.model} ไม่ต้องใส่ key ก็รันได้ ถ้าใส่ key ของตัวเองด้านล่าง ระบบจะใช้ key และ model ที่คุณเลือกแทน
+            </Alert>
+          )}
           <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
             <legend className="mb-1 p-0 font-medium">AI provider</legend>
             {AI_PROVIDERS.map((p) => (
@@ -65,11 +70,11 @@ export default function AiSettings() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="primary" disabled={!s.apiKey || !s.model || testing} onClick={test}>{testing ? 'Testing…' : 'Test connection'}</Button>
+            <Button variant="primary" disabled={(!s.apiKey && !s.serverDefault) || !s.model || testing} onClick={test}>{testing ? 'Testing…' : 'Test connection'}</Button>
             {result && (
               <span role="status" className={`flex items-center gap-1.5 text-sm ${result.ok ? 'text-[#237804]' : 'text-[#CF1322]'}`}>
                 {result.ok ? <CheckCircle2 aria-hidden size={16} /> : <CircleAlert aria-hidden size={16} />}
-                {result.ok ? `Working · ${s.model} · ${result.ms} ms` : result.error}
+                {result.ok ? `Working · ${s.apiKey ? s.model : s.serverDefault?.model} · ${result.ms} ms` : result.error}
               </span>
             )}
           </div>

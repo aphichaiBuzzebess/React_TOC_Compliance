@@ -1,6 +1,7 @@
 export type Block =
   | { type: 'text'; text: string }
   | { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string } }
+  | { type: 'image'; source: { type: 'base64'; media_type: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'; data: string } }
 
 export interface Tool { name: string; description: string; schema: Record<string, unknown> }
 

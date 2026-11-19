@@ -60,7 +60,7 @@ describe('AI settings', () => {
   })
 
   it('cannot run an assessment without a key', async () => {
-    useAssessmentStore.setState({ file: new File(['x'], 'tor.pdf'), apiKey: '' })
+    useAssessmentStore.setState({ files: [new File(['x'], 'tor.pdf')], apiKey: '' })
     await useAssessmentStore.getState().runReal()
     expect(useAssessmentStore.getState().running).toBe(false)
   })
@@ -105,7 +105,7 @@ describe('run progress', () => {
       if (url === '/api/judge') return ok({ results: (JSON.parse(init.body as string).requirements as typeof reqs).map((r) => req(r.id, 'full')) })
       return questionsOk ? ok({ topics: [{ function: 'Point', coverage: 'covered', reqIds: [], open: [] }] }) : ({ ok: false, status: 500, json: async () => ({ error: 'quota exceeded' }) } as Response)
     }))
-    useAssessmentStore.setState({ file: new File(['x'], 'tor.pdf'), apiKey: 'k-123456789', running: false, step: -1, error: null })
+    useAssessmentStore.setState({ files: [new File(['x'], 'tor.pdf')], apiKey: 'k-123456789', running: false, step: -1, error: null })
     await useAssessmentStore.getState().runReal()
     return useAssessmentStore.getState()
   }
@@ -224,7 +224,7 @@ describe('accessibility fixes', () => {
   })
 
   it('says why Run is disabled', () => {
-    useAssessmentStore.setState({ file: null, apiKey: '' })
+    useAssessmentStore.setState({ files: [], apiKey: '' })
     open('/')
     const hint = screen.getByText('ใส่ AI key และเลือกไฟล์ TOR ก่อน')
     expect(screen.getByRole('button', { name: /Run assessment/ })).toHaveAttribute('aria-describedby', hint.id)
@@ -320,15 +320,15 @@ describe('compliance matrix review flow', () => {
 })
 
 describe('home: task first', () => {
-  const steps = () => within(screen.getByRole('list', { name: 'ขั้นตอน' }))
+  const stepItems = () => [...screen.getByRole('list', { name: 'ขั้นตอน' }).children] // top-level steps only, not the file list inside step 2
 
   beforeEach(() => {
-    useAssessmentStore.setState({ result: null, coverage: null, file: null, apiKey: '', running: false, step: -1, error: null, detail: '', startedAt: null })
+    useAssessmentStore.setState({ result: null, coverage: null, files: [], apiKey: '', running: false, step: -1, error: null, detail: '', startedAt: null })
   })
 
   it('tells a first-time user what is missing, in order, and marks the current step', () => {
     open('/')
-    const items = steps().getAllByRole('listitem')
+    const items = stepItems()
     expect(items).toHaveLength(3)
     expect(items[0]).toHaveAttribute('aria-current', 'step') // key comes first
     expect(items[0]).toHaveTextContent('ใส่ AI key')
@@ -336,14 +336,79 @@ describe('home: task first', () => {
   })
 
   it('ticks steps off as the key and file arrive, and then Run is ready', () => {
-    useAssessmentStore.setState({ apiKey: 'k-123456789', file: new File(['x'], 'bangchak-tor.pdf') })
+    useAssessmentStore.setState({ apiKey: 'k-123456789', files: [new File(['x'], 'bangchak-tor.pdf')] })
     open('/')
-    const items = steps().getAllByRole('listitem')
+    const items = stepItems()
     expect(items[0]).toHaveTextContent('✓')
     expect(items[1]).toHaveTextContent('bangchak-tor.pdf')
     expect(items[2]).toHaveAttribute('aria-current', 'step')
     expect(items[2]).toHaveTextContent('พร้อมแล้ว')
     expect(screen.getByRole('button', { name: /Run assessment/ })).toBeEnabled()
+  })
+
+  it('attaches several files, including images, lets you remove one, and skips duplicates', async () => {
+    const user = userEvent.setup()
+    useAssessmentStore.setState({ files: [], error: null })
+    open('/')
+    const input = document.getElementById('torFile') as HTMLInputElement
+    expect(input.multiple).toBe(true)
+    expect(input.accept).toContain('.png')
+    const pdf = new File(['x'], 'tor.pdf', { type: 'application/pdf', lastModified: 1 })
+    const shot = new File(['y'], 'table.png', { type: 'image/png', lastModified: 1 })
+    await user.upload(input, [pdf, shot])
+    const list = screen.getByRole('list', { name: 'ไฟล์ที่เลือก' })
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2)
+    await user.upload(input, pdf) // same file again
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: 'เอา tor.pdf ออก' }))
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+    expect(within(list).getByText('table.png')).toBeInTheDocument()
+  })
+
+  it('refuses a file over 4 MB and says which one', () => {
+    useAssessmentStore.setState({ files: [], error: null })
+    const big = new File([new Uint8Array(4 * 1024 * 1024 + 1)], 'huge.pdf')
+    useAssessmentStore.getState().addFiles([big])
+    expect(useAssessmentStore.getState().files).toHaveLength(0)
+    expect(useAssessmentStore.getState().error).toContain('huge.pdf')
+  })
+
+  it('reads each file with its own request and renumbers the requirements across all of them', async () => {
+    const seen: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      const ok = (b: unknown) => ({ ok: true, status: 200, json: async () => b }) as Response
+      if (url === '/api/extract') {
+        const name = decodeURIComponent((init.headers as Record<string, string>)['x-filename'])
+        seen.push(name)
+        return ok({ requirements: [{ id: 'R-001', module: 'Member', text: `from ${name}` }] })
+      }
+      if (url === '/api/judge') return ok({ results: (JSON.parse(init.body as string).requirements as { id: string; module: string; text: string }[]).map((r) => req(r.id, 'full')) })
+      return ok({ topics: [] })
+    }))
+    useAssessmentStore.setState({ files: [new File(['a'], 'a.pdf'), new File(['b'], 'b.png')], apiKey: 'k-123456789', running: false, step: -1, error: null })
+    await useAssessmentStore.getState().runReal()
+    expect(seen.sort()).toEqual(['a.pdf', 'b.png'])
+    expect(useAssessmentStore.getState().result?.map((r) => r.id)).toEqual(['R-001', 'R-002'])
+    vi.unstubAllGlobals()
+  })
+
+  it('is ready to run without a key when the server offers a default AI, and sends no AI headers', async () => {
+    let headers: Record<string, string> = {}
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      const ok = (b: unknown) => ({ ok: true, status: 200, json: async () => b }) as Response
+      if (url === '/api/extract') { headers = init.headers as Record<string, string>; return ok({ requirements: [{ id: 'R-001', module: 'Member', text: 't' }] }) }
+      if (url === '/api/judge') return ok({ results: [req('R-001', 'full')] })
+      return ok({ topics: [] })
+    }))
+    useAssessmentStore.setState({ apiKey: '', files: [new File(['x'], 'tor.pdf')], serverDefault: { provider: 'gemini', model: 'gemini-3.8-flash' }, running: false, step: -1, error: null })
+    open('/')
+    expect(screen.getByRole('button', { name: /Run assessment/ })).toBeEnabled()
+    expect(screen.getByText(/ค่าจากเซิร์ฟเวอร์/)).toBeInTheDocument()
+    await useAssessmentStore.getState().runReal()
+    expect(Object.keys(headers).filter((h) => h.startsWith('x-llm'))).toEqual([])
+    expect(useAssessmentStore.getState().result).toHaveLength(1)
+    useAssessmentStore.setState({ serverDefault: null })
+    vi.unstubAllGlobals()
   })
 
   it('puts the upload before the progress band, so the work is not buried under explanation', () => {

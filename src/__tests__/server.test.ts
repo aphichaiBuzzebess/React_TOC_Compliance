@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { loadKb, parseNote, searchKb } from '../../server/kb'
-import { judge } from '../../server/pipeline'
+import { judge, toBlocks } from '../../server/pipeline'
 import { checkCoverage, loadTopics } from '../../server/questions'
 import { pingProvider } from '../../server/status'
 import type { Llm } from '../../server/llm'
-import { errorMessage, guard, handle, llmFromRequest, redact } from '../../server/http'
+import { errorMessage, guard, handle, llmFromRequest, redact, serverDefault } from '../../server/http'
 import { fromReqs } from '@/lib/assessment'
 import type { Req } from '@/lib/types'
 
@@ -47,6 +47,17 @@ describe('judge', () => {
     expect(out[0]).toMatchObject({ s: 'full', conf: '92%', evidence: 'KB › Member › Registration channels' })
     expect(out[1].s).toBe('verify') // cited a note that does not exist
     expect(out[2].s).toBe('verify') // model skipped it
+  })
+})
+
+describe('toBlocks', () => {
+  it('sends an image as an image block with the right media type', async () => {
+    const png = await toBlocks('Table.PNG', Buffer.from('abc'))
+    expect(png).toEqual([{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: Buffer.from('abc').toString('base64') } }])
+    expect((await toBlocks('a.jpeg', Buffer.from('x')))[0]).toMatchObject({ source: { media_type: 'image/jpeg' } })
+  })
+  it('still rejects unknown types', async () => {
+    await expect(toBlocks('a.exe', Buffer.from('x'))).rejects.toThrow('Unsupported')
   })
 })
 
@@ -119,6 +130,44 @@ describe('per-request AI settings', () => {
     process.env.ANTHROPIC_API_KEY = 'server-key-should-be-ignored'
     expect(() => llmFromRequest(req({ 'x-llm-provider': 'anthropic', 'x-llm-model': 'm' }))).toThrow(/API key/)
     delete process.env.ANTHROPIC_API_KEY
+  })
+
+  describe('operator default AI (LLM_PROVIDER + GEMINI_API_KEY)', () => {
+    const none = () => req({})
+    beforeEach(() => {
+      process.env.LLM_PROVIDER = 'gemini'
+      process.env.GEMINI_API_KEY = 'operator-key-123456'
+      process.env.GEMINI_MODEL = 'gemini-3.6-flash'
+    })
+    afterEach(() => {
+      for (const k of ['LLM_PROVIDER', 'GEMINI_API_KEY', 'GEMINI_MODEL', 'VERCEL_ENV']) delete process.env[k]
+    })
+
+    it('is used when the caller sends no key', () => {
+      expect(llmFromRequest(none())).toEqual({ provider: 'gemini', apiKey: 'operator-key-123456', model: 'gemini-3.6-flash' })
+    })
+    it('falls back to the first listed model when none is configured', () => {
+      delete process.env.GEMINI_MODEL
+      expect(llmFromRequest(none()).model).toBe('gemini-3.8-flash')
+    })
+    it('loses to a key the caller sends', () => {
+      expect(llmFromRequest(req(ok)).apiKey).toBe('user-own-key-123456')
+    })
+    it('needs LLM_PROVIDER: a bare key in the environment is not used', () => {
+      delete process.env.LLM_PROVIDER
+      expect(serverDefault()).toBeNull()
+      expect(() => llmFromRequest(none())).toThrow(/provider/)
+    })
+    it('is ignored on a public production site with no access code, and allowed once there is one', () => {
+      process.env.VERCEL_ENV = 'production'
+      expect(serverDefault()).toBeNull()
+      process.env.ACCESS_CODE = 'x'
+      expect(serverDefault()).not.toBeNull()
+    })
+    it('keeps its key out of error messages', async () => {
+      const res = await handle(none(), async () => { throw new Error('boom operator-key-123456 end') })
+      expect(JSON.stringify(await res.json())).not.toContain('operator-key-123456')
+    })
   })
 
   it('access code is optional: open when unset, enforced when set', () => {
