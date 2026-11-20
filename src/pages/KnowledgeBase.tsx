@@ -52,6 +52,8 @@ export default function KnowledgeBase() {
   return (
     <>
       <PageHeader title="Product knowledge base" lead="ความรู้ที่ระบบใช้ประเมิน: note ความสามารถของ Product, taxonomy ที่ใช้จัดหมวด requirement และ prompt ของแต่ละขั้น" />
+      {/* The shell puts 40px between siblings; the banners, tabs and panel belong together, so they get one tighter column. */}
+      <div className="flex flex-col gap-5">
       {error && <p role="alert" className="m-0 text-danger">{error} <Button variant="ghost" onClick={() => void load()}>ลองใหม่</Button></p>}
       {data && (
         <>
@@ -63,17 +65,20 @@ export default function KnowledgeBase() {
               {canEdit && <span className="mt-2 flex flex-wrap items-center gap-3"><Button variant="primary" onClick={importFiles}>นำเข้าจากไฟล์</Button>{importMsg && <span role="status" className="text-sm">{importMsg}</span>}</span>}
             </Alert>
           )}
-          {canEdit && data.status === 'database' && (
-            <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
-              <Button variant="ghost" onClick={importFiles}>นำเข้า note ใหม่จากไฟล์</Button>{importMsg && <span role="status">{importMsg}</span>}
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+            <div role="tablist" aria-label="หมวดความรู้" className="flex flex-wrap gap-2">
+              {TABS.map(([id, label]) => (
+                <button key={id} type="button" role="tab" id={`tab-${id}`} aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)} className={`min-h-11 rounded-full border px-5 text-sm transition-colors ${tab === id ? 'border-ink bg-ink font-medium text-inverse' : 'border-line-strong bg-surface hover:border-ink'}`}>
+                  {label}
+                </button>
+              ))}
             </div>
-          )}
-          <div role="tablist" aria-label="หมวดความรู้" className="flex flex-wrap gap-2">
-            {TABS.map(([id, label]) => (
-              <button key={id} type="button" role="tab" id={`tab-${id}`} aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)} className={`min-h-11 rounded-full border px-5 text-sm transition-colors ${tab === id ? 'border-ink bg-ink font-medium text-inverse' : 'border-line-strong bg-surface hover:border-ink'}`}>
-                {label}
-              </button>
-            ))}
+            {canEdit && data.status === 'database' && (
+              <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
+                {importMsg && <span role="status">{importMsg}</span>}
+                <Button onClick={importFiles}>นำเข้า note ใหม่จากไฟล์</Button>
+              </div>
+            )}
           </div>
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex flex-col gap-4">
             {/* All three stay mounted (hidden), so a draft is not lost when you look at another tab. */}
@@ -83,6 +88,7 @@ export default function KnowledgeBase() {
           </div>
         </>
       )}
+      </div>
     </>
   )
 }

@@ -107,7 +107,7 @@ export default function NotesTab({ notes, taxonomy, admin, reload, initial, onSe
   return (
     <div className="flex flex-wrap items-start gap-6">
       <Card className="flex-[1_1_280px]">
-        <div className="flex flex-col gap-3 p-4">
+        <div className="flex max-h-96 flex-col gap-3 overflow-y-auto p-4 lg:max-h-[70vh] [&>*]:shrink-0">
           {admin && <Button variant="primary" onClick={() => go('new')}>+ Note ใหม่</Button>}
           <label htmlFor="kbq" className="sr-only">Search notes</label>
           <input id="kbq" type="search" placeholder={`ค้นหา ${notes.length} note`} value={query} onChange={(e) => setQuery(e.target.value)} className={`${INPUT} h-11`} />
