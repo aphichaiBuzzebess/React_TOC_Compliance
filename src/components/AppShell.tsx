@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { LogOut, Moon, Sun } from 'lucide-react'
+import { Moon, Sun } from 'lucide-react'
 import { motion } from 'motion/react'
 import { ease } from '@/components/motion'
 import { Logo } from '@/components/Logo'
+import ProfileMenu from '@/components/ProfileMenu'
 import { Elapsed } from '@/components/ui'
 import { AI_PROVIDERS } from '@/data/models'
 import { NAV, navIndex } from '@/data/nav'
@@ -15,7 +16,7 @@ import { useResolvedTheme } from '@/lib/theme'
 export default function AppShell({ children }: { children: ReactNode }) {
   const a = useAssessment()
   const { pathname } = useLocation()
-  const { customer, running, startedAt, step, mode, user, signOut } = useAssessmentStore()
+  const { customer, running, startedAt, step, mode, user, admin, signOut } = useAssessmentStore()
   const [hot, setHot] = useState(false) // pointer or keyboard focus on the logo
   const use = useAssessmentStore(activeAi)
   const theme = useResolvedTheme()
@@ -32,7 +33,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-canvas">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-inverse">ข้ามไปเนื้อหาหลัก</a>
-      <header className="print:hidden z-30 border-b border-line bg-canvas xl:sticky xl:top-0">
+      <header className="print:hidden relative z-30 border-b border-line bg-canvas xl:sticky xl:top-0">
         <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 sm:px-10">
           <Link to="/" onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)} onFocus={() => setHot(true)} onBlur={() => setHot(false)} className="flex min-h-11 items-center gap-3 text-ink no-underline">
             <Logo size={40} intro active={hot} />
@@ -53,14 +54,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             >
               {theme === 'dark' ? <Sun aria-hidden size={18} /> : <Moon aria-hidden size={18} />}
             </button>
-            {mode === 'account' && user && (
-              <span className="flex items-center text-sm text-muted">
-                <span className="max-w-[9rem] truncate" title={user}>{user}</span>
-                <button type="button" aria-label="ออกจากระบบ" title="ออกจากระบบ" onClick={() => void signOut()} className="flex size-11 items-center justify-center rounded-full border border-transparent bg-transparent text-muted transition-colors hover:text-ink">
-                  <LogOut aria-hidden size={18} />
-                </button>
-              </span>
-            )}
+            {mode === 'account' && user && <ProfileMenu user={user} admin={admin} onSignOut={() => void signOut()} />}
             {pathname !== '/' && (
               <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-amber bg-amber px-5 text-sm font-semibold text-on-amber no-underline transition-colors hover:bg-amber-hover ">
                 New assessment <span aria-hidden>→</span>

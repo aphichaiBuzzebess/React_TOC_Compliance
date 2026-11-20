@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Pool } from 'pg'
 
-export interface User { id: string; username: string; passwordHash: string; disabled: boolean }
+export interface User { id: string; username: string; passwordHash: string; disabled: boolean; isAdmin: boolean }
 export interface KeyRow { provider: string; model: string; ciphertext: Buffer; iv: Buffer; tag: Buffer; last4: string }
 export interface AssessmentInput { customer: string; files: string[]; counts: Record<string, number>; schema: number; data: unknown }
 export interface AssessmentRow extends AssessmentInput { id: string; createdAt: string; updatedAt: string }
@@ -14,6 +14,7 @@ export interface Db {
   userByName(username: string): Promise<User | undefined>
   setPassword(userId: string, passwordHash: string): Promise<void>
   setDisabled(userId: string, disabled: boolean): Promise<boolean>
+  setAdmin(userId: string, admin: boolean): Promise<boolean> // false if the user is unknown, or if this would remove the last admin
   deleteUser(userId: string): Promise<boolean>
   createSession(tokenHash: string, userId: string, expiresAt: Date): Promise<void>
   sessionUser(tokenHash: string): Promise<User | undefined> // not expired, not disabled
@@ -42,13 +43,20 @@ export function memoryDb(): Db {
   return {
     async createUser(username, passwordHash) {
       if ([...users.values()].some((u) => u.username === username)) return null
-      const u = { id: randomUUID(), username, passwordHash, disabled: false }
+      const u = { id: randomUUID(), username, passwordHash, disabled: false, isAdmin: false }
       users.set(u.id, u)
       return u
     },
     async userByName(username) { return [...users.values()].find((u) => u.username === username) },
     async setPassword(id, h) { const u = users.get(id); if (u) u.passwordHash = h },
     async setDisabled(id, d) { const u = users.get(id); if (u) u.disabled = d; return !!u },
+    async setAdmin(id, admin) {
+      const u = users.get(id)
+      if (!u) return false
+      if (!admin && u.isAdmin && ![...users.values()].some((x) => x.isAdmin && x.id !== id)) return false // never the last admin
+      u.isAdmin = admin
+      return true
+    },
     async deleteUser(id) {
       for (const [h, s] of sessions) if (s.userId === id) sessions.delete(h)
       keys.delete(id)
@@ -105,7 +113,7 @@ export function memoryDb(): Db {
 }
 
 export function pgDb(pool: Pool): Db {
-  const toUser = (r: { id: string; username: string; password_hash: string; disabled: boolean }): User => ({ id: r.id, username: r.username, passwordHash: r.password_hash, disabled: r.disabled })
+  const toUser = (r: { id: string; username: string; password_hash: string; disabled: boolean; is_admin: boolean }): User => ({ id: r.id, username: r.username, passwordHash: r.password_hash, disabled: r.disabled, isAdmin: r.is_admin })
   const secs = (ms: number) => ms / 1000
   return {
     async createUser(username, hash) {
@@ -115,6 +123,11 @@ export function pgDb(pool: Pool): Db {
     async userByName(username) { const r = await pool.query('select * from users where username=$1', [username]); return r.rows[0] ? toUser(r.rows[0]) : undefined },
     async setPassword(id, hash) { await pool.query('update users set password_hash=$2 where id=$1', [id, hash]) },
     async setDisabled(id, d) { return ((await pool.query('update users set disabled=$2 where id=$1', [id, d])).rowCount ?? 0) > 0 },
+    async setAdmin(id, admin) {
+      // One statement, so two demotions at once cannot both pass the "another admin exists" check.
+      const sql = admin ? 'update users set is_admin=true where id=$1' : 'update users set is_admin=false where id=$1 and (not is_admin or exists (select 1 from users where is_admin and id<>$1))'
+      return ((await pool.query(sql, [id])).rowCount ?? 0) > 0
+    },
     async deleteUser(id) { return ((await pool.query('delete from users where id=$1', [id])).rowCount ?? 0) > 0 },
     async createSession(h, userId, e) { await pool.query('insert into sessions(token_hash, user_id, expires_at) values($1,$2,$3)', [h, userId, e]) },
     async sessionUser(h) {

@@ -19,6 +19,7 @@ const CSRF = { 'x-requested-with': 'tor-scouter' }
 interface AssessmentState {
   mode: 'unknown' | 'stateless' | 'account' // what the server said on first load; unknown until then
   user: string | null // signed-in username (account mode)
+  admin: boolean // the signed-in person may manage users
   owner: string | null // persisted: whose data is in this browser; null = from before accounts
   storedKey: StoredKey | null // the key saved on the server (never the key itself)
   historyId: string | null // the saved history entry of the results on screen
@@ -133,8 +134,8 @@ async function loadKey() {
   useAssessmentStore.setState({ storedKey: body?.provider ? { provider: body.provider, model: body.model, last4: body.last4 } : null })
 }
 
-function enter(username: string | undefined): null {
-  useAssessmentStore.setState({ mode: 'account', user: username ?? null })
+function enter(username: string | undefined, admin = false): null {
+  useAssessmentStore.setState({ mode: 'account', user: username ?? null, admin })
   adopt(username ?? null)
   void useAssessmentStore.getState().loadServerDefault()
   void loadKey()
@@ -191,22 +192,23 @@ export const useAssessmentStore = create<AssessmentState>()(
       },
       mode: 'unknown',
       user: null,
+      admin: false,
       owner: null,
       storedKey: null,
       historyId: null,
       historyError: null,
-      expireSession: () => set({ ...WIPE, user: null, owner: null, storedKey: null }),
+      expireSession: () => set({ ...WIPE, user: null, admin: false, owner: null, storedKey: null }),
       loadAuth: async () => {
         try {
           const res = await fetch('/api/auth')
           const body = res.ok ? await res.json().catch(() => null) : null
           if (body?.mode === 'account') {
             const user: string | null = body.user?.username ?? null
-            set({ mode: 'account', user })
+            set({ mode: 'account', user, admin: body.admin === true })
             adopt(user)
             if (user) { void get().loadServerDefault(); void loadKey() }
           } else {
-            set({ mode: 'stateless', user: null })
+            set({ mode: 'stateless', user: null, admin: false })
             if (body?.mode === 'stateless' && get().owner !== null) set({ ...WIPE, owner: null }) // accounts were switched off: data stamped to a person goes
           }
         } catch {
@@ -215,15 +217,15 @@ export const useAssessmentStore = create<AssessmentState>()(
       },
       signIn: async (username, password) => {
         const r = await send('/api/auth?action=login', 'POST', { username, password })
-        return r.ok ? enter(r.json.user?.username) : (r.json.error ?? 'ล็อกอินไม่สำเร็จ')
+        return r.ok ? enter(r.json.user?.username, r.json.admin === true) : (r.json.error ?? 'ล็อกอินไม่สำเร็จ')
       },
       signUp: async (username, password, code) => {
         const r = await send('/api/auth?action=signup', 'POST', { username, password, code })
-        return r.ok ? enter(r.json.user?.username) : (r.json.error ?? 'สมัครไม่สำเร็จ')
+        return r.ok ? enter(r.json.user?.username, r.json.admin === true) : (r.json.error ?? 'สมัครไม่สำเร็จ')
       },
       signOut: async () => {
         await send('/api/auth?action=logout', 'POST', {}).catch(() => null)
-        set({ ...WIPE, user: null, owner: null, storedKey: null })
+        set({ ...WIPE, user: null, admin: false, owner: null, storedKey: null })
       },
       saveKey: async (key) => {
         const { provider, model } = get()

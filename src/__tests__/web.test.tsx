@@ -749,7 +749,7 @@ describe('accounts in the app', () => {
     await user.type(await screen.findByLabelText('ชื่อผู้ใช้'), 'ann')
     await user.type(screen.getByLabelText('รหัสผ่าน'), 'a long password')
     await user.click(screen.getByRole('button', { name: 'เข้าสู่ระบบ' }))
-    expect(await screen.findByRole('button', { name: 'ออกจากระบบ' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /บัญชีของคุณ ann/ })).toBeInTheDocument()
     const login = calls.find((c) => c.url === '/api/auth?action=login')!
     expect(login.headers['x-requested-with']).toBe('tor-scouter')
     expect(login.body).toEqual({ username: 'ann', password: 'a long password' })
@@ -771,7 +771,8 @@ describe('accounts in the app', () => {
     reset({ owner: 'ann', result: saved, review: [{ id: 'R-9', module: 'M', text: 't' }], coverage: [], valid: { 'R-001': 'ok' }, apiKey: 'typed-key-123456', storedKey: { provider: 'gemini', model: 'm', last4: '1234' } })
     server('ann')
     open('/matrix')
-    await user.click(await screen.findByRole('button', { name: 'ออกจากระบบ' }))
+    await user.click(await screen.findByRole('button', { name: /บัญชีของคุณ ann/ }))
+    await user.click(screen.getByRole('button', { name: 'ออกจากระบบ' }))
     const s = useAssessmentStore.getState()
     expect([s.result, s.review, s.coverage, s.owner, s.user, s.storedKey]).toEqual([null, null, null, null, null, null])
     expect(s.valid).toEqual({})
@@ -902,6 +903,53 @@ describe('accounts in the app', () => {
     expect(post.headers['x-requested-with']).toBe('tor-scouter')
     expect(post.headers['x-access-code']).toBeUndefined()
     expect(post.headers['x-llm-key']).toBe('AIza-test-key-1234')
+  })
+
+  describe('profile menu', () => {
+    const email = 'aphichai.very.long.name@buzzebees.com'
+    const openMenu = async (admin = false) => {
+      reset({ owner: email })
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => json(url === '/api/auth' ? { mode: 'account', user: { username: email }, admin } : url === '/api/key' ? null : { topics: [] })))
+      const user = userEvent.setup()
+      open('/ai-settings')
+      const trigger = await screen.findByRole('button', { name: `บัญชีของคุณ ${email}` })
+      return { user, trigger }
+    }
+
+    it('shows the whole email in a panel, not cut, with sign-out inside', async () => {
+      const { user, trigger } = await openMenu()
+      expect(trigger).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText(email)).not.toBeInTheDocument()
+      await user.click(trigger)
+      expect(trigger).toHaveAttribute('aria-expanded', 'true')
+      const full = screen.getByText(email)
+      expect(full).toHaveClass('break-all') // wraps instead of ending in an ellipsis
+      expect(full).not.toHaveClass('truncate')
+      expect(screen.getByRole('button', { name: 'ออกจากระบบ' })).toBeInTheDocument()
+    })
+
+    it('shows an Admin badge only for admins', async () => {
+      const a = await openMenu(true)
+      await a.user.click(a.trigger)
+      expect(screen.getByText('Admin')).toBeInTheDocument()
+    })
+
+    it('has no Admin badge for a normal user', async () => {
+      const a = await openMenu(false)
+      await a.user.click(a.trigger)
+      expect(screen.queryByText('Admin')).not.toBeInTheDocument()
+    })
+
+    it('closes with Escape and gives focus back to the button, and closes on an outside click', async () => {
+      const { user, trigger } = await openMenu()
+      await user.click(trigger)
+      await user.keyboard('{Escape}')
+      expect(screen.queryByText(email)).not.toBeInTheDocument()
+      expect(trigger).toHaveFocus()
+      await user.click(trigger)
+      await user.click(document.body)
+      expect(screen.queryByText(email)).not.toBeInTheDocument()
+    })
   })
 
   it('stateless mode shows no sign-in and no sign-out', async () => {

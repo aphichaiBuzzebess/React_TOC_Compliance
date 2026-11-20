@@ -38,7 +38,7 @@ export default function Login() {
           <div className="flex flex-col gap-2">
             <label htmlFor="username" className="font-medium">ชื่อผู้ใช้</label>
             <input id="username" autoComplete="username" autoCapitalize="none" spellCheck={false} value={username} onChange={(e) => setUsername(e.target.value)} className={INPUT} />
-            {mode === 'up' && <span className="text-xs text-muted">3-40 ตัว ใช้ a-z 0-9 . _ @ - ไม่สนตัวพิมพ์เล็กใหญ่</span>}
+            {mode === 'up' && <span className="text-xs text-muted">ใช้อีเมลได้ 3-100 ตัว (a-z 0-9 . _ @ + -) ไม่สนตัวพิมพ์เล็กใหญ่</span>}
           </div>
           <div className="flex flex-col gap-2">
             <label htmlFor="password" className="font-medium">รหัสผ่าน</label>

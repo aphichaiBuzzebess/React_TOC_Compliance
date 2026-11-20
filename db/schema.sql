@@ -40,3 +40,6 @@ create table if not exists attempts (
   failures int not null,
   window_start timestamptz not null
 );
+
+-- Role: who may manage users. Added later, so it is an idempotent alter.
+alter table users add column if not exists is_admin boolean not null default false;

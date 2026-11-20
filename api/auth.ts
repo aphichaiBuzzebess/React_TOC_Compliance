@@ -1,8 +1,8 @@
 import { HttpError, changePassword, logIn, logOut, sessionCookie, signUp } from '../server/auth.js'
-import { accountMode } from '../server/db.js'
+import { accountMode, type User } from '../server/db.js'
 import { handle } from '../server/http.js'
 
-const me = (user: { username: string } | null) => ({ mode: 'account', user: user && { username: user.username } })
+const me = (user: User | null) => ({ mode: 'account', user: user && { username: user.username }, admin: !!user?.isAdmin })
 
 // GET: the page's first call. Which mode is the server in, and who is signed in. POST ?action=signup|login|logout|password.
 export async function GET(req: Request): Promise<Response> {
@@ -16,11 +16,11 @@ export async function POST(req: Request): Promise<Response> {
     async (user) => {
       if (!accountMode()) throw new HttpError(400, 'ยังไม่ได้เปิดโหมดบัญชี')
       const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
-      const withCookie = (u: { username: string }, token: string | null) =>
+      const withCookie = (u: User, token: string | null) =>
         Response.json(me(token ? u : null), { headers: { 'set-cookie': sessionCookie(req, token) } })
       if (action === 'signup') { const r = await signUp(req, body); return withCookie(r.user, r.token) }
       if (action === 'login') { const r = await logIn(req, body); return withCookie(r.user, r.token) }
-      if (action === 'logout') { await logOut(req); return withCookie({ username: '' }, null) }
+      if (action === 'logout') { await logOut(req); return withCookie(user as User, null) }
       if (action === 'password') {
         if (!user) throw new HttpError(401, 'login')
         await changePassword(req, user, body)

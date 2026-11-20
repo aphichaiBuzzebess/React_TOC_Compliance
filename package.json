@@ -14,6 +14,8 @@
     "user:disable": "tsx scripts/user-admin.ts disable",
     "user:enable": "tsx scripts/user-admin.ts enable",
     "user:delete": "tsx scripts/user-admin.ts delete",
+    "user:promote": "tsx scripts/user-admin.ts promote",
+    "user:demote": "tsx scripts/user-admin.ts demote",
     "dev:api": "set -a; . ./.env.local; set +a; npx --yes vercel dev --listen 3100 --yes"
   },
   "dependencies": {

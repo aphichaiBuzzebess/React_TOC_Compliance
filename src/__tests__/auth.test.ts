@@ -72,8 +72,8 @@ describe('accounts', () => {
     expect(set).toContain('SameSite=Lax')
     expect(set).not.toContain('Secure') // localhost
     const me = await (await call(authApi.GET, 'GET', '/api/auth', { cookie })).json()
-    expect(me).toEqual({ mode: 'account', user: { username: 'ann' } })
-    expect(await (await call(authApi.GET, 'GET', '/api/auth')).json()).toEqual({ mode: 'account', user: null })
+    expect(me).toEqual({ mode: 'account', user: { username: 'ann' }, admin: false })
+    expect(await (await call(authApi.GET, 'GET', '/api/auth')).json()).toEqual({ mode: 'account', user: null, admin: false })
   })
 
   it('refuses a wrong team code, throttles guessing, and is disabled without a code on Vercel', async () => {
@@ -90,6 +90,9 @@ describe('accounts', () => {
 
   it('rejects weak input and a taken name', async () => {
     expect((await signUp('x', PW)).r.status).toBe(400)
+    expect((await signUp(`${'a'.repeat(101)}`, PW)).r.status).toBe(400)
+    expect((await signUp('first.last+tag@buzzebees.com', PW)).r.status).toBe(200) // an email is a fine username, even past 40 characters
+    expect((await signUp('a-very-long-first-name.and-a-long-last-name@buzzebees.com', PW)).r.status).toBe(200)
     expect((await signUp('ann', 'short')).r.status).toBe(400)
     await signUp('ann')
     expect((await signUp('ANN')).r.status).toBe(409) // names are case-insensitive
@@ -246,5 +249,28 @@ describe('history', () => {
     const id = await db.insertAssessment(uid, { customer: '', files: [], counts: {}, schema: 0, data: { result: 'old format' } })
     expect((await call(historyApi.GET, 'GET', `/api/history?id=${id}`, { cookie })).status).toBe(422)
     expect((await call(historyApi.DELETE, 'DELETE', `/api/history?id=${id}`, { cookie })).status).toBe(200) // can still be deleted
+  })
+})
+
+describe('admin role', () => {
+  it('is reported to the signed-in admin only', async () => {
+    const { cookie: a } = await signUp('ann')
+    const { cookie: b } = await signUp('bob')
+    await db.setAdmin((await db.userByName('ann'))!.id, true)
+    expect((await (await call(authApi.GET, 'GET', '/api/auth', { cookie: a })).json()).admin).toBe(true)
+    expect((await (await call(authApi.GET, 'GET', '/api/auth', { cookie: b })).json()).admin).toBe(false)
+  })
+
+  it('never lets the last admin be demoted, and can demote one of two', async () => {
+    await signUp('ann')
+    await signUp('bob')
+    const ann = (await db.userByName('ann'))!
+    const bob = (await db.userByName('bob'))!
+    expect(await db.setAdmin('no-such-id', true)).toBe(false)
+    await db.setAdmin(ann.id, true)
+    expect(await db.setAdmin(ann.id, false)).toBe(false) // the only admin
+    await db.setAdmin(bob.id, true)
+    expect(await db.setAdmin(ann.id, false)).toBe(true)
+    expect(await db.setAdmin(bob.id, false)).toBe(false) // now bob is the only one
   })
 })

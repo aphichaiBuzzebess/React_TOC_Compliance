@@ -41,6 +41,20 @@ describe.skipIf(!url)('postgres implementation', () => {
     expect(await db.failures('test:k', 60_000)).toBe(0)
   })
 
+  it('keeps at least one admin, even when two demotions race', async (ctx) => {
+    // Never touches real admins: only runs on a database that has none.
+    if ((await pool.query('select count(*)::int n from users where is_admin')).rows[0].n > 0) return ctx.skip()
+    const a = (await db.createUser(`${name}x`, 'h'))!
+    const b = (await db.createUser(`${name}y`, 'h'))!
+    userIds.push(a.id, b.id)
+    expect(await db.setAdmin('00000000-0000-0000-0000-000000000000', true)).toBe(false)
+    await db.setAdmin(a.id, true)
+    await db.setAdmin(b.id, true)
+    const results = await Promise.all([db.setAdmin(a.id, false), db.setAdmin(b.id, false)])
+    expect(results.filter(Boolean)).toHaveLength(1)
+    expect((await pool.query('select count(*)::int n from users where is_admin')).rows[0].n).toBe(1)
+  })
+
   it('round-trips an encrypted key as bytes', async () => {
     const u = (await db.createUser(`${name}k`, 'h'))!
     userIds.push(u.id)

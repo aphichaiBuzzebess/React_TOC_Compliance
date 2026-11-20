@@ -9,7 +9,7 @@ export class HttpError extends Error {
 const WINDOW = 15 * 60 * 1000
 const SESSION_DAYS = 14
 const COOKIE = 'ts_session'
-const USERNAME = /^[a-z0-9._@-]{3,40}$/
+const USERNAME = /^[a-z0-9._@+-]{3,100}$/ // an email address fits
 const N = 32768 // scrypt cost: about 100 ms per hash
 const hex = (b: Buffer) => b.toString('hex')
 
@@ -36,7 +36,7 @@ const dummyHash = () => (dummy ??= hashPassword('not-a-real-password'))
 export const normalizeUsername = (s: unknown) => (typeof s === 'string' ? s.trim().toLowerCase() : '')
 
 function validate(username: string, password: unknown) {
-  if (!USERNAME.test(username)) throw new HttpError(400, 'ชื่อผู้ใช้ต้องยาว 3-40 ตัว ใช้ a-z 0-9 . _ @ - เท่านั้น')
+  if (!USERNAME.test(username)) throw new HttpError(400, 'ชื่อผู้ใช้ต้องยาว 3-100 ตัว ใช้ a-z 0-9 . _ @ + - เท่านั้น (ใช้อีเมลได้)')
   if (typeof password !== 'string' || password.length < 10 || password.length > 200) throw new HttpError(400, 'รหัสผ่านต้องยาว 10-200 ตัวอักษร')
 }
 
