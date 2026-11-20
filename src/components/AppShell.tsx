@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { Moon, Sun } from 'lucide-react'
+import { LogOut, Moon, Sun } from 'lucide-react'
 import { motion } from 'motion/react'
 import { ease } from '@/components/motion'
 import { Logo } from '@/components/Logo'
@@ -42,7 +42,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
 
-          <div className="order-2 ml-auto flex items-center gap-2 xl:order-3 xl:ml-0">
+          <div className="order-2 ml-auto flex items-center gap-2 2xl:order-3 2xl:ml-0">
             <button
               type="button"
               aria-pressed={theme === 'dark'}
@@ -54,9 +54,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
               {theme === 'dark' ? <Sun aria-hidden size={18} /> : <Moon aria-hidden size={18} />}
             </button>
             {mode === 'account' && user && (
-              <span className="flex items-center gap-1 text-sm text-muted">
-                <span className="max-w-[10rem] truncate" title={user}>{user}</span>
-                <button type="button" onClick={() => void signOut()} className="inline-flex min-h-11 items-center rounded-full border border-transparent bg-transparent px-3 text-sm font-medium text-ink underline-offset-4 hover:underline">ออกจากระบบ</button>
+              <span className="flex items-center text-sm text-muted">
+                <span className="max-w-[9rem] truncate" title={user}>{user}</span>
+                <button type="button" aria-label="ออกจากระบบ" title="ออกจากระบบ" onClick={() => void signOut()} className="flex size-11 items-center justify-center rounded-full border border-transparent bg-transparent text-muted transition-colors hover:text-ink">
+                  <LogOut aria-hidden size={18} />
+                </button>
               </span>
             )}
             {pathname !== '/' && (
@@ -66,7 +68,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             )}
           </div>
 
-          <nav aria-label="Main" className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto xl:order-2 xl:ml-auto xl:w-auto">
+          <nav aria-label="Main" className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto 2xl:order-2 2xl:ml-auto 2xl:w-auto">
             {NAV.filter((n) => n.to !== '/').map((n) => (
               <NavLink
                 key={n.to}
