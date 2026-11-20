@@ -32,14 +32,15 @@ describe('no mock data', () => {
   it.each(['/dashboard', '/matrix', '/gaps', '/questions', '/summary'])('%s shows an empty state until a TOR is assessed', (path) => {
     open(path)
     expect(screen.getByText(/ยังไม่มีผลประเมิน/)).toBeInTheDocument()
-    expect(screen.getByText('ยังไม่มี TOR')).toBeInTheDocument()
+    expect(screen.queryByText('ยังไม่มี TOR')).not.toBeInTheDocument() // the old per-page status strip is gone
   })
 
   it('shows real results once there are some', () => {
     useAssessmentStore.setState({ result: [req('R-001', 'full'), req('R-002', 'none')], selId: 'R-001' })
     open('/matrix')
     expect(screen.getByText('requirement R-002')).toBeInTheDocument()
-    expect(screen.getByText('2 requirements')).toBeInTheDocument()
+    expect(screen.queryByText('2 requirements')).not.toBeInTheDocument() // no status strip on result pages either
+    expect(screen.queryByText('Customer TOR')).not.toBeInTheDocument()
   })
 })
 
@@ -1155,10 +1156,12 @@ describe('knowledge base page', () => {
     open('/knowledge-base')
     const user = userEvent.setup()
     await user.click(await screen.findByRole('tab', { name: 'Taxonomy' }))
-    await user.click(screen.getByRole('button', { name: '+ เพิ่ม service' }))
-    await user.type(screen.getByLabelText('id ของ service ใหม่'), 'billing')
-    await user.type(screen.getByLabelText('ชื่อของ billing'), 'Billing')
-    await user.click(screen.getAllByRole('button', { name: 'เก็บเข้าคลัง (archive)' })[DEFAULT_TAXONOMY.zones.length]) // the first service (after the zones)
+    const tx = within(screen.getByRole('region', { name: 'หมวด Taxonomy' }))
+    await user.click(tx.getByRole('button', { name: '+ เพิ่ม service' }))
+    await user.type(tx.getByLabelText('id ของ service ใหม่'), 'billing')
+    await user.type(tx.getByLabelText('ชื่อของ billing'), 'Billing')
+    await user.click(tx.getByRole('button', { name: /^APIM Productization/ })) // pick an existing service in the list
+    await user.click(tx.getByRole('button', { name: 'เก็บเข้าคลัง (archive)' }))
     await user.click(screen.getByRole('button', { name: 'บันทึก taxonomy' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true))
     const sent = calls.find((c) => c.method === 'PUT')!.body as { taxonomy: { services: { id: string; archived?: boolean }[] }; updatedAt: string }
@@ -1167,6 +1170,37 @@ describe('knowledge base page', () => {
     expect(sent.taxonomy.services.filter((s) => s.archived)).toHaveLength(1)
     expect(sent.taxonomy.services.length).toBe(DEFAULT_TAXONOMY.services.length + 1) // nothing removed
     expect(useAssessmentStore.getState().taxonomy.services.some((s) => s.id === 'billing')).toBe(true) // pickers update at once
+  })
+
+  it('the taxonomy is a grouped list with one editor beside it, not one long page', async () => {
+    as(true)
+    server()
+    open('/knowledge-base')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: 'Taxonomy' }))
+    const tx = within(screen.getByRole('region', { name: 'หมวด Taxonomy' }))
+    expect(tx.getByRole('region', { name: 'Zone' })).toBeInTheDocument()
+    expect(tx.getByRole('region', { name: 'Service' })).toBeInTheDocument()
+    expect(tx.getByText(/ยืนยันแล้ว · 4/)).toBeInTheDocument() // the four confirmed core services
+    expect(tx.getByText(/ยังไม่ยืนยัน · 8/)).toBeInTheDocument() // the eight inferred ones
+    expect(tx.getAllByRole('textbox').length).toBeLessThan(6) // one item's fields, not a form per item
+    expect(tx.getByText('2 note')).toBeInTheDocument() // the notes that use a service are counted next to it (both fake notes use Point Service)
+    await user.click(tx.getByRole('button', { name: /^Point Service/ }))
+    expect(tx.getByDisplayValue('Point Service')).toBeInTheDocument()
+    expect(tx.getByText('ใช้ใน 2 note')).toBeInTheDocument()
+  })
+
+  it('a normal user reads a taxonomy item as text', async () => {
+    as(false)
+    server()
+    open('/knowledge-base')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: 'Taxonomy' }))
+    const tx = within(screen.getByRole('region', { name: 'หมวด Taxonomy' }))
+    await user.click(tx.getByRole('button', { name: /^User Management/ }))
+    expect(tx.getByRole('heading', { name: 'User Management' })).toBeInTheDocument()
+    expect(tx.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(tx.queryByRole('button', { name: /\+ เพิ่ม/ })).not.toBeInTheDocument()
   })
 
   it('says plainly when it is running on defaults, and offers the import to an admin only', async () => {

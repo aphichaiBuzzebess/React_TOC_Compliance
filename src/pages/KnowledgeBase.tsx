@@ -21,6 +21,9 @@ export default function KnowledgeBase() {
   const [importMsg, setImportMsg] = useState<string | null>(null)
   const [selNote, setSelNote] = useState<string | undefined>() // survives a reload of the data
   const canEdit = mode === 'account' && admin
+  // How many notes use each service (and zone): shown next to it in the Taxonomy list.
+  const noteCounts: Record<string, number> = {}
+  for (const n of data?.notes ?? []) for (const id of [n.service, ...n.zones]) if (id) noteCounts[id] = (noteCounts[id] ?? 0) + 1
 
   const load = useCallback(async () => {
     setError(null)
@@ -83,7 +86,7 @@ export default function KnowledgeBase() {
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex flex-col gap-4">
             {/* All three stay mounted (hidden), so a draft is not lost when you look at another tab. */}
             <div hidden={tab !== 'notes'} role="region" aria-label="หมวด Notes"><NotesTab key={version} notes={data.notes} taxonomy={data.taxonomy} admin={canEdit} reload={() => void load()} initial={selNote} onSelect={setSelNote} /></div>
-            <div hidden={tab !== 'taxonomy'} role="region" aria-label="หมวด Taxonomy"><TaxonomyTab key={version} taxonomy={data.taxonomy} updatedAt={data.taxonomyUpdatedAt} admin={canEdit} reload={() => void load()} /></div>
+            <div hidden={tab !== 'taxonomy'} role="region" aria-label="หมวด Taxonomy"><TaxonomyTab key={version} taxonomy={data.taxonomy} updatedAt={data.taxonomyUpdatedAt} admin={canEdit} reload={() => void load()} noteCounts={noteCounts} /></div>
             <div hidden={tab !== 'prompts'} role="region" aria-label="หมวด Prompts"><PromptsTab key={version} prompts={data.prompts} admin={canEdit} reload={() => void load()} /></div>
           </div>
         </>

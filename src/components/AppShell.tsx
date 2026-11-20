@@ -6,22 +6,17 @@ import { ease } from '@/components/motion'
 import { Logo } from '@/components/Logo'
 import ProfileMenu from '@/components/ProfileMenu'
 import { Elapsed } from '@/components/ui'
-import { AI_PROVIDERS } from '@/data/models'
 import { NAV, navIndex } from '@/data/nav'
 import { STEPS } from '@/data/tor'
-import { useAssessment } from '@/lib/useAssessment'
-import { activeAi, useAssessmentStore } from '@/store/useAssessmentStore'
+import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { useResolvedTheme } from '@/lib/theme'
 
 export default function AppShell({ children }: { children: ReactNode }) {
-  const a = useAssessment()
   const { pathname } = useLocation()
-  const { customer, running, startedAt, step, mode, user, admin, signOut } = useAssessmentStore()
+  const { running, startedAt, step, mode, user, admin, signOut } = useAssessmentStore()
   const [hot, setHot] = useState(false) // pointer or keyboard focus on the logo
-  const use = useAssessmentStore(activeAi)
   const theme = useResolvedTheme()
   const setTheme = useAssessmentStore((s) => s.setTheme)
-  const ai = AI_PROVIDERS.find((p) => p.id === use?.provider)
 
   // Each route gets its own tab title, and a new page starts at its top, not wherever the last one was scrolled to.
   useEffect(() => {
@@ -43,7 +38,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
 
-          <div className="order-2 ml-auto flex items-center gap-2 2xl:order-3 2xl:ml-0">
+          <div className="order-2 ml-auto flex items-center gap-2">
             <button
               type="button"
               aria-pressed={theme === 'dark'}
@@ -62,7 +57,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             )}
           </div>
 
-          <nav aria-label="Main" className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto 2xl:order-2 2xl:ml-auto 2xl:w-auto">
+          <nav aria-label="Main" className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto">
             {NAV.filter((n) => n.to !== '/').map((n) => (
               <NavLink
                 key={n.to}
@@ -80,28 +75,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1240px] flex-1 flex-col gap-10 px-5 py-8 focus:outline-none sm:px-10 lg:py-10">
-        <div className={`print:hidden flex flex-wrap items-center gap-x-5 gap-y-0 text-xs text-muted ${pathname === '/' && !running ? 'hidden' : '-mb-6 -mt-3'}`}>
-          {running && startedAt && (
-            <Link to="/" className="flex items-center gap-2 rounded-full border border-line-strong bg-surface px-3 py-1 font-medium text-ink no-underline">
-              <Logo size={18} progress={Math.max(step, 0) / STEPS.length} />
-              กำลังประเมิน… <Elapsed since={startedAt} />
-            </Link>
-          )}
-          {/* The home page shows this itself (last result, key step), so the strip would only repeat it there. */}
-          {pathname !== '/' && (
-            <>
-              <span className="flex items-center gap-1.5">
-                <span className="font-medium text-ink">{customer || 'Customer TOR'}</span>
-                <span aria-hidden>·</span>
-                <span>{a ? `${a.total} requirements` : 'ยังไม่มี TOR'}</span>
-              </span>
-              <Link to="/ai-settings" className="flex min-h-11 items-center gap-1.5 text-muted no-underline hover:text-ink">
-                <span aria-hidden className={`size-1.5 rounded-full ${use ? 'bg-amber' : 'bg-line-strong'}`} />
-                {use ? `${ai?.label.split(' ')[0]} · ${use.model}` : 'ยังไม่ได้ใส่ AI key'}
-              </Link>
-            </>
-          )}
-        </div>
+        {/* Only while a run is going: a way back to its progress from any page. Nothing is shown otherwise. */}
+        {running && startedAt && (
+          <Link to="/" className="print:hidden -mb-6 -mt-3 flex w-fit items-center gap-2 rounded-full border border-line-strong bg-surface px-3 py-1 text-xs font-medium text-ink no-underline">
+            <Logo size={18} progress={Math.max(step, 0) / STEPS.length} />
+            กำลังประเมิน… <Elapsed since={startedAt} />
+          </Link>
+        )}
         {/* Opacity only: a transform here would trap the Matrix bottom sheet (position: fixed) inside this box. */}
         <motion.div key={pathname} className="flex flex-col gap-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease }}>
           {children}
