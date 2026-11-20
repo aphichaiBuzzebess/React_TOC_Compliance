@@ -1,109 +1,87 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
-import { Button, Card, PageHeader, StatusBadge } from '@/components/ui'
-import { serviceLabel } from '@/data/taxonomy'
-import type { Note } from '../../server/kb'
+import { Alert, Button, PageHeader } from '@/components/ui'
+import type { Taxonomy } from '@/data/taxonomy'
+import type { NoteView } from '../../server/knowledge'
+import type { PromptKey } from '../../server/prompts'
+import { kb, KbError } from './knowledge/kbFetch'
+import NotesTab from './knowledge/NotesTab'
+import PromptsTab, { type PromptView } from './knowledge/PromptsTab'
+import TaxonomyTab from './knowledge/TaxonomyTab'
 
-/** Just enough markdown for the vault: **bold** and [[note links]]. */
-function Body({ text, open }: { text: string; open: (path: string) => void }) {
-  return (
-    <>
-      {text.split(/(\*\*[^*]+\*\*|\[\[[^\]]+\]\])/).map((p, i) =>
-        p.startsWith('**') ? <strong key={i}>{p.slice(2, -2)}</strong>
-        : p.startsWith('[[') ? <button key={i} type="button" onClick={() => open(`${p.slice(2, -2)}.md`)} className="border-0 bg-transparent p-0 text-brand-text underline">{p.slice(2, -2)}</button>
-        : <Fragment key={i}>{p}</Fragment>,
-      )}
-    </>
-  )
-}
+interface Loaded { status: 'database' | 'defaults'; notes: NoteView[]; taxonomy: Taxonomy; taxonomyUpdatedAt: string | null; prompts: Record<PromptKey, PromptView> }
+const TABS = [['notes', 'Notes'], ['taxonomy', 'Taxonomy'], ['prompts', 'Prompts']] as const
 
 export default function KnowledgeBase() {
-  const { accessCode, setAccessCode } = useAssessmentStore()
-  const [notes, setNotes] = useState<Note[] | null>(null)
+  const { mode, admin } = useAssessmentStore()
+  const [tab, setTab] = useState<(typeof TABS)[number][0]>('notes')
+  const [data, setData] = useState<Loaded | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [query, setQuery] = useState('')
-  const [sel, setSel] = useState<string | null>(null)
+  const [version, setVersion] = useState(0) // bumped on every reload: the editors start again from what the server has
+  const [importMsg, setImportMsg] = useState<string | null>(null)
+  const [selNote, setSelNote] = useState<string | undefined>() // survives a reload of the data
+  const canEdit = mode === 'account' && admin
 
-  async function load() {
-    setLoading(true)
+  const load = useCallback(async () => {
     setError(null)
     try {
-      const res = await fetch('/api/kb', { headers: accessCode ? { 'x-access-code': accessCode } : {} })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`)
-      setNotes(body.notes)
-      setSel((s) => s ?? body.notes[0]?.path ?? null)
+      const [n, t, p] = await Promise.all([
+        kb<{ status: Loaded['status']; notes: NoteView[] }>('notes'),
+        kb<{ taxonomy: Taxonomy; updatedAt: string | null }>('taxonomy'),
+        kb<{ prompts: Record<PromptKey, PromptView> }>('prompts'),
+      ])
+      setData({ status: n.status, notes: n.notes, taxonomy: t.taxonomy, taxonomyUpdatedAt: t.updatedAt, prompts: p.prompts })
+      setVersion((v) => v + 1)
     } catch (e) {
-      setNotes(null)
-      setError(e instanceof Error ? e.message : 'Could not load the knowledge base')
-    } finally {
-      setLoading(false)
+      setError(e instanceof KbError && e.status === 401 && mode !== 'account' ? 'ใส่ Access code ที่หน้า AI settings ก่อน' : e instanceof Error ? e.message : 'โหลดไม่สำเร็จ')
+    }
+  }, [mode])
+  useEffect(() => { void load() }, [load])
+
+  async function importFiles() {
+    setImportMsg(null)
+    try {
+      const r = await kb<{ added: number; skipped: number }>('import', { method: 'POST', body: {} })
+      setImportMsg(`นำเข้า ${r.added} note (ข้าม ${r.skipped} ที่มีอยู่แล้วหรือเคยถูกลบ)`)
+      await load()
+    } catch (e) {
+      setImportMsg(e instanceof Error ? e.message : 'นำเข้าไม่สำเร็จ')
     }
   }
-  useEffect(() => {
-    void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on arrival; later loads are explicit
-  }, [])
-
-  const groups = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const hits = (notes ?? []).filter((n) => !q || `${n.title} ${n.module} ${n.body}`.toLowerCase().includes(q))
-    const by = new Map<string, Note[]>()
-    for (const n of hits) by.set(n.module, [...(by.get(n.module) ?? []), n])
-    return [...by]
-  }, [notes, query])
-  const note = notes?.find((n) => n.path === sel)
 
   return (
     <>
-      <PageHeader title="Product knowledge base" lead="ความรู้ของ Product ที่ระบบใช้เป็นหลักฐานตอนประเมิน อ่านอย่างเดียว แก้ใน Obsidian" />
-      {!notes ? (
-        <Card title="Access">
-          <div className="flex flex-wrap items-end gap-3 p-6">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="kbCode" className="font-medium">Access code <span className="font-normal text-muted">(ถ้าผู้ดูแลระบบกำหนด)</span></label>
-              <input id="kbCode" type="password" autoComplete="off" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && accessCode && load()} className="h-11 w-64 rounded-lg border border-line-strong px-[11px] text-sm" />
+      <PageHeader title="Product knowledge base" lead="ความรู้ที่ระบบใช้ประเมิน: note ความสามารถของ Product, taxonomy ที่ใช้จัดหมวด requirement และ prompt ของแต่ละขั้น" />
+      {error && <p role="alert" className="m-0 text-danger">{error} <Button variant="ghost" onClick={() => void load()}>ลองใหม่</Button></p>}
+      {data && (
+        <>
+          {mode !== 'account' && <Alert tone="info" title="อ่านอย่างเดียว">โหมดไม่มีบัญชี: แก้ได้ที่ไฟล์ใน kb/ ถ้าต้องการแก้ในหน้านี้ ต้องเปิดระบบบัญชี (ตั้ง DATABASE_URL) และล็อกอินเป็น admin</Alert>}
+          {mode === 'account' && !admin && <Alert tone="info" title="ดูได้อย่างเดียว">เฉพาะ admin ที่แก้ความรู้และ prompt ได้</Alert>}
+          {mode === 'account' && data.status === 'defaults' && (
+            <Alert tone="warning" title="ตอนนี้ใช้ค่าเริ่มต้น (ไฟล์ใน kb/ และ prompt ของระบบ) ยังไม่ได้ใช้ข้อมูลในฐานข้อมูล">
+              {admin ? 'ยังไม่ได้นำเข้าหรือสร้างตาราง: กดนำเข้า (หรือรัน npm run db:init) ก่อน มิฉะนั้นสิ่งที่แก้จะยังไม่มีผลกับการประเมิน' : 'สิ่งที่ admin แก้อาจยังไม่มีผลกับการประเมินจนกว่าจะตั้งค่าเสร็จ'}
+              {canEdit && <span className="mt-2 flex flex-wrap items-center gap-3"><Button variant="primary" onClick={importFiles}>นำเข้าจากไฟล์</Button>{importMsg && <span role="status" className="text-sm">{importMsg}</span>}</span>}
+            </Alert>
+          )}
+          {canEdit && data.status === 'database' && (
+            <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
+              <Button variant="ghost" onClick={importFiles}>นำเข้า note ใหม่จากไฟล์</Button>{importMsg && <span role="status">{importMsg}</span>}
             </div>
-            <Button variant="primary" disabled={!accessCode || loading} onClick={load}>{loading ? 'Loading…' : 'Open knowledge base'}</Button>
-            {error && <p role="alert" className="m-0 w-full text-danger">{error}</p>}
+          )}
+          <div role="tablist" aria-label="หมวดความรู้" className="flex flex-wrap gap-2">
+            {TABS.map(([id, label]) => (
+              <button key={id} type="button" role="tab" id={`tab-${id}`} aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)} className={`min-h-11 rounded-full border px-5 text-sm transition-colors ${tab === id ? 'border-ink bg-ink font-medium text-inverse' : 'border-line-strong bg-surface hover:border-ink'}`}>
+                {label}
+              </button>
+            ))}
           </div>
-        </Card>
-      ) : (
-        <div className="flex flex-wrap items-start gap-6">
-          <Card className="flex-[1_1_280px]">
-            <div className="flex flex-col gap-3 p-4">
-              <label htmlFor="kbq" className="sr-only">Search notes</label>
-              <input id="kbq" type="search" placeholder={`Search ${notes.length} notes`} value={query} onChange={(e) => setQuery(e.target.value)} className="h-11 rounded-lg border border-line-strong px-[11px] text-sm" />
-              {groups.length === 0 && <p className="m-0 py-4 text-center text-muted">No matching note</p>}
-              {groups.map(([module, items]) => (
-                <div key={module} className="flex flex-col gap-1">
-                  <span className="px-1 text-xs font-bold uppercase tracking-[0.08em] text-muted">{module}</span>
-                  {items.map((n) => (
-                    <button key={n.path} type="button" onClick={() => setSel(n.path)} aria-current={n.path === sel} className={`flex min-h-10 items-center justify-between gap-2 rounded-md border-0 px-3 text-left text-sm ${n.path === sel ? 'bg-brand-soft font-medium text-brand-text' : 'bg-transparent hover:bg-tint'}`}>
-                      <span className="min-w-0 truncate">{n.title}</span>
-                      <span className="size-2 flex-none rounded-full" style={{ background: `var(--st-${n.support}-dot)` }} />
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </Card>
-          <Card className="min-w-0 flex-[999_1_480px]">
-            {note ? (
-              <div className="flex flex-col gap-4 p-6">
-                <div className="flex flex-col gap-2">
-                  <span className="font-mono text-[13px] text-brand-text">{note.path}</span>
-                  <h2 className="m-0 text-2xl font-medium text-ink">{note.title}</h2>
-                  <div className="flex flex-wrap items-center gap-2"><StatusBadge s={note.support} /><span className="text-xs text-muted">{note.module}{note.service ? ` · ${serviceLabel(note.service)}` : ''} · updated {note.updated}</span></div>
-                </div>
-                <p className="m-0 whitespace-pre-wrap leading-[1.7]"><Body text={note.body} open={setSel} /></p>
-              </div>
-            ) : (
-              <div className="px-6 py-12 text-center text-muted">Select a note</div>
-            )}
-          </Card>
-        </div>
+          <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex flex-col gap-4">
+            {/* All three stay mounted (hidden), so a draft is not lost when you look at another tab. */}
+            <div hidden={tab !== 'notes'} role="region" aria-label="หมวด Notes"><NotesTab key={version} notes={data.notes} taxonomy={data.taxonomy} admin={canEdit} reload={() => void load()} initial={selNote} onSelect={setSelNote} /></div>
+            <div hidden={tab !== 'taxonomy'} role="region" aria-label="หมวด Taxonomy"><TaxonomyTab key={version} taxonomy={data.taxonomy} updatedAt={data.taxonomyUpdatedAt} admin={canEdit} reload={() => void load()} /></div>
+            <div hidden={tab !== 'prompts'} role="region" aria-label="หมวด Prompts"><PromptsTab key={version} prompts={data.prompts} admin={canEdit} reload={() => void load()} /></div>
+          </div>
+        </>
       )}
     </>
   )

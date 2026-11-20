@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { loadKb, parseNote, retrieveForTargets, searchKb } from '../../server/kb'
 import { classify, judge, toBlocks } from '../../server/pipeline'
-import { cleanTargets } from '../../src/data/taxonomy'
+import { cleanTargets, DEFAULT_TAXONOMY } from '../../src/data/taxonomy'
+import { DEFAULT_PROMPTS, PROMPT_KEYS, UNTRUSTED, buildSystem } from '../../server/prompts'
 import { checkKb, checkNote } from '../../server/kbCheck'
 import { checkCoverage, loadTopics } from '../../server/questions'
 import { pingProvider } from '../../server/status'
@@ -390,5 +391,41 @@ describe('adding knowledge', () => {
   })
   it('the shipped knowledge base has no problems', () => {
     expect(checkKb('kb')).toEqual([])
+  })
+})
+
+describe('prompts as data', () => {
+  const tx = { ...DEFAULT_TAXONOMY, services: [...DEFAULT_TAXONOMY.services, { id: 'old-one', label: 'Old one', hint: 'retired', confirmed: true, archived: true }, { id: 'x-new', label: 'New one', hint: 'fresh', confirmed: true, examples: ['เชื่อมระบบ X'] }] }
+  it('always ends with the guard and keeps the output untouched by the editor', () => {
+    for (const k of PROMPT_KEYS) expect(buildSystem(k, 'just my own words').endsWith(UNTRUSTED)).toBe(true)
+    expect(buildSystem('judge', '  hello  ')).toBe(`hello ${UNTRUSTED}`)
+  })
+  it('puts the zone and service lists in place, or appends them when the editor removed the placeholders', () => {
+    const inPlace = buildSystem('classify', 'A\nZones:\n{{zones}}\nmiddle\n{{services}}\nend', tx)
+    expect(inPlace).toMatch(/A\nZones:\n- internal: Internal product/)
+    expect(inPlace.indexOf('middle')).toBeGreaterThan(inPlace.indexOf('crm-plus'))
+    const lost = buildSystem('classify', 'only my instructions', tx)
+    expect(lost).toContain('Zones:\n- internal')
+    expect(lost).toContain('Services:\n- user-management')
+    expect(lost).not.toContain('{{')
+  })
+  it('leaves archived entries out, and includes examples', () => {
+    const p = buildSystem('classify', DEFAULT_PROMPTS.classify, tx)
+    expect(p).not.toContain('old-one')
+    expect(p).toContain('x-new: New one. fresh')
+    expect(p).toContain('e.g. "เชื่อมระบบ X"')
+  })
+  it('the default prompts reproduce today\'s wording', () => {
+    expect(buildSystem('extract', DEFAULT_PROMPTS.extract)).toContain('You are a business analyst. Split the customer TOR into atomic')
+    expect(buildSystem('judge', DEFAULT_PROMPTS.judge)).toContain('using ONLY the knowledge-base notes given')
+  })
+  it('classify and judge use an edited prompt and taxonomy when given one', async () => {
+    let seen = ''
+    const llm = (async (o: { system: string }) => { seen = o.system; return { items: [], verdicts: [] } }) as never
+    await classify(llm, [{ id: 'R-1', module: 'M', text: 't' }], { taxonomy: tx, prompts: { classify: 'EDITED {{services}}' } })
+    expect(seen.startsWith('EDITED - user-management')).toBe(true)
+    expect(seen).toContain('x-new')
+    await judge(llm, [{ id: 'R-1', module: 'M', text: 't' }], [], { prompts: { judge: 'EDITED JUDGE' } })
+    expect(seen).toBe(`EDITED JUDGE ${UNTRUSTED}`)
   })
 })

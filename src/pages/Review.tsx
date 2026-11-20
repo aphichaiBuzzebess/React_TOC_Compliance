@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { hasAi, useAssessmentStore } from '@/store/useAssessmentStore'
-import { MAX_TARGETS, SERVICES, UNKNOWN, ZONES, serviceLabel, zoneLabel } from '@/data/taxonomy'
+import { MAX_TARGETS, UNKNOWN, activeServices, activeZones, serviceLabel, zoneLabel } from '@/data/taxonomy'
 import type { RawReq, Target } from '@/lib/types'
 import { Alert, Button, Card, PageHeader, Pill } from '@/components/ui'
 
@@ -22,7 +22,7 @@ function group(rows: RawReq[]) {
 }
 
 function TargetEditor({ r }: { r: RawReq }) {
-  const { setTargets } = useAssessmentStore()
+  const { setTargets, taxonomy: tx } = useAssessmentStore()
   const targets = r.targets ?? [{ zone: UNKNOWN, service: UNKNOWN }]
   const set = (i: number, patch: Partial<Target>) => setTargets(r.id, targets.map((t, j) => (j === i ? { ...t, ...patch } : t)))
   return (
@@ -31,12 +31,12 @@ function TargetEditor({ r }: { r: RawReq }) {
         <div key={i} className="flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor={`${r.id}-z${i}`}>Zone ของ {r.id} ตัวที่ {i + 1}</label>
           <select id={`${r.id}-z${i}`} value={t.zone} onChange={(e) => set(i, { zone: e.target.value })} className={pick}>
-            {ZONES.map((z) => <option key={z.id} value={z.id}>{z.label}</option>)}
+            {[...activeZones(tx), ...tx.zones.filter((z) => z.archived && z.id === t.zone)].map((z) => <option key={z.id} value={z.id}>{z.label}{z.archived ? ' (เก็บแล้ว)' : ''}</option>)}
             <option value={UNKNOWN}>ไม่ทราบ zone</option>
           </select>
           <label className="sr-only" htmlFor={`${r.id}-s${i}`}>Service ของ {r.id} ตัวที่ {i + 1}</label>
           <select id={`${r.id}-s${i}`} value={t.service} onChange={(e) => set(i, { service: e.target.value })} className={pick}>
-            {SERVICES.map((s) => <option key={s.id} value={s.id}>{s.label}{s.confirmed ? '' : ' (ยังไม่ยืนยัน)'}</option>)}
+            {[...activeServices(tx), ...tx.services.filter((s) => s.archived && s.id === t.service)].map((s) => <option key={s.id} value={s.id}>{s.label}{s.archived ? ' (เก็บแล้ว)' : s.confirmed ? '' : ' (ยังไม่ยืนยัน)'}</option>)}
             <option value={UNKNOWN}>ไม่ระบุ service</option>
           </select>
           {targets.length > 1 && <Button variant="ghost" aria-label={`เอา target ที่ ${i + 1} ของ ${r.id} ออก`} onClick={() => setTargets(r.id, targets.filter((_, j) => j !== i))}>เอาออก</Button>}
@@ -63,7 +63,7 @@ function Row({ r }: { r: RawReq }) {
 
 export default function Review() {
   const nav = useNavigate()
-  const { review, running, error, confirmReview, clearReview } = useAssessmentStore()
+  const { review, running, error, confirmReview, clearReview, taxonomy: tx } = useAssessmentStore()
   const [asking, setAsking] = useState(false)
   const aiReady = useAssessmentStore(hasAi)
 
@@ -95,7 +95,7 @@ export default function Review() {
       <div className="flex flex-col gap-4 rounded-[10px] border border-line bg-surface p-5">
         <p className="m-0 text-sm text-muted">TOR นี้ใช้ Buzzebees {counts.size} zone · {review.length} ข้อ</p>
         <ul aria-label="สรุปตาม zone" className="m-0 flex list-none flex-wrap gap-2 p-0">
-          {[...counts].map(([z, n]) => <li key={z}><Pill>{zoneLabel(z)} · {n} ข้อ</Pill></li>)}
+          {[...counts].map(([z, n]) => <li key={z}><Pill>{zoneLabel(z, tx)} · {n} ข้อ</Pill></li>)}
         </ul>
         {unknown > 0 && <Alert tone="warning" title={`${unknown} ข้อยังไม่ระบุ zone หรือ service`}>ข้อพวกนี้จะได้สถานะ Need Verification ถ้าไม่มี note ที่ตรง แก้ได้ในรายการด้านล่าง (อยู่บนสุด)</Alert>}
         {error && <p role="alert" className="m-0 text-sm text-danger">{error}</p>}
@@ -115,10 +115,10 @@ export default function Review() {
         </div>
       </div>
       {group(review).map(([zone, services]) => (
-        <section key={zone} aria-label={zoneLabel(zone)} className="flex flex-col gap-3">
-          <h2 className="m-0 text-xl font-medium text-ink">{zoneLabel(zone)}</h2>
+        <section key={zone} aria-label={zoneLabel(zone, tx)} className="flex flex-col gap-3">
+          <h2 className="m-0 text-xl font-medium text-ink">{zoneLabel(zone, tx)}</h2>
           {services.map(([service, rows]) => (
-            <Card key={service} title={service === UNKNOWN ? 'ไม่ระบุ service' : serviceLabel(service)} right={<span className="text-xs text-muted">{rows.length} ข้อ</span>}>
+            <Card key={service} title={service === UNKNOWN ? 'ไม่ระบุ service' : serviceLabel(service, tx)} right={<span className="text-xs text-muted">{rows.length} ข้อ</span>}>
               <ul className="m-0 list-none p-0">{rows.map((r) => <Row key={r.id} r={r} />)}</ul>
             </Card>
           ))}

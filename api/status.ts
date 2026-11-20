@@ -1,11 +1,12 @@
 import { handle, keySource, llmFromRequest, serverDefault } from '../server/http.js'
+import { loadKnowledge } from '../server/knowledge.js'
 import { pingProvider } from '../server/status.js'
 
 // GET: which AI the server offers by default (never the key), so the page can skip asking for one.
 export async function GET(req: Request): Promise<Response> {
   return handle(req, async () => {
     const d = serverDefault()
-    return { default: d ? { provider: d.provider, model: d.model } : null, ...(await keySource(req)) }
+    return { default: d ? { provider: d.provider, model: d.model } : null, ...(await keySource(req)), knowledge: (await loadKnowledge()).status }
   })
 }
 

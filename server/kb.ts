@@ -34,7 +34,7 @@ export function parseNote(path: string, raw: string): Note | null {
   // `module` is optional when there is a service: it defaults to the service's name.
   const module = fm.module || SERVICES.find((x) => x.id === service)?.label
   if (!fm.title || !module || !SUPPORT.has(fm.support)) return null // README and malformed notes are skipped (kb:check says why)
-  const zone = typeof fm.zone === 'string' ? (fm.zone as string).split(',').map(findZone).filter((z): z is string => !!z) : []
+  const zone = typeof fm.zone === 'string' ? (fm.zone as string).split(',').map((z) => findZone(z)).filter((z): z is string => !!z) : []
   return { path, title: fm.title, module, support: fm.support as StatusKey, updated: fm.updated ?? '', body: m[2].trim(), ...(service && { service }), ...(zone.length && { zone }) }
 }
 

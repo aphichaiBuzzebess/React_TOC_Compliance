@@ -43,3 +43,26 @@ create table if not exists attempts (
 
 -- Role: who may manage users. Added later, so it is an idempotent alter.
 alter table users add column if not exists is_admin boolean not null default false;
+
+-- Editable knowledge: notes, prompts and the taxonomy as items of one table; every change keeps a version.
+create table if not exists kb_items (
+  kind text not null,
+  key text not null,
+  data jsonb not null,
+  edited_by text not null default '',
+  updated_at timestamptz not null default now(),
+  primary key (kind, key)
+);
+create table if not exists kb_versions (
+  id bigserial primary key,
+  kind text not null,
+  key text not null,
+  data jsonb not null,
+  edited_by text not null default '',
+  at timestamptz not null default now()
+);
+create index if not exists kb_versions_item on kb_versions(kind, key, id desc);
+create table if not exists kb_meta (
+  key text primary key,
+  value text not null
+);

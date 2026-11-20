@@ -3,11 +3,13 @@
  * Source: React_Internal_Process `src/content/reference/taxonomy.ts` (v5). Keep the two in step by hand.
  * The "extra" services were inferred from Azure resource names, not an official catalogue: `confirmed: false`.
  */
-export interface Zone { id: string; label: string; hint: string }
-export interface Service { id: string; label: string; hint: string; confirmed: boolean }
+export interface Zone { id: string; label: string; hint: string; examples?: string[]; archived?: boolean }
+export interface Service { id: string; label: string; hint: string; confirmed: boolean; examples?: string[]; archived?: boolean }
+/** Zones and services as data. Archived entries stay valid ids (old results, history and notes keep working) but are hidden from pickers and prompts. */
+export interface Taxonomy { zones: Zone[]; services: Service[] }
 export interface Target { zone: string; service: string }
 
-export const UNKNOWN = 'unknown'
+export const UNKNOWN = 'unknown' // reserved: never an id of a zone or service
 export const MAX_TARGETS = 3
 
 export const ZONES: Zone[] = [
@@ -32,29 +34,32 @@ export const SERVICES: Service[] = [
   { id: 'ad-b2c', label: 'AD B2C Wrapper', hint: 'AD login for CRM+.', confirmed: false },
 ]
 
-const ZONE_IDS = new Set(ZONES.map((z) => z.id))
-const SERVICE_IDS = new Set(SERVICES.map((s) => s.id))
-export const isZone = (id: string) => ZONE_IDS.has(id)
-export const isService = (id: string) => SERVICE_IDS.has(id)
+/** The built-in taxonomy: what is used until an admin saves one, and when the database is not available. */
+export const DEFAULT_TAXONOMY: Taxonomy = { zones: ZONES, services: SERVICES }
+export const activeZones = (tx: Taxonomy = DEFAULT_TAXONOMY) => tx.zones.filter((z) => !z.archived)
+export const activeServices = (tx: Taxonomy = DEFAULT_TAXONOMY) => tx.services.filter((s) => !s.archived)
+
+export const isZone = (id: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.zones.some((z) => z.id === id)
+export const isService = (id: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.services.some((s) => s.id === id)
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
 /** A service written as its id ("point") or its label ("Point Service"), any case; undefined when unknown. */
-export const findService = (input: string) => SERVICES.find((s) => norm(s.id) === norm(input) || norm(s.label) === norm(input))?.id
+export const findService = (input: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.services.find((s) => norm(s.id) === norm(input) || norm(s.label) === norm(input))?.id
 /** A zone written as its id ("crm-plus") or its label ("CRM+ module"), any case; undefined when unknown. */
-export const findZone = (input: string) => ZONES.find((z) => norm(z.id) === norm(input) || norm(z.label) === norm(input))?.id
+export const findZone = (input: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.zones.find((z) => norm(z.id) === norm(input) || norm(z.label) === norm(input))?.id
 
-export const zoneLabel = (id: string) => ZONES.find((z) => z.id === id)?.label ?? 'ไม่ทราบ zone'
-export const serviceLabel = (id: string) => SERVICES.find((s) => s.id === id)?.label ?? 'ไม่ทราบ service'
+export const zoneLabel = (id: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.zones.find((z) => z.id === id)?.label ?? 'ไม่ทราบ zone'
+export const serviceLabel = (id: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.services.find((s) => s.id === id)?.label ?? 'ไม่ทราบ service'
 
 /** Anything -> 1..MAX_TARGETS valid targets. Unknown ids become `unknown`; a fully unknown target is dropped when a better one exists. */
-export function cleanTargets(raw: unknown): Target[] {
+export function cleanTargets(raw: unknown, tx: Taxonomy = DEFAULT_TAXONOMY): Target[] {
   const list = Array.isArray(raw) ? raw : []
   const seen = new Set<string>()
   const out: Target[] = []
   for (const t of list) {
     const o = t && typeof t === 'object' ? (t as Record<string, unknown>) : {}
-    const zone = typeof o.zone === 'string' && isZone(o.zone) ? o.zone : UNKNOWN
-    const service = typeof o.service === 'string' && isService(o.service) ? o.service : UNKNOWN
+    const zone = typeof o.zone === 'string' && isZone(o.zone, tx) ? o.zone : UNKNOWN
+    const service = typeof o.service === 'string' && isService(o.service, tx) ? o.service : UNKNOWN
     const key = `${zone}|${service}`
     if (seen.has(key)) continue
     seen.add(key)

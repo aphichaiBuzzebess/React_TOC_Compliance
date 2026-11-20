@@ -55,6 +55,26 @@ describe.skipIf(!url)('postgres implementation', () => {
     expect((await pool.query('select count(*)::int n from users where is_admin')).rows[0].n).toBe(1)
   })
 
+  it('stores knowledge items with versions, conflicts and a seed that skips history', async () => {
+    const key = `t-${name}`
+    const a = (await db.kbPut('prompt', key, { body: 'v1' }, 'ann', null)) as { updatedAt: string }
+    expect(await db.kbPut('prompt', key, { body: 'x' }, 'bob', null)).toBe('conflict')
+    const b = (await db.kbPut('prompt', key, { body: 'v2' }, 'bob', a.updatedAt)) as { updatedAt: string }
+    expect(await db.kbPut('prompt', key, { body: 'v3' }, 'ann', a.updatedAt)).toBe('conflict') // stale token, microsecond precision kept
+    expect((await db.kbVersions('prompt', key))[0]).toMatchObject({ data: { body: 'v1' }, by: 'ann' })
+    expect(await db.kbDelete('prompt', key, 'bob', b.updatedAt)).toBe(true)
+    expect((await db.kbDeletedKeys('prompt')).some((d) => d.key === key)).toBe(true)
+    expect(await db.kbSeed('prompt', [{ key, data: {} }], 'import')).toBe(0) // it has history
+    const nk = `n-${name}`
+    expect(await db.kbSeed('note', [{ key: nk, data: { title: 'T' } }], 'import')).toBe(1)
+    expect(await db.kbSeed('note', [{ key: nk, data: {} }], 'import')).toBe(0)
+    await pool.query("delete from kb_items where key = any($1)", [[key, nk]])
+    await pool.query("delete from kb_versions where key = any($1)", [[key, nk]])
+    await db.setMeta(`t-${name}`, 'x')
+    expect(await db.getMeta(`t-${name}`)).toBe('x')
+    await pool.query('delete from kb_meta where key=$1', [`t-${name}`])
+  }, 60_000)
+
   it('round-trips an encrypted key as bytes', async () => {
     const u = (await db.createUser(`${name}k`, 'h'))!
     userIds.push(u.id)

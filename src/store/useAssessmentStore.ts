@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import { STEPS } from '@/data/tor'
 import { defaultModel, type ProviderId } from '@/data/models'
 import type { FunctionCoverage, RawReq, Req, StatusKey, Target } from '@/lib/types'
-import { MAX_TARGETS } from '@/data/taxonomy'
+import { DEFAULT_TAXONOMY, MAX_TARGETS, type Taxonomy } from '@/data/taxonomy'
 
 type Validation = 'ok' | 'flag'
 const BATCH = 10
@@ -20,6 +20,8 @@ interface AssessmentState {
   mode: 'unknown' | 'stateless' | 'account' // what the server said on first load; unknown until then
   user: string | null // signed-in username (account mode)
   admin: boolean // the signed-in person may manage users
+  taxonomy: Taxonomy // zones and services; the built-in ones until the server sends the saved ones
+  loadTaxonomy: () => Promise<void>
   owner: string | null // persisted: whose data is in this browser; null = from before accounts
   storedKey: StoredKey | null // the key saved on the server (never the key itself)
   historyId: string | null // the saved history entry of the results on screen
@@ -138,6 +140,7 @@ function enter(username: string | undefined, admin = false): null {
   useAssessmentStore.setState({ mode: 'account', user: username ?? null, admin })
   adopt(username ?? null)
   void useAssessmentStore.getState().loadServerDefault()
+  void useAssessmentStore.getState().loadTaxonomy()
   void loadKey()
   return null
 }
@@ -193,6 +196,18 @@ export const useAssessmentStore = create<AssessmentState>()(
       mode: 'unknown',
       user: null,
       admin: false,
+      taxonomy: DEFAULT_TAXONOMY,
+      loadTaxonomy: async () => {
+        const { mode, user } = get()
+        if (mode !== 'account' || !user) return // without accounts the built-in taxonomy is the only one
+        try {
+          const res = await fetch('/api/knowledge?part=taxonomy')
+          const body = res.ok ? await res.json() : null
+          if (body?.taxonomy?.zones && body?.taxonomy?.services) set({ taxonomy: body.taxonomy })
+        } catch {
+          /* keep what is here */
+        }
+      },
       owner: null,
       storedKey: null,
       historyId: null,
@@ -206,7 +221,7 @@ export const useAssessmentStore = create<AssessmentState>()(
             const user: string | null = body.user?.username ?? null
             set({ mode: 'account', user, admin: body.admin === true })
             adopt(user)
-            if (user) { void get().loadServerDefault(); void loadKey() }
+            if (user) { void get().loadServerDefault(); void loadKey(); void get().loadTaxonomy() }
           } else {
             set({ mode: 'stateless', user: null, admin: false })
             if (body?.mode === 'stateless' && get().owner !== null) set({ ...WIPE, owner: null }) // accounts were switched off: data stamped to a person goes
@@ -291,6 +306,7 @@ export const useAssessmentStore = create<AssessmentState>()(
         const auth = get()
         set({ running: true, step: 0, error: null, historyId: null, historyError: null, startedAt: Date.now(), detail: 'กำลังอ่านไฟล์และแยก requirement ด้วย AI (ใช้เวลาประมาณ 30-60 วินาที)' })
         try {
+          await get().loadTaxonomy() // the saved zones/services, in case an admin changed them
           // One request per file (a request body is capped at ~4.5 MB), a few at a time. Ids are renumbered once all are in.
           const perFile: RawReq[][] = []
           let read = 0

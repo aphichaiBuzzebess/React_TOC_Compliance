@@ -8,6 +8,7 @@ import { useAssessmentStore } from '@/store/useAssessmentStore'
 import type { Req } from '@/lib/types'
 import { pageSlices } from '@/lib/exportPdf'
 import { Logo, logoPath, spreadFor } from '@/components/Logo'
+import { DEFAULT_TAXONOMY } from '@/data/taxonomy'
 
 const { exportPdfMock } = vi.hoisted(() => ({ exportPdfMock: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('@/lib/exportPdf', async (orig) => ({ ...(await orig<typeof import('@/lib/exportPdf')>()), exportPdf: exportPdfMock }))
@@ -959,5 +960,228 @@ describe('accounts in the app', () => {
     await waitFor(() => expect(useAssessmentStore.getState().mode).toBe('stateless'))
     expect(screen.queryByRole('button', { name: 'ออกจากระบบ' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('ชื่อผู้ใช้')).not.toBeInTheDocument()
+  })
+})
+
+describe('the taxonomy comes from the server', () => {
+  const json = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body }) as Response
+  const custom = {
+    zones: [{ id: 'crm-plus', label: 'CRM+ renamed', hint: '', archived: false }, { id: 'old-zone', label: 'Old zone', hint: '', archived: true }],
+    services: [{ id: 'billing', label: 'Billing', hint: '', confirmed: true, archived: false }, { id: 'point', label: 'Point Service', hint: '', confirmed: false, archived: false }, { id: 'retired', label: 'Retired svc', hint: '', confirmed: true, archived: true }],
+  }
+  afterEach(() => { vi.unstubAllGlobals(); useAssessmentStore.setState({ mode: 'unknown', user: null, taxonomy: DEFAULT_TAXONOMY }) })
+
+  it('loads the saved taxonomy for a signed-in person, keeps the built-in one otherwise or on failure', async () => {
+    useAssessmentStore.setState({ mode: 'stateless', user: null })
+    const spy = vi.fn(async () => json({ taxonomy: custom }))
+    vi.stubGlobal('fetch', spy)
+    await useAssessmentStore.getState().loadTaxonomy()
+    expect(spy).not.toHaveBeenCalled() // no accounts: nothing to fetch
+    useAssessmentStore.setState({ mode: 'account', user: 'ann' })
+    await useAssessmentStore.getState().loadTaxonomy()
+    expect(useAssessmentStore.getState().taxonomy.services.map((s) => s.id)).toContain('billing')
+    vi.stubGlobal('fetch', vi.fn(async () => json({}, 500)))
+    await useAssessmentStore.getState().loadTaxonomy()
+    expect(useAssessmentStore.getState().taxonomy.services.map((s) => s.id)).toContain('billing') // a failure changes nothing
+    vi.stubGlobal('fetch', vi.fn(async () => json({ taxonomy: { zones: 'x' } })))
+    await useAssessmentStore.getState().loadTaxonomy()
+    expect(useAssessmentStore.getState().taxonomy.zones).toHaveLength(2) // garbage is ignored
+  })
+
+  it('Review offers the saved services, hides archived ones, and still shows an archived one that is selected', () => {
+    useAssessmentStore.setState({
+      taxonomy: custom,
+      review: [{ id: 'R-001', module: 'M', text: 't', targets: [{ zone: 'old-zone', service: 'retired' }] }, { id: 'R-002', module: 'M', text: 't2', targets: [{ zone: 'crm-plus', service: 'billing' }] }],
+    })
+    open('/review')
+    const optionsOf = (label: string) => [...(screen.getByLabelText(label) as HTMLSelectElement).options].map((o) => o.textContent)
+    const r2 = optionsOf('Service ของ R-002 ตัวที่ 1')
+    expect(r2).toContain('Billing')
+    expect(r2).toContain('Point Service (ยังไม่ยืนยัน)')
+    expect(r2.some((t) => t?.includes('Retired'))).toBe(false) // archived and not selected: hidden
+    expect(optionsOf('Service ของ R-001 ตัวที่ 1').some((t) => t === 'Retired svc (เก็บแล้ว)')).toBe(true) // archived but chosen: kept visible
+    expect(screen.getAllByText('CRM+ renamed').length).toBeGreaterThan(0)
+    useAssessmentStore.setState({ review: null })
+  })
+
+  it('Matrix and the Excel export use the saved labels', async () => {
+    useAssessmentStore.setState({ taxonomy: custom, result: [{ id: 'R-001', module: 'M', s: 'full', conf: '1%', text: 't', reason: 'r', evidence: 'e', rec: 'c', targets: [{ zone: 'crm-plus', service: 'billing' }] }], selId: 'R-001' })
+    open('/matrix')
+    expect(screen.getAllByText('CRM+ renamed › Billing').length).toBeGreaterThan(0)
+    const { buildSheets } = await import('@/lib/exportXlsx')
+    const { fromReqs } = await import('@/lib/assessment')
+    const row = buildSheets(fromReqs(useAssessmentStore.getState().result!), null, {}, custom)[0].data[1] as { value: string }[]
+    expect(row.slice(2, 4).map((c) => c.value)).toEqual(['CRM+ renamed', 'Billing'])
+    useAssessmentStore.setState({ result: null })
+  })
+})
+
+describe('knowledge base page', () => {
+  const json = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body }) as Response
+  const note = (extra: object = {}) => ({ path: 'point/earn-rules.md', title: 'Earn rules', module: 'Point', service: 'point', zones: [], support: 'config', body: 'ตั้งค่าได้ **ต่อ Brand** ดู [[point/expiry-policy]]', updatedAt: 'tok-1', updatedBy: 'ann', ...extra })
+  const note2 = note({ path: 'point/expiry-policy.md', title: 'Expiry policy', support: 'full', body: 'หมดอายุได้หลายแบบ', updatedAt: 'tok-2' })
+  const promptsView = (extra: object = {}) => Object.fromEntries(['extract', 'classify', 'judge', 'questions'].map((k) => [k, { body: `${k} default text`, isDefault: true, defaultBody: `${k} default text`, updatedAt: null, ...(k === 'judge' ? extra : {}) }]))
+  let calls: { url: string; method: string; body?: unknown }[] = []
+  let adminFlag = false // what the fake /api/auth reports
+  /** A fake /api/knowledge. `routes` answer by "METHOD part" and win over the defaults. */
+  const server = (o: { status?: 'database' | 'defaults'; routes?: Record<string, (body: unknown, url: string) => Response>; prompts?: Record<string, unknown> } = {}) => {
+    calls = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
+      const method = init.method ?? 'GET'
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : undefined
+      calls.push({ url, method, body })
+      const part = new URL(url, 'http://x').searchParams.get('part')
+      const hit = o.routes?.[`${method} ${part}`]
+      if (hit) return hit(body, url)
+      if (url === '/api/auth') return json({ mode: 'account', user: { username: 'ann' }, admin: adminFlag })
+      if (method === 'GET' && part === 'notes') return json({ status: o.status ?? 'database', notes: [note(), note2] })
+      if (method === 'GET' && part === 'taxonomy') return json({ status: 'database', taxonomy: DEFAULT_TAXONOMY, updatedAt: 'tax-1' })
+      if (method === 'GET' && part === 'prompts') return json({ status: 'database', prompts: o.prompts ?? promptsView() })
+      return json({ topics: [] })
+    }))
+  }
+  const as = (admin: boolean) => { adminFlag = admin; useAssessmentStore.setState({ mode: 'account', user: 'ann', owner: 'ann', admin }) }
+  afterEach(() => { vi.unstubAllGlobals(); useAssessmentStore.setState({ mode: 'unknown', user: null, admin: false, owner: null, taxonomy: DEFAULT_TAXONOMY }) })
+
+  it('a normal user reads notes, prompts and taxonomy, and cannot edit anything', async () => {
+    as(false)
+    server()
+    open('/knowledge-base')
+    expect(await screen.findByText('ดูได้อย่างเดียว')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Earn rules' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Note ใหม่/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'บันทึก' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('ชื่อ')).not.toBeInTheDocument()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+    expect(screen.getAllByText('judge default text').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('textbox', { name: /Judge/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: 'Taxonomy' }))
+    expect(screen.queryByRole('button', { name: /บันทึก taxonomy/ })).not.toBeInTheDocument()
+    expect(calls.every((c) => c.method === 'GET')).toBe(true) // nothing was written
+  })
+
+  it('an [[note link]] opens that note', async () => {
+    as(false)
+    server()
+    open('/knowledge-base')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'point/expiry-policy' }))
+    expect(await screen.findByRole('heading', { name: 'Expiry policy' })).toBeInTheDocument()
+  })
+
+  it('an admin edits a note, sends the token it loaded, and sees a stale save refused', async () => {
+    as(true)
+    server({ routes: { 'PUT notes': () => json({ error: 'มีคนแก้รายการนี้ไปก่อนแล้ว โหลดใหม่แล้วแก้อีกครั้ง' }, 409) } })
+    open('/knowledge-base')
+    const user = userEvent.setup()
+    const title = await screen.findByDisplayValue('Earn rules')
+    await user.clear(title)
+    await user.type(title, 'Earn rules v2')
+    expect(screen.getAllByText('ยังไม่ได้บันทึก').length).toBeGreaterThan(0)
+    await user.click(screen.getByRole('button', { name: 'บันทึก' }))
+    expect(await screen.findByText(/มีคนแก้รายการนี้ไปก่อนแล้ว/)).toBeInTheDocument()
+    const put = calls.find((c) => c.method === 'PUT')!
+    expect(put.body).toMatchObject({ path: 'point/earn-rules.md', title: 'Earn rules v2', updatedAt: 'tok-1', service: 'point' })
+  })
+
+  it('warns before leaving unsaved changes, and can keep or drop them', async () => {
+    as(true)
+    server()
+    open('/knowledge-base')
+    const user = userEvent.setup()
+    const title = await screen.findByDisplayValue('Earn rules')
+    await user.type(title, ' edited')
+    await user.click(screen.getByRole('button', { name: /Expiry policy/ }))
+    expect(screen.getByText('ยังไม่ได้บันทึกการแก้ไข')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'กลับไปแก้ต่อ' }))
+    expect(screen.getByDisplayValue('Earn rules edited')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Expiry policy/ }))
+    await user.click(screen.getByRole('button', { name: 'ทิ้งการแก้ไขแล้วไปต่อ' }))
+    expect(screen.getByDisplayValue('Expiry policy')).toBeInTheDocument()
+  })
+
+  it('an admin creates a note and deletes one after a confirmation', async () => {
+    as(true)
+    server({ routes: { 'POST notes': () => json({ path: 'point/new-one.md', updatedAt: 'tok-9' }), 'DELETE notes': () => json({ ok: true }) } })
+    open('/knowledge-base')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /Note ใหม่/ }))
+    const notesPanel = within(screen.getByRole('region', { name: 'หมวด Notes' }))
+    await user.type(notesPanel.getByLabelText('ชื่อ'), 'New one')
+    await user.type(notesPanel.getByLabelText(/เนื้อหา/), 'body text')
+    await user.click(screen.getByRole('button', { name: 'บันทึก' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && (c.body as { title: string }).title === 'New one')).toBe(true))
+    await user.click(screen.getByRole('button', { name: /Earn rules/ }))
+    await user.click(screen.getByRole('button', { name: 'ลบ note นี้' }))
+    await user.click(screen.getByRole('button', { name: 'ยกเลิก' }))
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'ลบ note นี้' }))
+    await user.click(screen.getByRole('button', { name: 'ลบเลย' }))
+    await waitFor(() => expect(calls.find((c) => c.method === 'DELETE')!.url).toContain('updatedAt=tok-1'))
+  })
+
+  it('an admin edits a prompt, resets it to default after a confirmation, and sees the built-in text', async () => {
+    as(true)
+    server({ prompts: promptsView({ body: 'custom judge', isDefault: false, updatedAt: 'p-1', defaultBody: 'judge default text' }), routes: { 'PUT prompts': () => json({ updatedAt: 'p-2' }), 'DELETE prompts': () => json({ ok: true }) } })
+    open('/knowledge-base')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: 'Prompts' }))
+    const box = await screen.findByLabelText(/Judge/)
+    expect(box).toHaveValue('custom judge')
+    await user.clear(box)
+    await user.type(box, 'my new judge prompt')
+    await user.click(screen.getAllByRole('button', { name: 'บันทึก' }).find((b) => !(b as HTMLButtonElement).disabled)!)
+    await waitFor(() => expect(calls.find((c) => c.method === 'PUT')!.body).toEqual({ body: 'my new judge prompt', updatedAt: 'p-1' }))
+    expect(calls.find((c) => c.method === 'PUT')!.url).toContain('key=judge')
+    expect(screen.getAllByText('ประโยคกันคำสั่งแอบแฝงจากเอกสาร', { exact: false })).toHaveLength(4) // one note under each of the four prompts
+    await user.click(screen.getByRole('button', { name: 'คืนค่าเริ่มต้น' }))
+    await user.click(screen.getByRole('button', { name: 'คืนเลย' }))
+    await waitFor(() => expect(calls.find((c) => c.method === 'DELETE')!.url).toContain('updatedAt=p-1'))
+  })
+
+  it('shows the classify note about the lists the system adds, and the character count', async () => {
+    as(true)
+    server()
+    open('/knowledge-base')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: 'Prompts' }))
+    expect(screen.getByText(/ถ้าลบสองตัวนี้ออก ระบบจะเติมท้ายข้อความให้เอง/)).toBeInTheDocument()
+  })
+
+  it('an admin adds a service and archives another in the taxonomy', async () => {
+    as(true)
+    server({ routes: { 'PUT taxonomy': () => json({ updatedAt: 'tax-2' }) } })
+    open('/knowledge-base')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: 'Taxonomy' }))
+    await user.click(screen.getByRole('button', { name: '+ เพิ่ม service' }))
+    await user.type(screen.getByLabelText('id ของ service ใหม่'), 'billing')
+    await user.type(screen.getByLabelText('ชื่อของ billing'), 'Billing')
+    await user.click(screen.getAllByRole('button', { name: 'เก็บเข้าคลัง (archive)' })[DEFAULT_TAXONOMY.zones.length]) // the first service (after the zones)
+    await user.click(screen.getByRole('button', { name: 'บันทึก taxonomy' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true))
+    const sent = calls.find((c) => c.method === 'PUT')!.body as { taxonomy: { services: { id: string; archived?: boolean }[] }; updatedAt: string }
+    expect(sent.updatedAt).toBe('tax-1')
+    expect(sent.taxonomy.services.some((s) => s.id === 'billing')).toBe(true)
+    expect(sent.taxonomy.services.filter((s) => s.archived)).toHaveLength(1)
+    expect(sent.taxonomy.services.length).toBe(DEFAULT_TAXONOMY.services.length + 1) // nothing removed
+    expect(useAssessmentStore.getState().taxonomy.services.some((s) => s.id === 'billing')).toBe(true) // pickers update at once
+  })
+
+  it('says plainly when it is running on defaults, and offers the import to an admin only', async () => {
+    as(true)
+    server({ status: 'defaults' })
+    open('/knowledge-base')
+    expect(await screen.findByText(/ตอนนี้ใช้ค่าเริ่มต้น/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'นำเข้าจากไฟล์' })).toBeInTheDocument()
+  })
+
+  it('a normal user sees the defaults warning but no import button', async () => {
+    as(false)
+    server({ status: 'defaults' })
+    open('/knowledge-base')
+    expect(await screen.findByText(/ตอนนี้ใช้ค่าเริ่มต้น/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'นำเข้าจากไฟล์' })).not.toBeInTheDocument()
   })
 })

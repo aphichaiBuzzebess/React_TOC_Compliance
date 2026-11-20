@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { Pool } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 
 export interface User { id: string; username: string; passwordHash: string; disabled: boolean; isAdmin: boolean }
 export interface KeyRow { provider: string; model: string; ciphertext: Buffer; iv: Buffer; tag: Buffer; last4: string }
@@ -7,6 +7,12 @@ export interface AssessmentInput { customer: string; files: string[]; counts: Re
 export interface AssessmentRow extends AssessmentInput { id: string; createdAt: string; updatedAt: string }
 
 export const KEEP_ASSESSMENTS = 50
+export const KEEP_VERSIONS = 20
+
+export type KbKind = 'note' | 'prompt' | 'taxonomy'
+/** `updatedAt` is an opaque token: the editor sends back what it loaded and the save fails (conflict) if the row changed since. */
+export interface KbItem { key: string; data: unknown; updatedBy: string; updatedAt: string }
+export interface KbVersion { id: number; kind: KbKind; key: string; data: unknown; by: string; at: string }
 
 /** Everything the server stores. Every per-user method takes the user id from the session, never from a request body. */
 export interface Db {
@@ -31,6 +37,18 @@ export interface Db {
   getAssessment(userId: string, id: string): Promise<AssessmentRow | undefined>
   updateAssessment(userId: string, id: string, patch: { counts: Record<string, number>; data: unknown }): Promise<boolean>
   deleteAssessment(userId: string, id: string): Promise<boolean>
+
+  kbList(kind: KbKind): Promise<KbItem[]>
+  kbGet(kind: KbKind, key: string): Promise<KbItem | undefined>
+  /** `expected`: undefined = no check; null = the item must not exist; a token = it must still be that version. Keeps the previous content as a version. */
+  kbPut(kind: KbKind, key: string, data: unknown, by: string, expected?: string | null): Promise<KbItem | 'conflict'>
+  kbDelete(kind: KbKind, key: string, by: string, expected: string): Promise<boolean | 'conflict'>
+  kbVersions(kind: KbKind, key: string): Promise<KbVersion[]> // newest first
+  kbVersion(id: number): Promise<KbVersion | undefined>
+  kbDeletedKeys(kind: KbKind): Promise<{ key: string; data: unknown; at: string }[]> // keys with versions but no live item
+  kbSeed(kind: KbKind, items: { key: string; data: unknown }[], by: string): Promise<number> // inserts items with no live row and no history
+  getMeta(key: string): Promise<string | undefined>
+  setMeta(key: string, value: string): Promise<void>
 }
 
 export function memoryDb(): Db {
@@ -39,6 +57,18 @@ export function memoryDb(): Db {
   const attempts = new Map<string, { failures: number; start: number }>()
   const keys = new Map<string, KeyRow>()
   const rows = new Map<string, AssessmentRow & { userId: string }>()
+  const kb = new Map<string, KbItem>() // `${kind}\u0000${key}`
+  const versions: KbVersion[] = []
+  const meta = new Map<string, string>()
+  let seq = 0
+  let vseq = 0
+  const id = (kind: string, key: string) => `${kind}\u0000${key}`
+  const token = () => `${new Date().toISOString()}-${String(++seq).padStart(6, '0')}`
+  const keep = (kind: KbKind, key: string, data: unknown, by: string, at: string) => {
+    versions.push({ id: ++vseq, kind, key, data, by, at })
+    const mine = versions.filter((v) => v.kind === kind && v.key === key).sort((a, b) => b.id - a.id)
+    for (const v of mine.slice(KEEP_VERSIONS)) versions.splice(versions.indexOf(v), 1)
+  }
   const win = (key: string, windowMs: number) => { const a = attempts.get(key); return a && Date.now() - a.start < windowMs ? a : undefined }
   return {
     async createUser(username, passwordHash) {
@@ -109,10 +139,70 @@ export function memoryDb(): Db {
       const r = rows.get(id)
       return !!r && r.userId === userId && rows.delete(id)
     },
+    async kbList(kind) { return [...kb.entries()].filter(([k]) => k.startsWith(`${kind}\u0000`)).map(([, v]) => v).sort((a, b) => (a.key < b.key ? -1 : 1)) },
+    async kbGet(kind, key) { return kb.get(id(kind, key)) },
+    async kbPut(kind, key, data, by, expected) {
+      const cur = kb.get(id(kind, key))
+      if (expected === null && cur) return 'conflict'
+      if (typeof expected === 'string' && cur?.updatedAt !== expected) return 'conflict'
+      if (cur) keep(kind, key, cur.data, cur.updatedBy, cur.updatedAt)
+      const item = { key, data, updatedBy: by, updatedAt: token() }
+      kb.set(id(kind, key), item)
+      return item
+    },
+    async kbDelete(kind, key, _by, expected) {
+      const cur = kb.get(id(kind, key))
+      if (!cur) return false
+      if (cur.updatedAt !== expected) return 'conflict'
+      keep(kind, key, cur.data, cur.updatedBy, cur.updatedAt)
+      kb.delete(id(kind, key))
+      return true
+    },
+    async kbVersions(kind, key) { return versions.filter((v) => v.kind === kind && v.key === key).sort((a, b) => b.id - a.id) },
+    async kbVersion(vid) { return versions.find((v) => v.id === vid) },
+    async kbDeletedKeys(kind) {
+      const gone = new Map<string, KbVersion>()
+      for (const v of versions) if (v.kind === kind && !kb.has(id(kind, v.key)) && (!gone.get(v.key) || gone.get(v.key)!.id < v.id)) gone.set(v.key, v)
+      return [...gone.values()].map((v) => ({ key: v.key, data: v.data, at: v.at }))
+    },
+    async kbSeed(kind, items, by) {
+      let n = 0
+      for (const it of items) {
+        if (kb.has(id(kind, it.key)) || versions.some((v) => v.kind === kind && v.key === it.key)) continue
+        kb.set(id(kind, it.key), { key: it.key, data: it.data, updatedBy: by, updatedAt: token() })
+        n++
+      }
+      return n
+    },
+    async getMeta(key) { return meta.get(key) },
+    async setMeta(key, value) { meta.set(key, value) },
   }
 }
 
+// Microsecond text form of a timestamp: it is the version token, so it must not lose precision.
+const AT = `to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
+const VAT = `to_char(at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
+const toItem = (r: { key: string; data: unknown; edited_by: string; at: string }): KbItem => ({ key: r.key, data: r.data, updatedBy: r.edited_by, updatedAt: r.at })
+const toVersion = (r: { id: string | number; kind: KbKind; key: string; data: unknown; edited_by: string; at: string }): KbVersion => ({ id: Number(r.id), kind: r.kind, key: r.key, data: r.data, by: r.edited_by, at: r.at })
+
 export function pgDb(pool: Pool): Db {
+  /** One transaction on one connection. */
+  async function tx<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
+    const c = await pool.connect()
+    try {
+      await c.query('begin')
+      const out = await fn(c)
+      await c.query('commit')
+      return out
+    } catch (e) {
+      await c.query('rollback')
+      throw e
+    } finally {
+      c.release()
+    }
+  }
+  const prune = (c: PoolClient, kind: string, key: string) =>
+    c.query('delete from kb_versions where kind=$1 and key=$2 and id not in (select id from kb_versions where kind=$1 and key=$2 order by id desc limit $3)', [kind, key, KEEP_VERSIONS])
   const toUser = (r: { id: string; username: string; password_hash: string; disabled: boolean; is_admin: boolean }): User => ({ id: r.id, username: r.username, passwordHash: r.password_hash, disabled: r.disabled, isAdmin: r.is_admin })
   const secs = (ms: number) => ms / 1000
   return {
@@ -192,6 +282,74 @@ export function pgDb(pool: Pool): Db {
       return ((await pool.query('update assessments set counts=$3, data=$4, updated_at=now() where user_id=$1 and id=$2', [userId, id, p.counts, JSON.stringify(p.data)])).rowCount ?? 0) > 0
     },
     async deleteAssessment(userId, id) { return ((await pool.query('delete from assessments where user_id=$1 and id=$2', [userId, id])).rowCount ?? 0) > 0 },
+
+    async kbList(kind) {
+      const r = await pool.query(`select key, data, edited_by, ${AT} as at from kb_items where kind=$1 order by key`, [kind])
+      return r.rows.map(toItem)
+    },
+    async kbGet(kind, key) {
+      const r = await pool.query(`select key, data, edited_by, ${AT} as at from kb_items where kind=$1 and key=$2`, [kind, key])
+      return r.rows[0] ? toItem(r.rows[0]) : undefined
+    },
+    async kbPut(kind, key, data, by, expected) {
+      return tx(async (c) => {
+        const cur = (await c.query(`select data, edited_by, ${AT} as at, updated_at from kb_items where kind=$1 and key=$2 for update`, [kind, key])).rows[0]
+        if (expected === null && cur) return 'conflict' as const
+        if (typeof expected === 'string' && cur?.at !== expected) return 'conflict' as const
+        if (cur) await c.query('insert into kb_versions(kind, key, data, edited_by, at) values($1,$2,$3,$4,$5)', [kind, key, JSON.stringify(cur.data), cur.edited_by, cur.updated_at])
+        const r = await c.query(
+          `insert into kb_items(kind, key, data, edited_by) values($1,$2,$3,$4)
+           on conflict (kind, key) do update set data=$3, edited_by=$4, updated_at=now()
+           returning key, data, edited_by, ${AT} as at`,
+          [kind, key, JSON.stringify(data), by],
+        )
+        await prune(c, kind, key)
+        return toItem(r.rows[0])
+      })
+    },
+    async kbDelete(kind, key, _by, expected) {
+      return tx(async (c) => {
+        const cur = (await c.query(`select data, edited_by, ${AT} as at, updated_at from kb_items where kind=$1 and key=$2 for update`, [kind, key])).rows[0]
+        if (!cur) return false
+        if (cur.at !== expected) return 'conflict' as const
+        await c.query('insert into kb_versions(kind, key, data, edited_by, at) values($1,$2,$3,$4,$5)', [kind, key, JSON.stringify(cur.data), cur.edited_by, cur.updated_at])
+        await c.query('delete from kb_items where kind=$1 and key=$2', [kind, key])
+        await prune(c, kind, key)
+        return true
+      })
+    },
+    async kbVersions(kind, key) {
+      const r = await pool.query(`select id, kind, key, data, edited_by, ${VAT} as at from kb_versions where kind=$1 and key=$2 order by id desc`, [kind, key])
+      return r.rows.map(toVersion)
+    },
+    async kbVersion(vid) {
+      const r = await pool.query(`select id, kind, key, data, edited_by, ${VAT} as at from kb_versions where id=$1`, [vid])
+      return r.rows[0] ? toVersion(r.rows[0]) : undefined
+    },
+    async kbDeletedKeys(kind) {
+      const r = await pool.query(
+        `select distinct on (v.key) v.key, v.data, ${VAT} as at from kb_versions v
+         where v.kind=$1 and not exists (select 1 from kb_items i where i.kind=v.kind and i.key=v.key)
+         order by v.key, v.id desc`,
+        [kind],
+      )
+      return r.rows.map((x) => ({ key: x.key, data: x.data, at: x.at }))
+    },
+    async kbSeed(kind, items, by) {
+      let n = 0
+      for (const it of items) {
+        const r = await pool.query(
+          `insert into kb_items(kind, key, data, edited_by)
+           select $1,$2,$3,$4 where not exists (select 1 from kb_versions where kind=$1 and key=$2)
+           on conflict (kind, key) do nothing`,
+          [kind, it.key, JSON.stringify(it.data), by],
+        )
+        n += r.rowCount ?? 0
+      }
+      return n
+    },
+    async getMeta(key) { return (await pool.query('select value from kb_meta where key=$1', [key])).rows[0]?.value },
+    async setMeta(key, value) { await pool.query('insert into kb_meta(key, value) values($1,$2) on conflict (key) do update set value=$2', [key, value]) },
   }
 }
 
