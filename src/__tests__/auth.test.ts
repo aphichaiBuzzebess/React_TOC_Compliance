@@ -157,6 +157,15 @@ describe('stored key', () => {
     expect(await (await call(statusApi.GET, 'GET', '/api/status', { cookie })).json()).toMatchObject({ keySource: 'stored', last4: '1234' })
   })
 
+  it('accepts an OpenAI key like any other, stored encrypted', async () => {
+    const { cookie } = await signUp('ann')
+    const r = await call(keyApi.PUT, 'PUT', '/api/key', { cookie, body: { provider: 'openai', model: 'gpt-5', key: 'sk-proj-abcdefghij1234' } })
+    expect(r.status).toBe(200)
+    expect(await r.json()).toEqual({ provider: 'openai', model: 'gpt-5', last4: '1234' })
+    const base = new Request('http://localhost/api/extract', { method: 'POST', headers: { ...CSRF, cookie } })
+    await expect(llmFromRequest(base)).resolves.toEqual({ provider: 'openai', apiKey: 'sk-proj-abcdefghij1234', model: 'gpt-5' })
+  })
+
   it('is used for the run, loses to a header key, and can be removed', async () => {
     const { cookie } = await signUp('ann')
     await put(cookie)

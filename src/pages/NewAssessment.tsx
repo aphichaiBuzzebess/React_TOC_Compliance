@@ -107,7 +107,7 @@ export default function NewAssessment() {
               <Marker n={1} done={flags[0]} current={current === 0} />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="font-semibold">ใส่ AI key</span>
-                <span className="text-sm text-muted wrap-anywhere">{use ? `${ai?.label} · ${use.model}${use.own ? '' : ' · ค่าจากเซิร์ฟเวอร์'}` : 'Claude หรือ Gemini ของคุณเอง ไม่ถูกเก็บ'}</span>
+                <span className="text-sm text-muted wrap-anywhere">{use ? `${ai?.label} · ${use.model}${use.own ? '' : ' · ค่าจากเซิร์ฟเวอร์'}` : 'Claude, Gemini หรือ ChatGPT ของคุณเอง ไม่ถูกเก็บ'}</span>
               </div>
               <Link to="/ai-settings" className="inline-flex min-h-11 flex-none items-center text-sm font-medium text-amber-text underline underline-offset-4">{use ? 'เปลี่ยน' : 'ตั้งค่า AI'}</Link>
             </motion.li>
@@ -254,7 +254,7 @@ export default function NewAssessment() {
             <div className="flex flex-wrap gap-2">
               {['แยก requirement', 'เทียบกับหลักฐาน', 'คำถามค้างถึงลูกค้า', 'Export Excel', 'PDF สรุป'].map((c) => <Pill key={c}>{c}</Pill>)}
             </div>
-            <p className="m-0 text-sm text-muted">รองรับ PDF · DOCX · XLSX · รูปภาพ · Claude · Gemini · Obsidian KB</p>
+            <p className="m-0 text-sm text-muted">รองรับ PDF · DOCX · XLSX · รูปภาพ · Claude · Gemini · ChatGPT · Obsidian KB</p>
           </div>
           <Preview />
         </div>

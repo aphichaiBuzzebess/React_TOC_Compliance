@@ -1185,3 +1185,16 @@ describe('knowledge base page', () => {
     expect(screen.queryByRole('button', { name: 'นำเข้าจากไฟล์' })).not.toBeInTheDocument()
   })
 })
+
+describe('ChatGPT in AI settings', () => {
+  it('is a choice with its own models and key label, and switching to it picks its first model', async () => {
+    const user = userEvent.setup()
+    useAssessmentStore.setState({ provider: 'anthropic', model: 'claude-sonnet-5-5', apiKey: '' })
+    open('/ai-settings')
+    await user.click(screen.getByRole('radio', { name: 'ChatGPT (OpenAI)' }))
+    expect(useAssessmentStore.getState()).toMatchObject({ provider: 'openai', model: 'gpt-5' })
+    expect(screen.getByLabelText('OpenAI API key')).toBeInTheDocument()
+    expect([...(screen.getByLabelText('Model') as HTMLSelectElement).options].map((o) => o.value)).toContain('gpt-4.1')
+    useAssessmentStore.setState({ provider: 'anthropic', model: 'claude-sonnet-5-5' })
+  })
+})

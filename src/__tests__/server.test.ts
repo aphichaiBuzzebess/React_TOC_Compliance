@@ -3,6 +3,8 @@ import { loadKb, parseNote, retrieveForTargets, searchKb } from '../../server/kb
 import { classify, judge, toBlocks } from '../../server/pipeline'
 import { cleanTargets, DEFAULT_TAXONOMY } from '../../src/data/taxonomy'
 import { DEFAULT_PROMPTS, PROMPT_KEYS, UNTRUSTED, buildSystem } from '../../server/prompts'
+import { openaiLlm } from '../../server/llm-openai'
+import { AI_PROVIDERS } from '../../src/data/models'
 import { checkKb, checkNote } from '../../server/kbCheck'
 import { checkCoverage, loadTopics } from '../../server/questions'
 import { pingProvider } from '../../server/status'
@@ -427,5 +429,54 @@ describe('prompts as data', () => {
     expect(seen).toContain('x-new')
     await judge(llm, [{ id: 'R-1', module: 'M', text: 't' }], [], { prompts: { judge: 'EDITED JUDGE' } })
     expect(seen).toBe(`EDITED JUDGE ${UNTRUSTED}`)
+  })
+})
+
+describe('ChatGPT (OpenAI) provider', () => {
+  const tool = { name: 'report', description: 'Report it.', schema: { type: 'object', properties: { ok: { type: 'boolean' } } } }
+  const reply = (body: unknown, status = 200) => (async () => ({ ok: status < 400, status, json: async () => body }) as Response) as unknown as typeof fetch
+  const answer = (args: string) => ({ choices: [{ message: { tool_calls: [{ function: { name: 'report', arguments: args } }] } }] })
+
+  it('sends the key, the model, a forced function call, and text, image and PDF parts', async () => {
+    let seen: { url: string; init: RequestInit } | undefined
+    const fetcher = (async (url: string, init: RequestInit) => { seen = { url, init }; return { ok: true, status: 200, json: async () => answer('{"ok":true}') } as Response }) as unknown as typeof fetch
+    const llm = openaiLlm({ provider: 'openai', apiKey: 'sk-test-123456789', model: 'gpt-5' }, fetcher)
+    const out = await llm<{ ok: boolean }>({
+      system: 'be brief', tool,
+      content: [{ type: 'text', text: 'hello' }, { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAA' } }, { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'BBB' } }],
+    })
+    expect(out).toEqual({ ok: true })
+    expect(seen!.url).toBe('https://api.openai.com/v1/chat/completions')
+    expect((seen!.init.headers as Record<string, string>).authorization).toBe('Bearer sk-test-123456789')
+    const body = JSON.parse(seen!.init.body as string)
+    expect(body).toMatchObject({ model: 'gpt-5', tool_choice: { type: 'function', function: { name: 'report' } } })
+    expect(body.max_completion_tokens).toBeGreaterThanOrEqual(16000)
+    expect(body.messages[0]).toEqual({ role: 'system', content: 'be brief' })
+    expect(body.messages[1].content).toEqual([
+      { type: 'text', text: 'hello' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,AAA' } },
+      { type: 'file', file: { filename: 'tor.pdf', file_data: 'data:application/pdf;base64,BBB' } },
+    ])
+    expect(body.tools[0].function.parameters).toEqual(tool.schema)
+  })
+
+  it('turns an error response into a readable message, and refuses a missing or broken answer', async () => {
+    const cfg = { provider: 'openai' as const, apiKey: 'sk-test-123456789', model: 'gpt-5' }
+    const call = (f: typeof fetch) => openaiLlm(cfg, f)({ system: 's', content: [{ type: 'text', text: 'x' }], tool })
+    await expect(call(reply({ error: { message: 'Incorrect API key provided' } }, 401))).rejects.toThrow('401 Incorrect API key provided')
+    await expect(call(reply({ choices: [{ message: {} }] }))).rejects.toThrow('no structured answer')
+    await expect(call(reply(answer('{not json')))).rejects.toThrow('invalid JSON')
+  })
+
+  it('is an accepted provider: header, stored key, operator default and the model list', async () => {
+    const r = new Request('http://localhost/api/extract', { method: 'POST', headers: { 'x-llm-provider': 'openai', 'x-llm-model': 'gpt-5', 'x-llm-key': 'sk-test-123456789' } })
+    await expect(llmFromRequest(r)).resolves.toEqual({ provider: 'openai', apiKey: 'sk-test-123456789', model: 'gpt-5' })
+    process.env.LLM_PROVIDER = 'openai'
+    process.env.OPENAI_API_KEY = 'operator-openai-key-123'
+    expect(serverDefault()).toEqual({ provider: 'openai', apiKey: 'operator-openai-key-123', model: 'gpt-5' }) // first listed model
+    process.env.OPENAI_MODEL = 'gpt-4.1'
+    expect(serverDefault()!.model).toBe('gpt-4.1')
+    delete process.env.LLM_PROVIDER; delete process.env.OPENAI_API_KEY; delete process.env.OPENAI_MODEL
+    expect(AI_PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'gemini', 'openai'])
   })
 })

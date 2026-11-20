@@ -8,8 +8,8 @@ export interface Tool { name: string; description: string; schema: Record<string
 /** One structured JSON answer for one request. Injected so tests can fake it. */
 export type Llm = <T>(o: { system: string; content: Block[]; tool: Tool; maxTokens?: number }) => Promise<T>
 
-export type Provider = 'anthropic' | 'gemini'
-export const PROVIDERS: Provider[] = ['anthropic', 'gemini']
+export type Provider = 'anthropic' | 'gemini' | 'openai'
+export const PROVIDERS: Provider[] = ['anthropic', 'gemini', 'openai']
 
 /** Supplied by the caller on every request. The server holds no AI keys and stores nothing. */
 export interface LlmConfig { provider: Provider; apiKey: string; model: string }
@@ -17,7 +17,10 @@ export interface LlmConfig { provider: Provider; apiKey: string; model: string }
 /** SDKs load on first use so only the chosen one is paid for. */
 export function createLlm(cfg: LlmConfig): Llm {
   return async (o) => {
-    const llm = cfg.provider === 'gemini' ? (await import('./llm-gemini.js')).geminiLlm(cfg) : (await import('./llm-anthropic.js')).anthropicLlm(cfg)
+    const llm =
+      cfg.provider === 'gemini' ? (await import('./llm-gemini.js')).geminiLlm(cfg)
+      : cfg.provider === 'openai' ? (await import('./llm-openai.js')).openaiLlm(cfg)
+      : (await import('./llm-anthropic.js')).anthropicLlm(cfg)
     return llm(o)
   }
 }
