@@ -5,6 +5,7 @@ import { cleanTargets, DEFAULT_TAXONOMY } from '../../src/data/taxonomy'
 import { DEFAULT_PROMPTS, PROMPT_KEYS, UNTRUSTED, buildSystem } from '../../server/prompts'
 import { openaiLlm } from '../../server/llm-openai'
 import { buildSolution } from '../../src/lib/solution'
+import * as hoop from '../../src/lib/hoop'
 import { AI_PROVIDERS } from '../../src/data/models'
 import { checkKb, checkNote } from '../../server/kbCheck'
 import { checkCoverage, loadTopics } from '../../server/questions'
@@ -557,5 +558,33 @@ describe('what the TOR needs (roll-up by zone and tool)', () => {
     const s = buildSolution([r('a', 'full'), r('b', 'none')], DEFAULT_TAXONOMY)
     expect(s.zones).toEqual([])
     expect(s.untagged).toBe(2)
+  })
+})
+
+describe('basketball drop: the shot is simulated up front', () => {
+  it('"Shoot for me" scores, and the net moves before the ball lands', () => {
+    const f = hoop.fly(hoop.SURE_SHOT)
+    expect(f.result).toBe('score')
+    expect(f.scoreAt).toBeGreaterThan(0)
+    expect(f.scoreAt!).toBeLessThan(f.frames.length - 1)
+  })
+  it('a tiny pull falls short and a huge pull sideways is lost: both miss', () => {
+    expect(hoop.fly(hoop.shotFromPull(0, 14)).result).toBe('miss')
+    expect(hoop.fly(hoop.shotFromPull(140, 100)).result).toBe('miss')
+  })
+  it('more pull means more power, capped at the maximum', () => {
+    expect(hoop.shotFromPull(0, 70).p).toBeCloseTo(0.5)
+    expect(hoop.shotFromPull(0, 900).p).toBe(1)
+    expect(hoop.shotFromPull(30, 70).vx).toBe(-30) // pulling right throws left
+  })
+  it('the aim preview agrees with the flight and stays short', () => {
+    const p = hoop.preview(hoop.SURE_SHOT)
+    expect(p.onTarget).toBe(true)
+    expect(p.pts.length).toBeGreaterThan(5)
+    expect(p.pts.length).toBeLessThanOrEqual(40)
+    expect(hoop.preview(hoop.shotFromPull(140, 100)).onTarget).toBe(false)
+  })
+  it('things look smaller the deeper they are', () => {
+    expect(hoop.proj(0, 40, 500).k).toBeLessThan(hoop.proj(0, 40, 0).k)
   })
 })

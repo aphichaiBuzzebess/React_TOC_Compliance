@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import App from '@/App'
@@ -8,6 +8,7 @@ import { useAssessmentStore } from '@/store/useAssessmentStore'
 import type { Req } from '@/lib/types'
 import { pageSlices } from '@/lib/exportPdf'
 import { Logo, logoPath, spreadFor } from '@/components/Logo'
+import Splash from '@/components/Splash'
 import { DEFAULT_TAXONOMY } from '@/data/taxonomy'
 
 const { exportPdfMock } = vi.hoisted(() => ({ exportPdfMock: vi.fn().mockResolvedValue(undefined) }))
@@ -1326,5 +1327,89 @@ describe('Executive summary: what to build and which tools', () => {
     open('/summary')
     expect(screen.getByRole('heading', { name: 'Executive summary' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /tool ของ Buzzebees ที่ต้องใช้/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('basketball mode for the file step', () => {
+  beforeEach(() => useAssessmentStore.setState({ files: [], error: null }))
+
+  it('is off by default, switches on, and is remembered', async () => {
+    const user = userEvent.setup()
+    open('/')
+    expect(screen.getByRole('switch', { name: /โหมดบาสเก็ต/ })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByRole('group', { name: /สนามบาส/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('switch', { name: /โหมดบาสเก็ต/ }))
+    expect(await screen.findByRole('group', { name: /สนามบาส/ })).toBeInTheDocument()
+    expect(localStorage.getItem('tor-scouter-hoop')).toBe('1')
+  })
+
+  it('a file becomes the ball, and "ใส่ไฟล์เลย" adds it without playing', async () => {
+    localStorage.setItem('tor-scouter-hoop', '1')
+    const user = userEvent.setup()
+    open('/')
+    const input = await screen.findByLabelText('เลือกไฟล์ TOR')
+    await user.upload(input, [new File(['a'], 'tor.pdf', { type: 'application/pdf' })])
+    expect(screen.getByText(/tor\.pdf พร้อมแล้ว/)).toBeInTheDocument()
+    expect(useAssessmentStore.getState().files).toHaveLength(0) // nothing is added until the ball goes in
+    await user.click(screen.getByRole('button', { name: 'ใส่ไฟล์เลย' }))
+    expect(useAssessmentStore.getState().files.map((f) => f.name)).toEqual(['tor.pdf'])
+  })
+
+  it('cannot be switched while a run is going', () => {
+    useAssessmentStore.setState({ running: true })
+    open('/')
+    expect(screen.getByRole('switch', { name: /โหมดบาสเก็ต/ })).toBeDisabled()
+    useAssessmentStore.setState({ running: false })
+  })
+})
+
+describe('landing animation', () => {
+  it('shows the logo on load, fades after a moment, and any click skips it', async () => {
+    vi.useFakeTimers()
+    const { unmount } = render(<Splash />)
+    expect(screen.getByTestId('splash')).toBeInTheDocument()
+    expect(screen.getByTestId('splash')).toHaveAttribute('aria-hidden', 'true')
+    act(() => { vi.advanceTimersByTime(2100) })
+    expect(screen.getByTestId('splash').style.opacity).toBe('0') // fading
+    act(() => { vi.advanceTimersByTime(600) })
+    expect(screen.queryByTestId('splash')).not.toBeInTheDocument()
+    unmount()
+
+    render(<Splash />)
+    fireEvent.pointerDown(screen.getByTestId('splash'))
+    act(() => { vi.advanceTimersByTime(600) })
+    expect(screen.queryByTestId('splash')).not.toBeInTheDocument()
+    vi.useRealTimers()
+  })
+})
+
+describe('basketball mode with many files', () => {
+  it('gathers the whole selection into one ball and adds every file with one shot', async () => {
+    localStorage.setItem('tor-scouter-hoop', '1')
+    useAssessmentStore.setState({ files: [], error: null })
+    const user = userEvent.setup()
+    open('/')
+    const input = await screen.findByLabelText('เลือกไฟล์ TOR')
+    const many = ['a.pdf', 'b.docx', 'c.xlsx'].map((n) => new File([n], n))
+    await user.upload(input, many)
+    const court = screen.getByRole('group', { name: /สนามบาส/ })
+    expect(within(court).getByText('3 ไฟล์')).toBeInTheDocument() // one ball, labelled with the count
+    expect(court.querySelectorAll('text')).toHaveLength(1)
+    expect(screen.getByText(/ยิงครั้งเดียวได้ทั้งหมด/)).toBeInTheDocument()
+    expect(useAssessmentStore.getState().files).toHaveLength(0)
+    await user.click(screen.getByRole('button', { name: 'ใส่ไฟล์เลย' }))
+    expect(useAssessmentStore.getState().files.map((f) => f.name)).toEqual(['a.pdf', 'b.docx', 'c.xlsx'])
+    expect(screen.getByText(/เพิ่ม 3 ไฟล์ แล้ว/)).toBeInTheDocument()
+  })
+
+  it('files chosen later join the ball that has not been shot yet', async () => {
+    localStorage.setItem('tor-scouter-hoop', '1')
+    useAssessmentStore.setState({ files: [], error: null })
+    const user = userEvent.setup()
+    open('/')
+    const input = await screen.findByLabelText('เลือกไฟล์ TOR')
+    await user.upload(input, [new File(['a'], 'a.pdf')])
+    await user.upload(input, [new File(['b'], 'b.png')])
+    expect(within(screen.getByRole('group', { name: /สนามบาส/ })).getByText('2 ไฟล์')).toBeInTheDocument()
   })
 })

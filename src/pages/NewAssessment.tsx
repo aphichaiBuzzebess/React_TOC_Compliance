@@ -1,3 +1,4 @@
+import { lazy, Suspense, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FileText, Image as ImageIcon, Upload, X } from 'lucide-react'
 import { activeAi, hasAi, useAssessmentStore } from '@/store/useAssessmentStore'
@@ -8,6 +9,11 @@ import { Button, Card, Elapsed, Eyebrow, Pill, highlight, metaLabel } from '@/co
 import { ease } from '@/components/motion'
 import { Logo } from '@/components/Logo'
 import { motion } from 'motion/react'
+
+const HoopDrop = lazy(() => import('@/components/HoopDrop')) // the game's code loads only when the mode is switched on
+const ACCEPT = '.pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp,.gif'
+const HOOP_KEY = 'tor-scouter-hoop'
+const readHoop = () => { try { return localStorage.getItem(HOOP_KEY) === '1' } catch { return false } }
 
 /** Abstract product preview in a tilted window. Decorative: it shows the shape of the result, not data. */
 function Preview() {
@@ -61,6 +67,8 @@ function Marker({ n, done, current }: { n: number; done: boolean; current: boole
 
 export default function NewAssessment() {
   const nav = useNavigate()
+  const [hoop, setHoop] = useState(readHoop) // a per-browser toggle: the file step as a basketball shot
+  const toggleHoop = () => { const v = !hoop; setHoop(v); try { localStorage.setItem(HOOP_KEY, v ? '1' : '0') } catch { /* private mode: the toggle still works for this visit */ } }
   const last = useAssessment()
   const { step, running, startedAt, detail, error, files, customer, result, addFiles, removeFile, setCustomer, runReal, reset } = useAssessmentStore()
   const aiReady = useAssessmentStore(hasAi)
@@ -115,7 +123,20 @@ export default function NewAssessment() {
             <motion.li initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.35 }} aria-current={current === 1 ? 'step' : undefined} className="flex items-start gap-3 border-t border-line px-5 py-4">
               <Marker n={2} done={flags[1]} current={current === 1} />
               <div className="flex min-w-0 flex-1 flex-col gap-3">
-                <span className="font-semibold">เลือกไฟล์ TOR</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold">เลือกไฟล์ TOR</span>
+                  <button type="button" role="switch" aria-checked={hoop} disabled={running} onClick={toggleHoop} className="inline-flex min-h-11 items-center gap-2 rounded-full px-2 text-sm text-muted transition-colors hover:text-ink disabled:opacity-50">
+                    โหมดบาสเก็ต
+                    <span aria-hidden className={`relative h-5 w-9 rounded-full border transition-colors ${hoop ? 'border-amber bg-amber' : 'border-line-strong bg-tint'}`}>
+                      <span className={`absolute top-0.5 size-3.5 rounded-full bg-ink transition-all ${hoop ? 'left-[18px]' : 'left-0.5'}`} />
+                    </span>
+                  </button>
+                </div>
+                {hoop ? (
+                  <Suspense fallback={<p className="m-0 text-sm text-muted">กำลังเตรียมสนาม…</p>}>
+                    <HoopDrop accept={ACCEPT} disabled={running} onScore={addFiles} />
+                  </Suspense>
+                ) : (
                 <label
                   htmlFor="torFile"
                   onDragOver={(e) => e.preventDefault()}
@@ -132,11 +153,12 @@ export default function NewAssessment() {
                     id="torFile"
                     type="file"
                     multiple
-                    accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.webp,.gif"
+                    accept={ACCEPT}
                     className="sr-only"
                     onChange={(e) => { addFiles([...(e.target.files ?? [])]); e.target.value = '' }}
                   />
                 </label>
+                )}
                 {hasFiles && (
                   <ul aria-label="ไฟล์ที่เลือก" className="m-0 flex list-none flex-col p-0">
                     {files.map((f, i) => (

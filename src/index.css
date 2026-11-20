@@ -175,3 +175,7 @@
     border-radius: 0;
   }
 }
+
+/* The net of the basketball file drop gives when a file goes through. */
+@keyframes hoop-net { 0% { transform: scaleY(1); } 40% { transform: scaleY(1.35); } 100% { transform: scaleY(1); } }
+.hoop-net-sway { animation: hoop-net 0.5s cubic-bezier(0.215, 0.61, 0.355, 1); transform-origin: 314px 89px; }
