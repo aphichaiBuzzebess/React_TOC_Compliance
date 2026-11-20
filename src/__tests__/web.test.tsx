@@ -890,6 +890,20 @@ describe('accounts in the app', () => {
     expect(screen.queryByLabelText(/Access code/)).not.toBeInTheDocument()
   })
 
+  it('Test connection in account mode sends the CSRF header and never the team code', async () => {
+    const user = userEvent.setup()
+    reset({ owner: 'ann', provider: 'gemini', model: 'gemini-3.8-flash', accessCode: 'leftover-team-code' })
+    server('ann', { 'POST /api/status': () => json({ ok: true, ms: 12 }) })
+    open('/ai-settings')
+    await user.type(await screen.findByLabelText(/API key/), 'AIza-test-key-1234')
+    await user.click(screen.getByRole('button', { name: 'Test connection' }))
+    await screen.findByText(/Working/)
+    const post = calls.find((c) => c.method === 'POST' && c.url === '/api/status')!
+    expect(post.headers['x-requested-with']).toBe('tor-scouter')
+    expect(post.headers['x-access-code']).toBeUndefined()
+    expect(post.headers['x-llm-key']).toBe('AIza-test-key-1234')
+  })
+
   it('stateless mode shows no sign-in and no sign-out', async () => {
     reset()
     vi.stubGlobal('fetch', vi.fn(async (url: string) => json(url === '/api/auth' ? { mode: 'stateless', user: null } : { topics: [] })))

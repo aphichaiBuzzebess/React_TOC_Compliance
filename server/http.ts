@@ -103,7 +103,7 @@ export function errorMessage(e: unknown, key: string): string {
 export async function handle(req: Request, run: (user: User | null) => Promise<unknown>, opts: { public?: boolean } = {}): Promise<Response> {
   let user: User | null = null
   if (accountMode()) {
-    if (!['GET', 'HEAD'].includes(req.method) && req.headers.get('x-requested-with') !== 'tor-scouter') return json({ error: 'Bad request' }, 403)
+    if (!['GET', 'HEAD'].includes(req.method) && req.headers.get('x-requested-with') !== 'tor-scouter') return json({ error: 'หน้าเว็บนี้เป็นเวอร์ชันเก่า รีเฟรชหน้า (Ctrl+Shift+R) แล้วลองใหม่' }, 403) // an old tab sends no CSRF header
     user = await currentUser(req)
     if (!user && !opts.public) return json({ error: 'login' }, 401)
   } else {
