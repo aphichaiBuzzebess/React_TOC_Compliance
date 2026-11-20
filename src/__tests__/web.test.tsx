@@ -1224,7 +1224,7 @@ describe('knowledge base page', () => {
     const tx = within(screen.getByRole('region', { name: 'หมวด Taxonomy' }))
     expect(tx.getByRole('region', { name: 'Zone' })).toBeInTheDocument()
     expect(tx.getByRole('region', { name: 'Service' })).toBeInTheDocument()
-    expect(tx.getByText(/ยืนยันแล้ว · 4/)).toBeInTheDocument() // the four confirmed core services
+    expect(tx.getByText(/ยืนยันแล้ว · 5/)).toBeInTheDocument() // the four confirmed core services and the new-development bucket
     expect(tx.getByText(/ยังไม่ยืนยัน · 8/)).toBeInTheDocument() // the eight inferred ones
     expect(tx.getAllByRole('textbox').length).toBeLessThan(6) // one item's fields, not a form per item
     expect(tx.getByText('2 note')).toBeInTheDocument() // the notes that use a service are counted next to it (both fake notes use Point Service)
@@ -1291,5 +1291,40 @@ describe('header actions', () => {
     useAssessmentStore.setState({ mode: 'stateless', user: null })
     open('/')
     expect(within(document.querySelector('header') as HTMLElement).getByRole('button', { name: 'โหมดมืด' })).toBeInTheDocument()
+  })
+})
+
+describe('Executive summary: what to build and which tools', () => {
+  const t = (zone: string, service: string) => ({ zone, service })
+  const withTargets = (id: string, s: Req['s'], targets: Req['targets'], extra: Partial<Req> = {}): Req => ({ ...req(id, s), targets, ...extra })
+
+  it('lists each zone with its Buzzebees tools, new development and API requests', () => {
+    useAssessmentStore.setState({
+      result: [
+        withTargets('R-001', 'full', [t('app-custom', 'user-management')]),
+        withTargets('R-002', 'config', [t('app-custom', 'user-management'), t('crm-plus', 'campaign-management')]),
+        withTargets('R-003', 'custom', [t('app-custom', 'custom-build')]),
+        withTargets('R-004', 'verify', [t('app-custom', 'unknown')], { wantsApi: true }),
+        req('R-005', 'full'),
+      ],
+    })
+    open('/summary')
+    const h = screen.getByRole('heading', { name: /tool ของ Buzzebees ที่ต้องใช้/ })
+    expect(h).toBeInTheDocument()
+    const app = screen.getByRole('region', { name: /Zone App project — Custom/ })
+    expect(within(app).getByText('User Management')).toBeInTheDocument()
+    expect(within(app).getByText(/พัฒนาใหม่ \(ไม่ใช่ tool ของ Buzzebees\)/)).toBeInTheDocument()
+    expect(within(app).getByText('ยังไม่ระบุ tool')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /Zone CRM\+ module/ })).toBeInTheDocument()
+    expect(screen.getByText(/พัฒนาใหม่ 1 ข้อ/)).toBeInTheDocument()
+    expect(screen.getByText(/ลูกค้าขอ API 1 ข้อ/)).toBeInTheDocument()
+    expect(screen.getByText(/1 ข้อยังไม่ได้จัด zone/)).toBeInTheDocument()
+  })
+
+  it('leaves the section out for results saved before zones existed', () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'full')] })
+    open('/summary')
+    expect(screen.getByRole('heading', { name: 'Executive summary' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /tool ของ Buzzebees ที่ต้องใช้/ })).not.toBeInTheDocument()
   })
 })

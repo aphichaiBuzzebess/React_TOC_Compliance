@@ -10,6 +10,8 @@ export interface Taxonomy { zones: Zone[]; services: Service[] }
 export interface Target { zone: string; service: string }
 
 export const UNKNOWN = 'unknown' // reserved: never an id of a zone or service
+/** The "service" for work no Buzzebees tool covers: judged as development, never as "need verification". */
+export const CUSTOM_BUILD = 'custom-build'
 export const MAX_TARGETS = 3
 
 export const ZONES: Zone[] = [
@@ -24,6 +26,7 @@ export const SERVICES: Service[] = [
   { id: 'campaign-management', label: 'Campaign Management', hint: 'Stock, create campaigns, targeting and schedule, redeem, coupons, selling items.', confirmed: true },
   { id: 'sale-portal', label: 'Sale Portal', hint: 'Product, sale plan, quotation, cart, transaction, post to SAP.', confirmed: true },
   { id: 'report-analytic', label: 'Report / Analytic', hint: 'Reports, dashboards, analytics, segmentation insight.', confirmed: true },
+  { id: CUSTOM_BUILD, label: 'พัฒนาใหม่ (ไม่ใช่ tool ของ Buzzebees)', hint: 'Functionality that has to be built new for this customer because no Buzzebees service covers it (for example a new AI research feature). Choose this instead of guessing a service.', confirmed: true },
   { id: 'point', label: 'Point Service', hint: 'Earn/deduct points, earn rules, expiry, point liability.', confirmed: false },
   { id: 'notification', label: 'Notification', hint: 'In-app notifications, list and mark as read.', confirmed: false },
   { id: 'consent', label: 'Consent (PDPA)', hint: 'Consent capture, status, withdraw, history.', confirmed: false },

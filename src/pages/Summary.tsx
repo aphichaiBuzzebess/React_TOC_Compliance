@@ -1,15 +1,45 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
-import { pct } from '@/data/tor'
+import { ORDER, STATUS, pct } from '@/data/tor'
 import { fit, gapCount } from '@/lib/assessment'
 import { useAssessment } from '@/lib/useAssessment'
 import { exportPdf } from '@/lib/exportPdf'
+import { buildSolution, type Counts, type Line } from '@/lib/solution'
 import type { Assessment } from '@/lib/assessment'
 import { Alert, Button, PageHeader, EmptyState, metaLabel } from '@/components/ui'
+
+const SHORT: Record<keyof Counts, string> = { full: 'ทำได้เลย', config: 'ตั้งค่า', custom: 'พัฒนาเพิ่ม', integ: 'เชื่อมต่อ', none: 'ไม่รองรับ', verify: 'รอยืนยัน' }
+
+/** Status counts as small dots with a number: only the statuses that occur. */
+function Breakdown({ by }: { by: Counts }) {
+  return (
+    <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+      {ORDER.filter((k) => by[k] > 0).map((k) => (
+        <span key={k} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          <span aria-hidden className="size-2 rounded-full" style={{ background: STATUS[k].dot }} />
+          {SHORT[k]} {by[k]}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+function ToolRow({ l }: { l: Line }) {
+  return (
+    <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <span className={l.kind === 'tool' ? 'text-ink' : 'text-muted'}>
+        {l.label} <span className="text-muted">· {l.total} ข้อ</span>
+      </span>
+      <Breakdown by={l.byStatus} />
+    </li>
+  )
+}
 
 function SummaryContent({ a }: { a: Assessment }) {
   const confirmed = useAssessmentStore((s) => Object.values(s.valid).filter((v) => v === 'ok').length)
   const customer = useAssessmentStore((s) => s.customer)
+  const taxonomy = useAssessmentStore((s) => s.taxonomy)
+  const sol = useMemo(() => buildSolution(a.reqs, taxonomy), [a.reqs, taxonomy])
   const page = useRef<HTMLElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,6 +85,35 @@ function SummaryContent({ a }: { a: Assessment }) {
             Integration {a.counts.integ} ข้อ และ Customization {a.counts.custom} ข้อ
           </p>
         </div>
+        {sol.zones.length > 0 && (
+          <div className="flex flex-col gap-3" aria-labelledby="solution-h">
+            <h2 id="solution-h" className="m-0 text-xl font-medium text-ink">สิ่งที่ต้องทำ และ tool ของ Buzzebees ที่ต้องใช้</h2>
+            <p className="m-0 text-sm text-muted">
+              ข้อหนึ่งนับในทุก tool ที่เกี่ยวข้อง จึงรวมกันได้มากกว่า {sol.total} ข้อ
+              {sol.tools.length > 0 && <> · Tool ทั้งโปรเจกต์: {sol.tools.map((t) => `${t.label} (${t.total})`).join(', ')}</>}
+            </p>
+            <div className="flex flex-col gap-4">
+              {sol.zones.map((z) => (
+                <section key={z.zone} aria-label={`Zone ${z.label}`} className="flex flex-col gap-2 rounded-lg border border-line p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <h3 className="m-0 text-base font-semibold text-ink">{z.label}</h3>
+                    <span className="text-xs text-muted">{z.total} ข้อ</span>
+                  </div>
+                  <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-sm">
+                    {z.lines.map((l) => <ToolRow key={l.service} l={l} />)}
+                  </ul>
+                </section>
+              ))}
+            </div>
+            {(sol.build > 0 || sol.api > 0 || sol.untagged > 0) && (
+              <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-sm">
+                {sol.build > 0 && <li>พัฒนาใหม่ {sol.build} ข้อ ไม่มี tool ของ Buzzebees รองรับ ต้องประเมินแรงงานแยก</li>}
+                {sol.api > 0 && <li>ลูกค้าขอ API {sol.api} ข้อ ต้องถาม Tech ว่ายอมให้หรือไม่</li>}
+                {sol.untagged > 0 && <li>{sol.untagged} ข้อยังไม่ได้จัด zone (ผลเก่า) รันประเมินใหม่เพื่อให้รวมในสรุปนี้</li>}
+              </ul>
+            )}
+          </div>
+        )}
         <div className="flex flex-col gap-2">
           <h2 className="m-0 text-xl font-medium text-ink">Before committing scope</h2>
           <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5">

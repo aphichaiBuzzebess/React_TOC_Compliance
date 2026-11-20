@@ -3,7 +3,7 @@ import mammoth from 'mammoth'
 import type { RawReq, Req, StatusKey, Verdict } from '../src/lib/types.js'
 import type { Block, Llm } from './llm.js'
 import { retrieveForTargets, searchKb, type Note } from './kb.js'
-import { DEFAULT_TAXONOMY, UNKNOWN, activeServices, activeZones, cleanTargets, serviceLabel, zoneLabel, type Target, type Taxonomy } from '../src/data/taxonomy.js'
+import { CUSTOM_BUILD, DEFAULT_TAXONOMY, UNKNOWN, activeServices, activeZones, cleanTargets, serviceLabel, zoneLabel, type Target, type Taxonomy } from '../src/data/taxonomy.js'
 import { DEFAULT_PROMPTS, buildSystem, type PromptKey } from './prompts.js'
 
 const STATUSES: StatusKey[] = ['full', 'config', 'custom', 'integ', 'none', 'verify']
@@ -174,9 +174,15 @@ export async function judge(llm: Llm, reqs: RawReq[], kb: Note[], k?: Ctx): Prom
     if (r.wantsApi) {
       return { id: r.id, module: r.module, text: r.text, ...tag, s: 'verify', conf: '0%', reason: API_REASON, evidence: candidates.length ? `ไม่ใช่หลักฐานยืนยัน ใช้ประกอบเท่านั้น: ${titles(candidates)}` : 'ไม่พบหลักฐานที่ตรงกัน', rec: API_REASON }
     }
+    // Every target is new development: no Buzzebees tool exists for it, so there is nothing to look up and it is not "unknown".
+    if (r.targets?.length && r.targets.every((t) => t.service === CUSTOM_BUILD)) {
+      const why = 'ต้องพัฒนาใหม่ ไม่มี tool ของ Buzzebees รองรับข้อนี้'
+      return { id: r.id, module: r.module, text: r.text, ...tag, s: 'custom', conf: '100%', reason: why, evidence: `${r.targets.map(targetName).join(' | ')}: งานพัฒนาใหม่ ไม่ได้อยู่ใน KB`, rec: v?.rec || 'ประเมินขอบเขตและแรงงานของงานพัฒนาใหม่นี้' }
+    }
     if (!v || !STATUSES.includes(v.s)) return { id: r.id, module: r.module, text: r.text, ...tag, s: 'verify', conf: '0%', reason: 'Model gave no valid verdict', evidence: 'ไม่พบหลักฐานที่ตรงกัน', rec: 'ตรวจสอบด้วยตนเอง' }
 
-    const uncovered = r.targets ? r.targets.filter((t) => !byTarget.get(t)?.length) : []
+    const hasBuild = !!r.targets?.some((t) => t.service === CUSTOM_BUILD)
+    const uncovered = r.targets ? r.targets.filter((t) => t.service !== CUSTOM_BUILD && !byTarget.get(t)?.length) : [] // new development needs no note
     // Evidence grouped by target when there are targets; the old flat form otherwise.
     const evidence = r.targets
       ? r.targets.map((t) => { const hit = cited.filter((n) => byTarget.get(t)?.some((c) => c.path === n.path)); return `${targetName(t)}: ${hit.length ? titles(hit) : 'ไม่พบหลักฐานที่ตรงกัน'}` }).join(' | ')
@@ -184,9 +190,9 @@ export async function judge(llm: Llm, reqs: RawReq[], kb: Note[], k?: Ctx): Prom
     const noNote = uncovered.length > 0 // a target with no note at all can not be judged
     return {
       id: r.id, module: r.module, text: r.text, ...tag,
-      s: noNote ? 'verify' : cited.length || v.s === 'verify' ? v.s : 'verify', // a verdict with no real KB source is not a verdict
+      s: noNote ? 'verify' : hasBuild && (v.s === 'full' || v.s === 'config') ? 'custom' : cited.length || v.s === 'verify' || hasBuild ? v.s : 'verify', // a verdict with no real KB source is not a verdict; a part built new is development whatever the rest says
       conf: `${Math.round(Math.min(1, Math.max(0, v.confidence)) * 100)}%`,
-      reason: noNote ? `ไม่มี note ใน KB สำหรับ ${uncovered.map(targetName).join(', ')} — ${v.reason}` : v.reason,
+      reason: noNote ? `ไม่มี note ใน KB สำหรับ ${uncovered.map(targetName).join(', ')} — ${v.reason}` : hasBuild ? `${v.reason} (มีส่วนที่ต้องพัฒนาใหม่)` : v.reason,
       evidence,
       rec: v.rec,
     }

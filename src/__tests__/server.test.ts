@@ -4,6 +4,7 @@ import { classify, judge, toBlocks } from '../../server/pipeline'
 import { cleanTargets, DEFAULT_TAXONOMY } from '../../src/data/taxonomy'
 import { DEFAULT_PROMPTS, PROMPT_KEYS, UNTRUSTED, buildSystem } from '../../server/prompts'
 import { openaiLlm } from '../../server/llm-openai'
+import { buildSolution } from '../../src/lib/solution'
 import { AI_PROVIDERS } from '../../src/data/models'
 import { checkKb, checkNote } from '../../server/kbCheck'
 import { checkCoverage, loadTopics } from '../../server/questions'
@@ -478,5 +479,83 @@ describe('ChatGPT (OpenAI) provider', () => {
     expect(serverDefault()!.model).toBe('gpt-4.1')
     delete process.env.LLM_PROVIDER; delete process.env.OPENAI_API_KEY; delete process.env.OPENAI_MODEL
     expect(AI_PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'gemini', 'openai'])
+  })
+})
+
+describe('new development (custom-build)', () => {
+  const kb = loadKb('kb')
+  const say = (verdicts: unknown[]): Llm => (async () => ({ verdicts })) as never
+  const build = { zone: 'app-custom', service: 'custom-build' }
+
+  it('is judged as development, not as need-verification, when every target is new work', async () => {
+    const [r] = await judge(say([{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'x', sources: [], rec: 'my rec' }]), [{ id: 'R-1', module: 'AI', text: 'สรุปงานวิจัยด้วย AI', targets: [build] }], kb)
+    expect(r).toMatchObject({ s: 'custom', conf: '100%', rec: 'my rec' })
+    expect(r.reason).toContain('ต้องพัฒนาใหม่')
+    expect(r.evidence).toContain('พัฒนาใหม่')
+  })
+  it('works even when the model skipped the requirement', async () => {
+    const [r] = await judge(say([]), [{ id: 'R-1', module: 'AI', text: 't', targets: [build] }], kb)
+    expect(r.s).toBe('custom')
+    expect(r.rec).toContain('ประเมินขอบเขต')
+  })
+  it('a part built new makes a fully supported requirement development, and needs no note for that part', async () => {
+    const llm = say([{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'covered', sources: ['point/expiry-policy.md'], rec: 'use' }])
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'คะแนนหมดอายุ และหน้า AI ใหม่', targets: [{ zone: 'app-custom', service: 'point' }, build] }], kb)
+    expect(r.s).toBe('custom')
+    expect(r.reason).toContain('มีส่วนที่ต้องพัฒนาใหม่')
+  })
+  it('does not rescue a requirement the model could not support, and the bucket is a real taxonomy service', async () => {
+    const llm = say([{ id: 'R-1', s: 'verify', confidence: 0.2, reason: 'no idea', sources: [], rec: 'ask' }])
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'X', text: 't', targets: [{ zone: 'app-custom', service: 'notification' }, build] }], kb)
+    expect(r.s).toBe('verify') // the Notification part has no note
+    expect(DEFAULT_TAXONOMY.services.some((s) => s.id === 'custom-build' && s.confirmed)).toBe(true)
+    expect(cleanTargets([build])).toEqual([build])
+  })
+})
+
+describe('what the TOR needs (roll-up by zone and tool)', () => {
+  const r = (id: string, s: Req['s'], targets?: { zone: string; service: string }[], extra: Partial<Req> = {}): Req => ({ id, module: 'M', s, conf: '1%', text: id, reason: '', evidence: '', rec: '', targets, ...extra })
+  const reqs = [
+    r('1', 'full', [{ zone: 'app-custom', service: 'user-management' }]),
+    r('2', 'config', [{ zone: 'app-custom', service: 'user-management' }, { zone: 'crm-plus', service: 'campaign-management' }]),
+    r('3', 'custom', [{ zone: 'app-custom', service: 'custom-build' }]),
+    r('4', 'custom', [{ zone: 'app-custom', service: 'custom-build' }, { zone: 'app-custom', service: 'point' }]),
+    r('5', 'verify', [{ zone: 'app-custom', service: 'unknown' }], { wantsApi: true }),
+    r('6', 'verify', [{ zone: 'unknown', service: 'unknown' }]),
+    r('7', 'full'), // saved before zones existed
+  ]
+  const sol = buildSolution(reqs, DEFAULT_TAXONOMY)
+
+  it('counts each requirement once per zone and once per tool, with the status of the requirement', () => {
+    const app = sol.zones.find((z) => z.zone === 'app-custom')!
+    expect(app.total).toBe(5) // requirements 1, 2, 3, 4, 5, not counted twice for two targets
+    expect(app.byStatus).toMatchObject({ full: 1, config: 1, custom: 2, verify: 1 })
+    expect(app.lines.find((l) => l.service === 'user-management')).toMatchObject({ total: 2, byStatus: { full: 1, config: 1 } })
+    expect(sol.zones.find((z) => z.zone === 'crm-plus')!.lines.map((l) => l.service)).toEqual(['campaign-management'])
+  })
+
+  it('lists real tools first, then new development, then what is not placed', () => {
+    const lines = sol.zones.find((z) => z.zone === 'app-custom')!.lines
+    expect(lines.map((l) => l.kind)).toEqual(['tool', 'tool', 'build', 'unknown'])
+    expect(lines.find((l) => l.kind === 'build')).toMatchObject({ label: 'พัฒนาใหม่ (ไม่ใช่ tool ของ Buzzebees)', total: 2 })
+    expect(lines.find((l) => l.kind === 'unknown')!.label).toBe('ยังไม่ระบุ tool')
+  })
+
+  it('rolls up the Buzzebees tools of the whole project without new development or unknowns, most used first', () => {
+    expect(sol.tools.map((t) => [t.service, t.total])).toEqual([['user-management', 2], ['campaign-management', 1], ['point', 1]])
+  })
+
+  it('counts new development, API requests and results from before zones, and puts the unknown zone last', () => {
+    expect(sol.build).toBe(2)
+    expect(sol.api).toBe(1)
+    expect(sol.untagged).toBe(1)
+    expect(sol.total).toBe(7)
+    expect(sol.zones[sol.zones.length - 1]).toMatchObject({ zone: 'unknown', label: 'ยังไม่ระบุ zone' })
+  })
+
+  it('has nothing to show for results that never had zones', () => {
+    const s = buildSolution([r('a', 'full'), r('b', 'none')], DEFAULT_TAXONOMY)
+    expect(s.zones).toEqual([])
+    expect(s.untagged).toBe(2)
   })
 })
