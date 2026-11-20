@@ -13,7 +13,7 @@ export const metaLabel = 'text-xs font-medium uppercase tracking-[0.08em] text-m
 export function Eyebrow({ children, onDark = false }: { children: ReactNode; onDark?: boolean }) {
   return (
     <span className={cn('flex items-center gap-2 text-xs font-medium uppercase tracking-[0.1em]', onDark ? 'text-amber' : 'text-muted')}>
-      <span aria-hidden className={cn('size-1.5 rounded-full', 'bg-amber')} />
+      <span aria-hidden className={cn('size-2 bg-amber [clip-path:polygon(50%_0,100%_25%,100%_75%,50%_100%,0_75%,0_25%)]')} />
       {children}
     </span>
   )
@@ -29,7 +29,7 @@ export function Pill({ children }: { children: ReactNode }) {
 }
 
 /** Amber marker behind the last words: the brand colour as a fill, since amber text on paper is unreadable. */
-export const highlight = 'rounded-lg bg-amber px-2.5 text-on-amber box-decoration-clone'
+export const highlight = 'hl rounded-lg bg-amber px-2.5 text-on-amber box-decoration-clone'
 
 /** Big tight headline; the last word is highlighted. */
 export function Headline({ text, className }: { text: string; className?: string }) {

@@ -60,6 +60,7 @@ export default function TaxonomyTab({ taxonomy, updatedAt, admin, reload, noteCo
           <h3 className="m-0 text-sm font-semibold text-ink">{title}</h3>
           <span className="text-xs text-muted">{rows.filter((r) => !r.archived).length} ใช้งาน</span>
         </div>
+        <p className="m-0 px-1 pb-1 text-xs leading-5 text-muted">{k === 'zone' ? 'ประเภทของ Product เช่น CRM+ หรือ App project' : 'บริการหรือฟีเจอร์ที่ requirement ใช้ เช่น Point หรือ User Management'}</p>
         {GROUPS[k].map((g) => {
           const items = rows.map((r, index) => ({ r, index })).filter(({ r }) => group(k, r) === g)
           if (items.length === 0) return null
@@ -128,10 +129,10 @@ export default function TaxonomyTab({ taxonomy, updatedAt, admin, reload, noteCo
                   <label className="flex flex-col gap-1 text-sm"><span className="font-medium">ชื่อ</span>
                     <input value={current.label} maxLength={80} onChange={(e) => patch({ label: e.target.value })} aria-label={`ชื่อของ ${current.id || sel.kind}`} className={`${INPUT} h-11`} />
                   </label>
-                  <label className="flex flex-col gap-1 text-sm"><span className="font-medium">คำอธิบาย <span className="font-normal text-muted">(hint ที่ AI เห็น)</span></span>
+                  <label className="flex flex-col gap-1 text-sm"><span className="font-medium">คำอธิบาย <span className="font-normal text-muted">(ข้อความที่ AI อ่าน)</span></span>
                     <textarea rows={3} value={current.hint} maxLength={400} onChange={(e) => patch({ hint: e.target.value })} aria-label={`hint ของ ${current.id || sel.kind}`} className={`${INPUT} py-2 leading-6`} />
                   </label>
-                  <label className="flex flex-col gap-1 text-sm"><span className="font-medium">ตัวอย่างประโยค <span className="font-normal text-muted">(บรรทัดละหนึ่ง ได้ไม่เกิน 10)</span></span>
+                  <label className="flex flex-col gap-1 text-sm"><span className="font-medium">ตัวอย่างประโยค <span className="font-normal text-muted">(พิมพ์บรรทัดละประโยค ไม่เกิน 10 ประโยค)</span></span>
                     <textarea rows={4} value={(current.examples ?? []).join('\n')} onChange={(e) => patch({ examples: e.target.value.split('\n').slice(0, 10) })} aria-label={`ตัวอย่างของ ${current.id || sel.kind}`} className={`${INPUT} py-2 leading-6`} />
                   </label>
                   <div className="flex flex-wrap items-center gap-4 text-sm">
@@ -144,7 +145,7 @@ export default function TaxonomyTab({ taxonomy, updatedAt, admin, reload, noteCo
                       <Button variant="ghost" onClick={() => patch({ archived: !current.archived })}>{current.archived ? 'เอากลับมาใช้' : 'เก็บเข้าคลัง (archive)'}</Button>
                     )}
                   </div>
-                  <p className="m-0 text-xs leading-5 text-muted">id เปลี่ยนไม่ได้หลังบันทึก และลบไม่ได้ (ให้เก็บเข้าคลังแทน) เพื่อให้ผลเก่ากับ note ที่อ้างถึงยังใช้ได้</p>
+                  <p className="m-0 text-xs leading-5 text-muted">บันทึกแล้วจะแก้ id ไม่ได้ และลบรายการไม่ได้ ถ้าไม่ใช้แล้วให้เก็บเข้าคลัง ผลประเมินเก่ากับ note ที่อ้างถึงรายการนี้จะได้ยังใช้ได้</p>
                 </>
               ) : (
                 <div className="flex flex-col gap-3">

@@ -29,14 +29,14 @@ export default function Versions({ kind, itemKey, token, onRestored, onClose }: 
   }
 
   return (
-    <section aria-label="เวอร์ชันย้อนหลัง" className="flex flex-col gap-2 rounded-lg border border-line bg-canvas p-4">
+    <section aria-label="เวอร์ชันก่อนหน้า" className="flex flex-col gap-2 rounded-lg border border-line bg-canvas p-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="m-0 text-base font-medium">เวอร์ชันย้อนหลัง (ล่าสุด 20 รุ่น)</h3>
+        <h3 className="m-0 text-base font-medium">เวอร์ชันก่อนหน้า (เก็บ 20 รุ่นล่าสุด)</h3>
         <Button variant="ghost" onClick={onClose}>ปิด</Button>
       </div>
       {error && <p role="alert" className="m-0 text-sm text-danger">{error}</p>}
       {list === null && !error && <p role="status" className="m-0 text-sm text-muted">กำลังโหลด…</p>}
-      {list?.length === 0 && <p className="m-0 text-sm text-muted">ยังไม่มีเวอร์ชันเก่า (ยังไม่เคยถูกแก้)</p>}
+      {list?.length === 0 && <p className="m-0 text-sm text-muted">ยังไม่เคยแก้ไข จึงยังไม่มีเวอร์ชันก่อนหน้า</p>}
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {list?.map((v) => (
           <li key={v.id} className="flex flex-wrap items-start justify-between gap-2 border-t border-line pt-2">

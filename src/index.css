@@ -24,6 +24,8 @@
   --c-amber-text: #895b01;
   --c-danger: #cf1322;
   --c-success: #237804;
+  /* the honeycomb: a hexagon lattice in the brand amber, drawn faintly behind the top of each page */
+  --hive: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'><path d='M28 0 56 16.17V48.5L28 64.67 0 48.5V16.17ZM28 64.67V97' fill='none' stroke='%23f9a601' stroke-opacity='.3' stroke-width='1'/></svg>");
 
   /* status colours: dot (charts, markers), fg/bg/bd (badges) */
   --st-full-dot: #52c41a;   --st-full-fg: #237804;   --st-full-bg: #f6ffed;   --st-full-bd: #b7eb8f;
@@ -37,19 +39,24 @@
 @media screen {
   :root[data-theme='dark'] {
     color-scheme: dark; /* native controls, scrollbars */
-    --c-canvas: #0e0e0d;
-    --c-surface: #181816;
-    --c-ink: #f4f1e8;
-    --c-inverse: #0e0e0d;
-    --c-muted: #a9a69a;
-    --c-line: #2b2a26;
-    --c-line-strong: #403e38;
-    --c-tint: #22211e;
-    --c-dark: #1f1e1b;
-    --c-dark-line: #36342f;
-    --c-amber-soft: #2a2110;
-    --c-amber-line: #4d3b10;
-    --c-amber-text: #f2b84b;
+    /* Honey, not neon: a warm charcoal (lifted off pure black), cream text that is not white, and a golden amber that is
+       softer than the light theme's #F9A601. The logo keeps the exact brand amber. */
+    --c-canvas: #12110f;
+    --c-surface: #1a1815;
+    --c-ink: #e9e4d8;
+    --c-inverse: #12110f;
+    --c-muted: #a49d8e;
+    --c-line: #2c2923;
+    --c-line-strong: #423d33;
+    --c-tint: #23201b;
+    --c-dark: #1f1d19;
+    --c-dark-line: #36332c;
+    --c-amber-soft: #272010;
+    --c-amber-line: #4a3c18;
+    --c-amber-text: #e8b94e;
+    --color-amber: #e5ae3a;
+    --color-amber-hover: #d29d2c;
+    --hive: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'><path d='M28 0 56 16.17V48.5L28 64.67 0 48.5V16.17ZM28 64.67V97' fill='none' stroke='%23e5ae3a' stroke-opacity='.2' stroke-width='1'/></svg>");
     --c-danger: #ff7875;
     --c-success: #73d13d;
 
@@ -148,4 +155,23 @@
 @media print {
   body { background: #fff; }
   main { padding: 0; }
+}
+
+/* The honeycomb behind the top of each page: faint, and gone by the fold. */
+.hive {
+  background-image: var(--hive);
+  background-size: 56px 97px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 100%);
+}
+
+/* On the dark theme a solid amber block behind the headline word is the loudest thing on the page; use amber text with a
+   honey underline instead. The light theme keeps the solid highlight. */
+@media screen {
+  :root[data-theme='dark'] .hl {
+    background: transparent;
+    color: var(--c-amber-text);
+    box-shadow: inset 0 -0.14em 0 0 color-mix(in srgb, var(--color-amber) 55%, transparent);
+    border-radius: 0;
+  }
 }

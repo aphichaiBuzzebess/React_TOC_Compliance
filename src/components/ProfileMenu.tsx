@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, LogOut } from 'lucide-react'
+import { ChevronDown, LogOut, Moon, Sun } from 'lucide-react'
 
 /** The signed-in person: an avatar button that opens a panel with the full email (it wraps, never cut) and sign-out. */
-export default function ProfileMenu({ user, admin, onSignOut }: { user: string; admin: boolean; onSignOut: () => void }) {
+export default function ProfileMenu({ user, admin, theme, onToggleTheme, onSignOut }: { user: string; admin: boolean; theme: 'light' | 'dark'; onToggleTheme: () => void; onSignOut: () => void }) {
   const [open, setOpen] = useState(false)
+  const name = user.split('@')[0] || user // the part before the @: short enough to sit on the button
   const box = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
 
@@ -32,18 +33,30 @@ export default function ProfileMenu({ user, admin, onSignOut }: { user: string; 
         aria-controls="profile-panel"
         aria-label={`บัญชีของคุณ ${user}`}
         onClick={() => setOpen(!open)}
-        className="flex min-h-11 items-center gap-1 rounded-full border border-line-strong bg-surface py-1 pl-1.5 pr-2.5 text-ink transition-colors hover:border-ink"
+        className="flex min-h-11 items-center gap-2 rounded-full border border-line-strong bg-surface py-1 pl-1.5 pr-3 text-ink transition-colors hover:border-ink"
       >
-        <span aria-hidden className="flex size-8 items-center justify-center rounded-full bg-amber text-sm font-semibold uppercase text-on-amber">{user.charAt(0)}</span>
+        <span aria-hidden className="flex size-8 flex-none items-center justify-center rounded-full bg-amber text-sm font-semibold uppercase text-on-amber">{user.charAt(0)}</span>
+        <span aria-hidden className="max-w-[9rem] truncate text-sm font-medium max-[420px]:max-w-[5.5rem]">{name}</span>
         <ChevronDown aria-hidden size={16} className={`text-muted transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div id="profile-panel" role="group" aria-label="บัญชี" className="absolute inset-x-5 top-full z-40 mt-1 flex flex-col gap-3 sm:inset-x-auto sm:right-0 sm:mt-2 sm:w-72 rounded-[10px] border border-line bg-surface p-4 shadow-[0_12px_32px_-12px_rgba(8,9,9,0.3)]">
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted">เข้าสู่ระบบในชื่อ</span>
-            <span className="break-all font-medium leading-6 text-ink">{user}</span>
+            {name !== user && <span className="break-all text-base font-semibold leading-6 text-ink">{name}</span>}
+            <span className={`break-all leading-6 ${name !== user ? 'text-sm text-muted' : 'font-medium text-ink'}`}>{user}</span>
             {admin && <span className="w-fit rounded-full border border-amber-line bg-amber-soft px-2.5 py-0.5 text-xs font-medium text-amber-text">Admin</span>}
           </div>
+          <button
+            type="button"
+            aria-pressed={theme === 'dark'}
+            aria-label="โหมดมืด"
+            onClick={onToggleTheme}
+            className="-mx-1 flex min-h-11 items-center justify-between gap-2 rounded-lg border-0 border-t border-line bg-transparent px-1 pt-1 text-left text-sm font-medium text-ink hover:text-brand-text"
+          >
+            <span className="flex items-center gap-2">{theme === 'dark' ? <Moon aria-hidden size={16} /> : <Sun aria-hidden size={16} />} โหมดมืด</span>
+            <span aria-hidden className="text-xs font-normal text-muted">{theme === 'dark' ? 'เปิดอยู่' : 'ปิดอยู่'}</span>
+          </button>
           <button type="button" onClick={onSignOut} className="-mx-1 flex min-h-11 items-center gap-2 rounded-lg border-0 border-t border-line bg-transparent px-1 pt-1 text-left text-sm font-medium text-ink hover:text-danger">
             <LogOut aria-hidden size={16} /> ออกจากระบบ
           </button>

@@ -17,6 +17,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [hot, setHot] = useState(false) // pointer or keyboard focus on the logo
   const theme = useResolvedTheme()
   const setTheme = useAssessmentStore((s) => s.setTheme)
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
 
   // Each route gets its own tab title, and a new page starts at its top, not wherever the last one was scrolled to.
   useEffect(() => {
@@ -26,7 +27,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   }, [pathname])
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas">
+    <div className="relative flex min-h-screen flex-col bg-canvas">
+      <div aria-hidden className="hive pointer-events-none absolute inset-x-0 top-0 h-[460px] print:hidden" />
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-inverse">ข้ามไปเนื้อหาหลัก</a>
       <header className="print:hidden relative z-30 border-b border-line bg-canvas xl:sticky xl:top-0">
         <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 sm:px-10">
@@ -38,27 +40,26 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
 
+          {/* Signed in: the avatar holds the theme switch and sign-out. Otherwise there is no profile, so the theme switch stands alone. */}
           <div className="order-2 ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              aria-pressed={theme === 'dark'}
-              aria-label="โหมดมืด"
-              title={theme === 'dark' ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'}
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="flex size-11 items-center justify-center rounded-full border border-transparent bg-transparent text-muted transition-colors hover:text-ink"
-            >
-              {theme === 'dark' ? <Sun aria-hidden size={18} /> : <Moon aria-hidden size={18} />}
-            </button>
-            {mode === 'account' && user && <ProfileMenu user={user} admin={admin} onSignOut={() => void signOut()} />}
-            {pathname !== '/' && (
-              <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-amber bg-amber px-5 text-sm font-semibold text-on-amber no-underline transition-colors hover:bg-amber-hover ">
-                New assessment <span aria-hidden>→</span>
-              </Link>
+            {mode === 'account' && user ? (
+              <ProfileMenu user={user} admin={admin} theme={theme} onToggleTheme={toggleTheme} onSignOut={() => void signOut()} />
+            ) : (
+              <button
+                type="button"
+                aria-pressed={theme === 'dark'}
+                aria-label="โหมดมืด"
+                title={theme === 'dark' ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด'}
+                onClick={toggleTheme}
+                className="flex size-11 items-center justify-center rounded-full border border-transparent bg-transparent text-muted transition-colors hover:text-ink"
+              >
+                {theme === 'dark' ? <Sun aria-hidden size={18} /> : <Moon aria-hidden size={18} />}
+              </button>
             )}
           </div>
 
           <nav aria-label="Main" className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto">
-            {NAV.filter((n) => n.to !== '/').map((n) => (
+            {NAV.map((n) => (
               <NavLink
                 key={n.to}
                 to={n.to}
@@ -74,7 +75,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1240px] flex-1 flex-col gap-10 px-5 py-8 focus:outline-none sm:px-10 lg:py-10">
+      <main id="main" tabIndex={-1} className="relative mx-auto flex w-full max-w-[1240px] flex-1 flex-col gap-10 px-5 py-8 focus:outline-none sm:px-10 lg:py-10">
         {/* Only while a run is going: a way back to its progress from any page. Nothing is shown otherwise. */}
         {running && startedAt && (
           <Link to="/" className="print:hidden -mb-6 -mt-3 flex w-fit items-center gap-2 rounded-full border border-line-strong bg-surface px-3 py-1 text-xs font-medium text-ink no-underline">

@@ -63,7 +63,7 @@ export function validateTaxonomy(raw: unknown, current: Taxonomy): Taxonomy {
   for (const [name, list, was] of [['zone', tx.zones, current.zones], ['service', tx.services, current.services]] as const) {
     const ids = list.map((x) => x.id)
     if (new Set(ids).size !== ids.length) fail(`${name} มี id ซ้ำ`)
-    for (const old of was) if (!ids.includes(old.id)) fail(`ลบ ${name} "${old.id}" ไม่ได้ ใช้ archive แทน`)
+    for (const old of was) if (!ids.includes(old.id)) fail(`ลบ ${name} "${old.id}" ไม่ได้ ให้ใช้ archive (เก็บเข้าคลัง) แทน`)
   }
   return tx
 }
@@ -202,7 +202,7 @@ async function guarded<T>(fn: (db: Db) => Promise<T>): Promise<T> {
     throw e
   }
 }
-const conflict = (): never => { throw new HttpError(409, 'มีคนแก้รายการนี้ไปก่อนแล้ว โหลดใหม่แล้วแก้อีกครั้ง') }
+const conflict = (): never => { throw new HttpError(409, 'มีคนบันทึกรายการนี้ไปก่อนแล้ว กดโหลดใหม่แล้วแก้อีกครั้ง') }
 const ok = <T>(r: T | 'conflict'): T => (r === 'conflict' ? conflict() : r)
 async function currentTaxonomy(db: Db): Promise<Taxonomy> {
   const it = await db.kbGet('taxonomy', 'taxonomy')

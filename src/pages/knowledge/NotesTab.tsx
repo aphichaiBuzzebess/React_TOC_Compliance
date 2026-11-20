@@ -161,7 +161,7 @@ export default function NotesTab({ notes, taxonomy, admin, reload, initial, onSe
           </div>
         ) : (
           <form className="flex flex-col gap-4 p-6" onSubmit={(e) => { e.preventDefault(); void save() }}>
-            <span className="font-mono text-[13px] text-brand-text">{sel === 'new' ? 'note ใหม่ (path จะถูกสร้างให้ตอนบันทึก และเปลี่ยนไม่ได้)' : current?.path}</span>
+            <span className="font-mono text-[13px] text-brand-text">{sel === 'new' ? 'note ใหม่ ระบบจะตั้ง path ให้ตอนบันทึก และเปลี่ยนทีหลังไม่ได้' : current?.path}</span>
             <label className="flex flex-col gap-1 text-sm"><span className="font-medium">ชื่อ</span>
               <input value={form.title} maxLength={120} onChange={(e) => setForm({ ...form, title: e.target.value })} className={`${INPUT} h-11`} />
             </label>
@@ -177,19 +177,19 @@ export default function NotesTab({ notes, taxonomy, admin, reload, initial, onSe
                   {SUPPORTS.map((s) => <option key={s} value={s}>{s} · {SUPPORT_HINT[s]}</option>)}
                 </select>
               </label>
-              <label className="flex min-w-48 flex-1 flex-col gap-1 text-sm"><span className="font-medium">Module <span className="font-normal text-muted">(ว่าง = ชื่อ service)</span></span>
+              <label className="flex min-w-48 flex-1 flex-col gap-1 text-sm"><span className="font-medium">Module <span className="font-normal text-muted">(เว้นว่างจะใช้ชื่อ service)</span></span>
                 <input value={form.module} maxLength={60} onChange={(e) => setForm({ ...form, module: e.target.value })} className={`${INPUT} h-11`} />
               </label>
             </div>
             <fieldset className="m-0 flex flex-wrap gap-x-5 border-0 p-0">
-              <legend className="mb-1 p-0 text-sm font-medium">ใช้เฉพาะ zone <span className="font-normal text-muted">(ไม่เลือก = ทุก zone)</span></legend>
+              <legend className="mb-1 p-0 text-sm font-medium">ใช้เฉพาะ zone <span className="font-normal text-muted">(ไม่เลือกเลย = ใช้ได้ทุก zone)</span></legend>
               {[...activeZones(taxonomy), ...taxonomy.zones.filter((z) => z.archived && form.zones.includes(z.id))].map((z) => (
                 <label key={z.id} className="flex min-h-11 items-center gap-2 text-sm">
                   <input type="checkbox" checked={form.zones.includes(z.id)} onChange={(e) => setForm({ ...form, zones: e.target.checked ? [...form.zones, z.id] : form.zones.filter((x) => x !== z.id) })} className="size-5" />{z.label}
                 </label>
               ))}
             </fieldset>
-            {noService && <p className="m-0 text-xs text-muted">ไม่มี service: note นี้จะไม่ถูกใช้ตอนประเมินตาม zone/service</p>}
+            {noService && <p className="m-0 text-xs text-muted">note ที่ไม่ระบุ service จะไม่ถูกดึงมาใช้ตอนประเมิน</p>}
             <label className="flex flex-col gap-1 text-sm"><span className="font-medium">เนื้อหา <span className="font-normal text-muted">({form.body.length.toLocaleString()} / 20,000)</span></span>
               <textarea rows={14} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} className={`${INPUT} py-2 leading-6`} />
             </label>
@@ -198,7 +198,7 @@ export default function NotesTab({ notes, taxonomy, admin, reload, initial, onSe
               {dirty && <span className="text-xs text-muted">ยังไม่ได้บันทึก</span>}
               {current && !asking && <Button variant="ghost" onClick={() => setAsking(true)}>ลบ note นี้</Button>}
               {asking && (
-                <span role="alert" className="flex flex-wrap items-center gap-2 text-sm">ลบ note นี้? (เวอร์ชันเดิมยังกู้ได้)
+                <span role="alert" className="flex flex-wrap items-center gap-2 text-sm">ลบ note นี้ไหม? ยังกู้เวอร์ชันเดิมได้ภายหลัง
                   <Button variant="danger" onClick={remove}>ลบเลย</Button>
                   <Button variant="ghost" onClick={() => setAsking(false)}>ยกเลิก</Button>
                 </span>

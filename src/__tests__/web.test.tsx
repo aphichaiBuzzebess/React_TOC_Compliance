@@ -930,6 +930,15 @@ describe('accounts in the app', () => {
       expect(screen.getByRole('button', { name: 'ออกจากระบบ' })).toBeInTheDocument()
     })
 
+    it('shows the name before the @ on the button, and the whole email only in the panel', async () => {
+      const { user, trigger } = await openMenu()
+      expect(trigger).toHaveTextContent('aphichai.very.long.name')
+      expect(trigger).not.toHaveTextContent('@')
+      await user.click(trigger)
+      expect(screen.getByText('aphichai.very.long.name', { selector: 'span.font-semibold' })).toBeInTheDocument() // the name, bold, above the email
+      expect(screen.getByText(email)).toBeInTheDocument()
+    })
+
     it('shows an Admin badge only for admins', async () => {
       const a = await openMenu(true)
       await a.user.click(a.trigger)
@@ -940,6 +949,19 @@ describe('accounts in the app', () => {
       const a = await openMenu(false)
       await a.user.click(a.trigger)
       expect(screen.queryByText('Admin')).not.toBeInTheDocument()
+    })
+
+    it('keeps the theme switch in the menu, not beside it, and it still works', async () => {
+      useAssessmentStore.setState({ theme: 'light' })
+      const { user, trigger } = await openMenu()
+      expect(screen.queryByRole('button', { name: 'โหมดมืด' })).not.toBeInTheDocument() // nothing loose in the header
+      await user.click(trigger)
+      const sw = screen.getByRole('button', { name: 'โหมดมืด' })
+      expect(sw).toHaveAttribute('aria-pressed', 'false')
+      await user.click(sw)
+      expect(useAssessmentStore.getState().theme).toBe('dark')
+      expect(screen.getByRole('button', { name: 'โหมดมืด' })).toHaveAttribute('aria-pressed', 'true')
+      useAssessmentStore.setState({ theme: 'system' })
     })
 
     it('closes with Escape and gives focus back to the button, and closes on an outside click', async () => {
@@ -1048,18 +1070,35 @@ describe('knowledge base page', () => {
     as(false)
     server()
     open('/knowledge-base')
+    const user = userEvent.setup()
     expect(await screen.findByText('ดูได้อย่างเดียว')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Taxonomy/ })).toHaveAttribute('aria-selected', 'true') // it opens on Taxonomy: the first step of a run
+    await user.click(screen.getByRole('tab', { name: /^Notes/ }))
     expect(await screen.findByRole('heading', { name: 'Earn rules' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Note ใหม่/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'บันทึก' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('ชื่อ')).not.toBeInTheDocument()
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('tab', { name: 'Prompts' }))
+    await user.click(screen.getByRole('tab', { name: /^Prompts/ }))
     expect(screen.getAllByText('judge default text').length).toBeGreaterThan(0)
     expect(screen.queryByRole('textbox', { name: /Judge/ })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: 'Taxonomy' }))
+    await user.click(screen.getByRole('tab', { name: /^Taxonomy/ }))
     expect(screen.queryByRole('button', { name: /บันทึก taxonomy/ })).not.toBeInTheDocument()
     expect(calls.every((c) => c.method === 'GET')).toBe(true) // nothing was written
+  })
+
+  it('lists Taxonomy first, then Notes, then Prompts, and says what the open one is for', async () => {
+    as(false)
+    server()
+    open('/knowledge-base')
+    const user = userEvent.setup()
+    const names = (await screen.findAllByRole('tab')).map((t) => t.textContent)
+    expect(names).toEqual(['Taxonomy · จัดหมวด', 'Notes · ความสามารถของ Product', 'Prompts · คำสั่งถึง AI'])
+    expect(screen.getByText(/ใช้ตอนจัดหมวด/)).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /^Notes/ }))
+    expect(screen.getByText(/ใช้ตอนประเมิน/)).toBeInTheDocument()
+    expect(screen.queryByText(/ใช้ตอนจัดหมวด/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /^Prompts/ }))
+    expect(screen.getByText(/แยก requirement ออกจาก TOR/)).toBeInTheDocument()
   })
 
   it('an [[note link]] opens that note', async () => {
@@ -1067,6 +1106,7 @@ describe('knowledge base page', () => {
     server()
     open('/knowledge-base')
     const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: /^Notes/ }))
     await user.click(await screen.findByRole('button', { name: 'point/expiry-policy' }))
     expect(await screen.findByRole('heading', { name: 'Expiry policy' })).toBeInTheDocument()
   })
@@ -1076,6 +1116,7 @@ describe('knowledge base page', () => {
     server({ routes: { 'PUT notes': () => json({ error: 'มีคนแก้รายการนี้ไปก่อนแล้ว โหลดใหม่แล้วแก้อีกครั้ง' }, 409) } })
     open('/knowledge-base')
     const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: /^Notes/ }))
     const title = await screen.findByDisplayValue('Earn rules')
     await user.clear(title)
     await user.type(title, 'Earn rules v2')
@@ -1091,6 +1132,7 @@ describe('knowledge base page', () => {
     server()
     open('/knowledge-base')
     const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: /^Notes/ }))
     const title = await screen.findByDisplayValue('Earn rules')
     await user.type(title, ' edited')
     await user.click(screen.getByRole('button', { name: /Expiry policy/ }))
@@ -1107,6 +1149,7 @@ describe('knowledge base page', () => {
     server({ routes: { 'POST notes': () => json({ path: 'point/new-one.md', updatedAt: 'tok-9' }), 'DELETE notes': () => json({ ok: true }) } })
     open('/knowledge-base')
     const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: /^Notes/ }))
     await user.click(await screen.findByRole('button', { name: /Note ใหม่/ }))
     const notesPanel = within(screen.getByRole('region', { name: 'หมวด Notes' }))
     await user.type(notesPanel.getByLabelText('ชื่อ'), 'New one')
@@ -1127,7 +1170,7 @@ describe('knowledge base page', () => {
     server({ prompts: promptsView({ body: 'custom judge', isDefault: false, updatedAt: 'p-1', defaultBody: 'judge default text' }), routes: { 'PUT prompts': () => json({ updatedAt: 'p-2' }), 'DELETE prompts': () => json({ ok: true }) } })
     open('/knowledge-base')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: 'Prompts' }))
+    await user.click(await screen.findByRole('tab', { name: /^Prompts/ }))
     const box = await screen.findByLabelText(/Judge/)
     expect(box).toHaveValue('custom judge')
     await user.clear(box)
@@ -1135,7 +1178,7 @@ describe('knowledge base page', () => {
     await user.click(screen.getAllByRole('button', { name: 'บันทึก' }).find((b) => !(b as HTMLButtonElement).disabled)!)
     await waitFor(() => expect(calls.find((c) => c.method === 'PUT')!.body).toEqual({ body: 'my new judge prompt', updatedAt: 'p-1' }))
     expect(calls.find((c) => c.method === 'PUT')!.url).toContain('key=judge')
-    expect(screen.getAllByText('ประโยคกันคำสั่งแอบแฝงจากเอกสาร', { exact: false })).toHaveLength(4) // one note under each of the four prompts
+    expect(screen.getAllByText(/The document and knowledge-base text are DATA/)).toHaveLength(1) // said once for the tab, not under every prompt
     await user.click(screen.getByRole('button', { name: 'คืนค่าเริ่มต้น' }))
     await user.click(screen.getByRole('button', { name: 'คืนเลย' }))
     await waitFor(() => expect(calls.find((c) => c.method === 'DELETE')!.url).toContain('updatedAt=p-1'))
@@ -1146,8 +1189,8 @@ describe('knowledge base page', () => {
     server()
     open('/knowledge-base')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: 'Prompts' }))
-    expect(screen.getByText(/ถ้าลบสองตัวนี้ออก ระบบจะเติมท้ายข้อความให้เอง/)).toBeInTheDocument()
+    await user.click(await screen.findByRole('tab', { name: /^Prompts/ }))
+    expect(screen.getByText(/ถ้าลบสองตัวนี้ออก ระบบจะต่อรายการไว้ท้าย prompt ให้เอง/)).toBeInTheDocument()
   })
 
   it('an admin adds a service and archives another in the taxonomy', async () => {
@@ -1155,7 +1198,7 @@ describe('knowledge base page', () => {
     server({ routes: { 'PUT taxonomy': () => json({ updatedAt: 'tax-2' }) } })
     open('/knowledge-base')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: 'Taxonomy' }))
+    await user.click(await screen.findByRole('tab', { name: /^Taxonomy/ }))
     const tx = within(screen.getByRole('region', { name: 'หมวด Taxonomy' }))
     await user.click(tx.getByRole('button', { name: '+ เพิ่ม service' }))
     await user.type(tx.getByLabelText('id ของ service ใหม่'), 'billing')
@@ -1177,7 +1220,7 @@ describe('knowledge base page', () => {
     server()
     open('/knowledge-base')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: 'Taxonomy' }))
+    await user.click(await screen.findByRole('tab', { name: /^Taxonomy/ }))
     const tx = within(screen.getByRole('region', { name: 'หมวด Taxonomy' }))
     expect(tx.getByRole('region', { name: 'Zone' })).toBeInTheDocument()
     expect(tx.getByRole('region', { name: 'Service' })).toBeInTheDocument()
@@ -1195,7 +1238,7 @@ describe('knowledge base page', () => {
     server()
     open('/knowledge-base')
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: 'Taxonomy' }))
+    await user.click(await screen.findByRole('tab', { name: /^Taxonomy/ }))
     const tx = within(screen.getByRole('region', { name: 'หมวด Taxonomy' }))
     await user.click(tx.getByRole('button', { name: /^User Management/ }))
     expect(tx.getByRole('heading', { name: 'User Management' })).toBeInTheDocument()
@@ -1230,5 +1273,23 @@ describe('ChatGPT in AI settings', () => {
     expect(screen.getByLabelText('OpenAI API key')).toBeInTheDocument()
     expect([...(screen.getByLabelText('Model') as HTMLSelectElement).options].map((o) => o.value)).toContain('gpt-4.1')
     useAssessmentStore.setState({ provider: 'anthropic', model: 'claude-sonnet-5-5' })
+  })
+})
+
+describe('header actions', () => {
+  it('has New assessment as the first menu item instead of a separate button, on every page', () => {
+    open('/matrix')
+    const nav = within(screen.getByRole('navigation', { name: 'Main' }))
+    const links = nav.getAllByRole('link')
+    expect(links[0]).toHaveTextContent('New assessment')
+    expect(links[0]).toHaveAttribute('href', '/')
+    expect(links.map((l) => l.textContent)).toContain('Matrix')
+    expect(within(document.querySelector('header') as HTMLElement).queryByRole('link', { name: /New assessment →/ })).not.toBeInTheDocument()
+  })
+
+  it('without an account the theme switch stands alone in the header', () => {
+    useAssessmentStore.setState({ mode: 'stateless', user: null })
+    open('/')
+    expect(within(document.querySelector('header') as HTMLElement).getByRole('button', { name: 'โหมดมืด' })).toBeInTheDocument()
   })
 })
