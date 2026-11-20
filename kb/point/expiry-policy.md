@@ -1,6 +1,7 @@
 ---
 title: Point expiry policy
 module: Point
+service: point
 support: full
 updated: 2026-11-18
 ---

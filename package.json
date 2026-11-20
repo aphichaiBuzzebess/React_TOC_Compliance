@@ -8,6 +8,12 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "kb:check": "tsx scripts/kb-check.ts",
+    "db:init": "tsx scripts/db-init.ts",
+    "user:reset": "tsx scripts/user-admin.ts reset",
+    "user:disable": "tsx scripts/user-admin.ts disable",
+    "user:enable": "tsx scripts/user-admin.ts enable",
+    "user:delete": "tsx scripts/user-admin.ts delete",
     "dev:api": "set -a; . ./.env.local; set +a; npx --yes vercel dev --listen 3100 --yes"
   },
   "dependencies": {
@@ -20,6 +26,7 @@
     "lucide-react": "^1.38.0",
     "mammoth": "^1.13.0",
     "motion": "^14.14.0",
+    "pg": "^8.23.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0",
@@ -35,6 +42,7 @@
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.5.2",
     "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

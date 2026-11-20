@@ -4,10 +4,12 @@ import { fit, gapCount } from '@/lib/assessment'
 import { useAssessment } from '@/lib/useAssessment'
 import type { Assessment } from '@/lib/assessment'
 import { Ring } from '@/components/motion'
+import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { Button, Card, PageHeader, StatCard, EmptyState } from '@/components/ui'
 
 function DashboardContent({ a }: { a: Assessment }) {
   const nav = useNavigate()
+  const historyError = useAssessmentStore((s) => s.historyError)
   const kpis = [
     { label: 'Total requirements', value: String(a.total), foot: 'Extracted from TOR' },
     { label: 'Fully supported', value: String(a.counts.full), foot: `${pct(a.counts.full, a.total)} of TOR` },
@@ -18,6 +20,7 @@ function DashboardContent({ a }: { a: Assessment }) {
   return (
     <>
       <PageHeader title="Coverage dashboard" lead="ภาพรวมว่าข้อไหนใน TOR ที่ Product รองรับ ต้องตั้งค่า ต้องพัฒนาเพิ่ม หรือยังตัดสินไม่ได้" action={<Button onClick={() => nav('/matrix')}>Open compliance matrix</Button>} />
+      {historyError && <p role="status" className="m-0 text-sm text-danger">{historyError} (ผลประเมินยังใช้งานได้ตามปกติ)</p>}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         {kpis.map((k, i) => <StatCard key={k.label} {...k} n={i + 1} suffix="reqs" />)}
       </div>

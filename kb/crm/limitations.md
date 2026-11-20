@@ -1,6 +1,7 @@
 ---
 title: CRM limitations
 module: CRM
+service: report-analytic
 support: none
 updated: 2026-11-18
 ---

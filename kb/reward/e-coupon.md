@@ -1,6 +1,7 @@
 ---
 title: E-Coupon
 module: Reward
+service: campaign-management
 support: integ
 updated: 2026-11-18
 ---

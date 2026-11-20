@@ -34,6 +34,23 @@ npm test
 ```
 ไม่มี AI key ฝั่ง server: ผู้ใช้กรอกเองที่หน้า AI settings ถ้าตั้ง `ACCESS_CODE` ใน Vercel env ทุก endpoint จะต้องใช้รหัสนี้ (ไม่ตั้ง = เปิดให้ทุกคน)
 
+## Accounts, saved key and history (optional)
+ตั้ง `DATABASE_URL` แล้วเว็บจะเปิดระบบบัญชี: ล็อกอินด้วยชื่อผู้ใช้ + รหัสผ่าน, บันทึก AI key ของตัวเองบน server แบบเข้ารหัส (ไม่ส่งกลับมาที่เบราว์เซอร์ เห็นแค่ 4 ตัวท้าย) และเก็บประวัติผลประเมินล่าสุด 50 รายการต่อคน (เห็นเฉพาะเจ้าของ) ถ้าไม่ตั้ง เว็บทำงานแบบเดิมทุกอย่าง
+
+ตั้งค่าครั้งแรก
+1. เพิ่ม Postgres จาก Vercel Marketplace (เช่น Neon) ให้โปรเจค จะได้ `DATABASE_URL` ใน env ให้เอง (preview ควรใช้ database แยก ไม่ชี้ไปตัวจริง)
+2. ตั้ง `KEY_ENCRYPTION_SECRET` (`openssl rand -base64 32`) และ `ACCESS_CODE` (รหัสทีมที่ใช้สมัคร) ใน Vercel env ถ้าไม่ตั้ง `ACCESS_CODE` จะสมัครไม่ได้บน Vercel
+3. รัน `DATABASE_URL=… npm run db:init` หนึ่งครั้งเพื่อสร้างตาราง
+
+ดูแลผู้ใช้ (ต้องมี `DATABASE_URL`)
+```bash
+npm run user:reset -- <username>     # ออกรหัสผ่านชั่วคราว และเตะทุก session ของคนนั้น (เขาเปลี่ยนรหัสเองได้หลังล็อกอิน)
+npm run user:disable -- <username>   # ปิดบัญชี (enable เปิดคืน)
+npm run user:delete -- <username>    # ลบบัญชีพร้อม key และประวัติ
+```
+- ต้องการปิดไม่ให้คนใหม่สมัคร: เปลี่ยน `ACCESS_CODE`
+- ทดสอบกับ Postgres จริง: `TEST_DATABASE_URL=postgres://… npx vitest run src/__tests__/db.pg.test.ts`
+
 ## Limits
 - ไฟล์ TOR ≤ 4 MB (เพดาน body ของ Vercel function) ถ้าต้องใหญ่กว่านี้ให้อัปโหลดผ่าน Vercel Blob
 - ผลลัพธ์เก็บใน localStorage ของเบราว์เซอร์ ยังไม่มี database

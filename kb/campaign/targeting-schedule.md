@@ -1,6 +1,7 @@
 ---
 title: Targeting & schedule
 module: Campaign
+service: campaign-management
 support: full
 updated: 2026-11-18
 ---

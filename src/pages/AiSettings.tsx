@@ -15,6 +15,8 @@ export default function AiSettings() {
   const [custom, setCustom] = useState(!prov.models.includes(s.model))
   const [testing, setTesting] = useState(false)
   const [result, setResult] = useState<PingResult | null>(null)
+  const [keyMsg, setKeyMsg] = useState<string | null>(null)
+  const account = s.mode === 'account'
 
   async function test() {
     setTesting(true)
@@ -32,7 +34,7 @@ export default function AiSettings() {
 
   return (
     <>
-      <PageHeader title="AI settings" lead="เลือก AI และโมเดล แล้วใส่ API key ของคุณเอง key ไม่ถูกเก็บ ค่าใช้จ่ายเป็นของบัญชีคุณ" />
+      <PageHeader title="AI settings" lead={account ? 'เลือก AI และโมเดล แล้วบันทึก API key ของคุณ key ถูกเข้ารหัสบน server และไม่แสดงอีก ค่าใช้จ่ายเป็นของบัญชีคุณ' : 'เลือก AI และโมเดล แล้วใส่ API key ของคุณเอง key ไม่ถูกเก็บ ค่าใช้จ่ายเป็นของบัญชีคุณ'} />
       <Card title="Provider and model">
         <div className="flex flex-col gap-5 p-6">
           {s.serverDefault && (
@@ -62,20 +64,36 @@ export default function AiSettings() {
           <div className="flex flex-col gap-2">
             <label htmlFor="apiKey" className="font-medium">{prov.keyLabel}</label>
             <input id="apiKey" type="password" autoComplete="off" spellCheck={false} placeholder="วาง key ของคุณ" value={s.apiKey} onChange={(e) => s.setApiKey(e.target.value)} className={INPUT} />
-            <span className="text-xs text-muted">Key ไม่ถูกบันทึก อยู่ในหน้านี้เท่านั้นและหายเมื่อรีเฟรช ส่งไปที่ server เฉพาะตอนเรียก AI แต่ละครั้ง ค่าใช้จ่ายเป็นของบัญชีคุณ</span>
+            {account ? (
+              <>
+                {s.storedKey && (
+                  <p role="status" className="m-0 flex flex-wrap items-center gap-3 text-sm">
+                    บันทึกไว้แล้ว: {AI_PROVIDERS.find((p) => p.id === s.storedKey?.provider)?.label} · {s.storedKey.model} · <span aria-label={`ลงท้ายด้วย ${s.storedKey.last4}`}>••••{s.storedKey.last4}</span>
+                    <Button variant="danger" onClick={() => void s.removeKey()}>ลบ key ที่บันทึก</Button>
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button disabled={!s.apiKey || !s.model} onClick={async () => setKeyMsg((await s.saveKey(s.apiKey)) ?? 'บันทึกแล้ว')}>{s.storedKey ? 'เปลี่ยน key ที่บันทึก' : 'บันทึก key'}</Button>
+                  {keyMsg && <span role="status" className="text-sm text-muted">{keyMsg}</span>}
+                </div>
+                <span className="text-xs text-muted">key ถูกส่งไปบันทึกครั้งเดียว เข้ารหัสบน server และไม่ถูกส่งกลับมาที่เบราว์เซอร์อีก ใช้ provider และ model ที่เลือกไว้ด้านบน</span>
+              </>
+            ) : (
+              <span className="text-xs text-muted">Key ไม่ถูกบันทึก อยู่ในหน้านี้เท่านั้นและหายเมื่อรีเฟรช ส่งไปที่ server เฉพาะตอนเรียก AI แต่ละครั้ง ค่าใช้จ่ายเป็นของบัญชีคุณ</span>
+            )}
           </div>
 
-          <div className="flex flex-col gap-2">
+          {!account && <div className="flex flex-col gap-2">
             <label htmlFor="access" className="font-medium">Access code <span className="font-normal text-muted">(ถ้าผู้ดูแลระบบกำหนด)</span></label>
             <input id="access" type="password" autoComplete="off" value={s.accessCode} onChange={(e) => s.setAccessCode(e.target.value)} className={INPUT} />
-          </div>
+          </div>}
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="primary" disabled={(!s.apiKey && !s.serverDefault) || !s.model || testing} onClick={test}>{testing ? 'Testing…' : 'Test connection'}</Button>
+            <Button variant="primary" disabled={(!s.apiKey && !s.serverDefault && !s.storedKey) || !s.model || testing} onClick={test}>{testing ? 'Testing…' : 'Test connection'}</Button>
             {result && (
               <span role="status" className={`flex items-center gap-1.5 text-sm ${result.ok ? 'text-success' : 'text-danger'}`}>
                 {result.ok ? <CheckCircle2 aria-hidden size={16} /> : <CircleAlert aria-hidden size={16} />}
-                {result.ok ? `Working · ${s.apiKey ? s.model : s.serverDefault?.model} · ${result.ms} ms` : result.error}
+                {result.ok ? `Working · ${s.apiKey ? s.model : (s.storedKey?.model ?? s.serverDefault?.model)} · ${result.ms} ms` : result.error}
               </span>
             )}
           </div>

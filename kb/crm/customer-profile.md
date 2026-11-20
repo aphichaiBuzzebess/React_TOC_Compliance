@@ -1,6 +1,7 @@
 ---
 title: Customer profile
 module: CRM
+service: user-management
 support: custom
 updated: 2026-11-18
 ---

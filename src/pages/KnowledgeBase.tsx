@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { Button, Card, PageHeader, StatusBadge } from '@/components/ui'
+import { serviceLabel } from '@/data/taxonomy'
 import type { Note } from '../../server/kb'
 
 /** Just enough markdown for the vault: **bold** and [[note links]]. */
@@ -94,7 +95,7 @@ export default function KnowledgeBase() {
                 <div className="flex flex-col gap-2">
                   <span className="font-mono text-[13px] text-brand-text">{note.path}</span>
                   <h2 className="m-0 text-2xl font-medium text-ink">{note.title}</h2>
-                  <div className="flex flex-wrap items-center gap-2"><StatusBadge s={note.support} /><span className="text-xs text-muted">{note.module} · updated {note.updated}</span></div>
+                  <div className="flex flex-wrap items-center gap-2"><StatusBadge s={note.support} /><span className="text-xs text-muted">{note.module}{note.service ? ` · ${serviceLabel(note.service)}` : ''} · updated {note.updated}</span></div>
                 </div>
                 <p className="m-0 whitespace-pre-wrap leading-[1.7]"><Body text={note.body} open={setSel} /></p>
               </div>

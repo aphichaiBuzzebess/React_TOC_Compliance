@@ -2,6 +2,7 @@ import type { SheetData } from 'write-excel-file/browser'
 import { ORDER, STATUS } from '@/data/tor'
 import type { Assessment } from '@/lib/assessment'
 import type { FunctionCoverage } from '@/lib/types'
+import { UNKNOWN, serviceLabel, zoneLabel } from '@/data/taxonomy'
 
 type Validation = 'ok' | 'flag'
 
@@ -17,12 +18,12 @@ export function buildSheets(a: Assessment, coverage: FunctionCoverage[] | null, 
     {
       sheet: 'Compliance matrix',
       data: [
-        head(['ID', 'Module', 'Requirement', 'Status', 'Confidence', 'Agent reasoning', 'Evidence', 'Recommendation', 'PM validation']),
+        head(['ID', 'Module', 'Zone', 'Service', 'ขอ API', 'Requirement', 'Status', 'Confidence', 'Agent reasoning', 'Evidence', 'Recommendation', 'PM validation']),
         ...a.reqs.map((r) =>
-          [r.id, r.module, r.text, STATUS[r.s].label, r.conf, r.reason, r.evidence, r.rec, valid[r.id] ? VALIDATION[valid[r.id]] : 'Not yet validated'].map(wrapped),
+          [r.id, r.module, (r.targets ?? []).map((t) => zoneLabel(t.zone)).join('\n'), (r.targets ?? []).map((t) => (t.service === UNKNOWN ? '-' : serviceLabel(t.service))).join('\n'), r.wantsApi ? 'ขอ API · ถาม Tech' : '', r.text, STATUS[r.s].label, r.conf, r.reason, r.evidence, r.rec, valid[r.id] ? VALIDATION[valid[r.id]] : 'Not yet validated'].map(wrapped),
         ),
       ],
-      columns: [9, 14, 55, 24, 11, 50, 34, 45, 20].map((width) => ({ width })),
+      columns: [9, 14, 24, 26, 16, 55, 24, 11, 50, 34, 45, 20].map((width) => ({ width })),
       stickyRowsCount: 1,
     },
   ]

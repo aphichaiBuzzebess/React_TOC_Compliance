@@ -1,6 +1,8 @@
 // @vitest-environment node
-import { loadKb, parseNote, searchKb } from '../../server/kb'
-import { judge, toBlocks } from '../../server/pipeline'
+import { loadKb, parseNote, retrieveForTargets, searchKb } from '../../server/kb'
+import { classify, judge, toBlocks } from '../../server/pipeline'
+import { cleanTargets } from '../../src/data/taxonomy'
+import { checkKb, checkNote } from '../../server/kbCheck'
 import { checkCoverage, loadTopics } from '../../server/questions'
 import { pingProvider } from '../../server/status'
 import type { Llm } from '../../server/llm'
@@ -113,8 +115,8 @@ describe('per-request AI settings', () => {
     vi.doUnmock('@google/genai')
   })
 
-  it('reads provider, key and model from headers', () => {
-    expect(llmFromRequest(req(ok))).toEqual({ provider: 'gemini', apiKey: 'user-own-key-123456', model: 'gemini-3.8-flash' })
+  it('reads provider, key and model from headers', async () => {
+    await expect(llmFromRequest(req(ok))).resolves.toEqual({ provider: 'gemini', apiKey: 'user-own-key-123456', model: 'gemini-3.8-flash' })
   })
 
   it.each([
@@ -122,13 +124,13 @@ describe('per-request AI settings', () => {
     ['unknown provider', { ...ok, 'x-llm-provider': 'gpt' }, /provider/],
     ['no key', { ...ok, 'x-llm-key': ' ' }, /API key/],
     ['odd model id', { ...ok, 'x-llm-model': '../etc/passwd?x=1' }, /model/],
-  ])('rejects %s', (_n, headers, msg) => {
-    expect(() => llmFromRequest(req(headers))).toThrow(msg)
+  ])('rejects %s', async (_n, headers, msg) => {
+    await expect(llmFromRequest(req(headers))).rejects.toThrow(msg)
   })
 
-  it('does not use any server-side key', () => {
+  it('does not use any server-side key', async () => {
     process.env.ANTHROPIC_API_KEY = 'server-key-should-be-ignored'
-    expect(() => llmFromRequest(req({ 'x-llm-provider': 'anthropic', 'x-llm-model': 'm' }))).toThrow(/API key/)
+    await expect(llmFromRequest(req({ 'x-llm-provider': 'anthropic', 'x-llm-model': 'm' }))).rejects.toThrow(/API key/)
     delete process.env.ANTHROPIC_API_KEY
   })
 
@@ -143,20 +145,20 @@ describe('per-request AI settings', () => {
       for (const k of ['LLM_PROVIDER', 'GEMINI_API_KEY', 'GEMINI_MODEL', 'VERCEL_ENV']) delete process.env[k]
     })
 
-    it('is used when the caller sends no key', () => {
-      expect(llmFromRequest(none())).toEqual({ provider: 'gemini', apiKey: 'operator-key-123456', model: 'gemini-3.6-flash' })
+    it('is used when the caller sends no key', async () => {
+      await expect(llmFromRequest(none())).resolves.toEqual({ provider: 'gemini', apiKey: 'operator-key-123456', model: 'gemini-3.6-flash' })
     })
-    it('falls back to the first listed model when none is configured', () => {
+    it('falls back to the first listed model when none is configured', async () => {
       delete process.env.GEMINI_MODEL
-      expect(llmFromRequest(none()).model).toBe('gemini-3.8-flash')
+      expect((await llmFromRequest(none())).model).toBe('gemini-3.8-flash')
     })
-    it('loses to a key the caller sends', () => {
-      expect(llmFromRequest(req(ok)).apiKey).toBe('user-own-key-123456')
+    it('loses to a key the caller sends', async () => {
+      expect((await llmFromRequest(req(ok))).apiKey).toBe('user-own-key-123456')
     })
-    it('needs LLM_PROVIDER: a bare key in the environment is not used', () => {
+    it('needs LLM_PROVIDER: a bare key in the environment is not used', async () => {
       delete process.env.LLM_PROVIDER
       expect(serverDefault()).toBeNull()
-      expect(() => llmFromRequest(none())).toThrow(/provider/)
+      await expect(llmFromRequest(none())).rejects.toThrow(/provider/)
     })
     it('is ignored on a public production site with no access code, and allowed once there is one', () => {
       process.env.VERCEL_ENV = 'production'
@@ -261,5 +263,132 @@ describe('gemini output handling', () => {
     const { run, generateContent } = await ask([bad, bad, bad])
     await expect(run).rejects.toThrow(/3 tries \(finish reason: MAX_TOKENS\)/)
     expect(generateContent).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('taxonomy targets', () => {
+  it('cleans anything the model or a client sends', () => {
+    expect(cleanTargets(undefined)).toEqual([{ zone: 'unknown', service: 'unknown' }])
+    expect(cleanTargets([{ zone: 'mars', service: 'point' }])).toEqual([{ zone: 'unknown', service: 'point' }])
+    expect(cleanTargets([null, 5, 'x', {}])).toEqual([{ zone: 'unknown', service: 'unknown' }])
+    expect(cleanTargets([{ zone: 'crm-plus', service: 'point' }, { zone: 'crm-plus', service: 'point' }])).toHaveLength(1)
+    expect(cleanTargets([{ zone: 'x', service: 'y' }, { zone: 'app-custom', service: 'unknown' }])).toEqual([{ zone: 'app-custom', service: 'unknown' }])
+    const four = ['internal', 'crm-plus', 'app-standard', 'app-custom'].map((zone) => ({ zone, service: 'point' }))
+    expect(cleanTargets(four)).toHaveLength(3)
+  })
+})
+
+describe('kb service and zone', () => {
+  const kb = loadKb('kb')
+  const fm = (extra: string) => `---\ntitle: a\nmodule: b\nsupport: full\n${extra}\n---\nbody`
+  it('reads service and zone, and drops ids it does not know', () => {
+    expect(parseNote('x.md', fm('service: point\nzone: crm-plus, app-custom'))).toMatchObject({ service: 'point', zone: ['crm-plus', 'app-custom'] })
+    const bad = parseNote('x.md', fm('service: nope\nzone: mars'))!
+    expect(bad.service).toBeUndefined()
+    expect(bad.zone).toBeUndefined()
+  })
+  it('tags every shipped note with a service', () => {
+    expect(kb.every((n) => n.service)).toBe(true)
+  })
+  it('only offers the notes of the requirement\'s service', () => {
+    const { notes } = retrieveForTargets(kb, 'คะแนนหมดอายุ', [{ zone: 'app-custom', service: 'point' }])
+    expect(notes.length).toBeGreaterThan(0)
+    expect(notes.every((n) => n.service === 'point')).toBe(true)
+  })
+  it('keeps a zone-limited note out of other zones, and returns nothing when no note fits', () => {
+    const only = [{ ...kb[0], service: 'point', zone: ['crm-plus'] }]
+    expect(retrieveForTargets(only, kb[0].body, [{ zone: 'app-custom', service: 'point' }]).notes).toEqual([])
+    expect(retrieveForTargets(only, kb[0].body, [{ zone: 'crm-plus', service: 'point' }]).notes).toHaveLength(1)
+    expect(retrieveForTargets(kb, 'anything', [{ zone: 'unknown', service: 'unknown' }]).notes).toEqual([])
+    expect(retrieveForTargets(kb, 'anything', [{ zone: 'app-custom', service: 'unknown' }]).notes).toEqual([])
+  })
+  it('falls back to the whole service pool when the text matches nothing', () => {
+    expect(retrieveForTargets(kb, 'zzzz qqqq', [{ zone: 'app-custom', service: 'point' }]).notes.length).toBeGreaterThan(0)
+  })
+})
+
+describe('classify', () => {
+  const reqs = [
+    { id: 'R-001', module: 'Point', text: 'a' },
+    { id: 'R-002', module: 'X', text: 'b' },
+    { id: 'R-003', module: 'Y', text: 'c' },
+  ]
+  const llm: Llm = async () =>
+    ({
+      items: [
+        { id: 'R-001', targets: [{ zone: 'crm-plus', service: 'campaign-management' }], wantsApi: true },
+        { id: 'R-002', targets: [{ zone: 'mars', service: 'moon' }], wantsApi: 'yes' },
+      ],
+    }) as never
+  it('keeps valid output, turns bad ids into unknown, and defaults a missing item', async () => {
+    const out = await classify(llm, reqs)
+    expect(out[0]).toMatchObject({ targets: [{ zone: 'crm-plus', service: 'campaign-management' }], wantsApi: true })
+    expect(out[1]).toMatchObject({ targets: [{ zone: 'unknown', service: 'unknown' }], wantsApi: false }) // 'yes' is not a boolean
+    expect(out[2]).toMatchObject({ targets: [{ zone: 'unknown', service: 'unknown' }], wantsApi: false })
+  })
+  it('survives a model that returns nothing usable', async () => {
+    const out = await classify((async () => ({})) as never, reqs)
+    expect(out).toHaveLength(3)
+    expect(out[0].wantsApi).toBe(false)
+  })
+})
+
+describe('judge with targets', () => {
+  const kb = loadKb('kb')
+  const say = (verdicts: unknown[]): Llm => (async () => ({ verdicts })) as never
+  it('shows evidence per target', async () => {
+    const llm = say([{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'ok', sources: ['point/expiry-policy.md'], rec: 'use' }])
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'คะแนนหมดอายุ rolling', targets: [{ zone: 'app-custom', service: 'point' }] }], kb)
+    expect(r).toMatchObject({ s: 'full', evidence: 'App project — Custom › Point Service: KB › Point › Point expiry policy', targets: [{ zone: 'app-custom', service: 'point' }] })
+  })
+  it('never lets the model judge an own-system API request, even when a note matches', async () => {
+    const llm = say([{ id: 'R-1', s: 'integ', confidence: 0.95, reason: 'burn api', sources: ['integration/burn-api.md'], rec: 'x' }])
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'ขอ API หักคะแนน', targets: [{ zone: 'app-custom', service: 'point' }], wantsApi: true }], kb)
+    expect(r).toMatchObject({ s: 'verify', conf: '0%', wantsApi: true })
+    expect(r.reason).toContain('ถาม Tech')
+    expect(r.evidence).toContain('Burn API')
+  })
+  it('leaves a checkout-via-API requirement to the KB (integ)', async () => {
+    const llm = say([{ id: 'R-1', s: 'integ', confidence: 0.9, reason: 'burn api', sources: ['integration/burn-api.md'], rec: 'connect' }])
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'checkout ของเว็บหักคะแนนผ่าน API', targets: [{ zone: 'app-custom', service: 'point' }], wantsApi: false }], kb)
+    expect(r.s).toBe('integ')
+  })
+  it('is verify when one target has no note at all, and names it', async () => {
+    const llm = say([{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'ok', sources: ['point/expiry-policy.md'], rec: 'use' }])
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'คะแนนหมดอายุ และส่ง notification', targets: [{ zone: 'app-custom', service: 'point' }, { zone: 'app-custom', service: 'notification' }] }], kb)
+    expect(r.s).toBe('verify')
+    expect(r.reason).toContain('Notification')
+    expect(r.evidence).toContain('Notification: ไม่พบหลักฐานที่ตรงกัน')
+  })
+  it('judges a zone-only target as verify', async () => {
+    const llm = say([{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'ok', sources: [], rec: 'x' }])
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'App', text: 'ทำแอปและเว็บ', targets: [{ zone: 'app-custom', service: 'unknown' }] }], kb)
+    expect(r.s).toBe('verify')
+  })
+})
+
+describe('adding knowledge', () => {
+  const note = (fm: string, body = 'เนื้อหา') => `---\n${fm}\n---\n${body}`
+  it('accepts a note with only title, a readable service name and support', () => {
+    const n = parseNote('x.md', note('title: a\nservice: point service\nsupport: full'))!
+    expect(n).toMatchObject({ service: 'point', module: 'Point Service', updated: '' })
+  })
+  it('accepts zone written as its label', () => {
+    expect(parseNote('x.md', note('title: a\nservice: Point Service\nsupport: full\nzone: CRM+ module, mars'))!.zone).toEqual(['crm-plus'])
+  })
+  it('does not treat the template or other _ files as notes', () => {
+    expect(loadKb('kb').some((n) => n.path.includes('_template'))).toBe(false)
+  })
+  it('says what is wrong with a note, in words', () => {
+    expect(checkNote('no frontmatter')[0]).toContain('frontmatter')
+    const typo = checkNote(note('title: a\nservice: Point Servce\nsupport: ful'))
+    expect(typo.join('|')).toContain('support ต้องเป็น')
+    expect(typo.join('|')).toContain('ใกล้เคียง "Point Service"')
+    expect(checkNote(note('title: a\nsupport: full'))[0]).toContain('ไม่มี service')
+    expect(checkNote(note('title: a\nservice: point\nsupport: full', ''))).toEqual(['เนื้อหาว่าง'])
+    expect(checkNote(note('title: a\nservice: point\nsupport: full\nzone: mars'))[0]).toContain('zone "mars"')
+  })
+  it('the shipped knowledge base has no problems', () => {
+    expect(checkKb('kb')).toEqual([])
   })
 })

@@ -5,9 +5,14 @@ import { ORDER, STATUS } from '@/data/tor'
 import { useAssessment } from '@/lib/useAssessment'
 import { exportXlsx } from '@/lib/exportXlsx'
 import type { Assessment } from '@/lib/assessment'
+import type { Req } from '@/lib/types'
+import { SERVICES, UNKNOWN, ZONES, serviceLabel, zoneLabel } from '@/data/taxonomy'
 import { Button, PageHeader, StatusBadge, EmptyState, metaLabel } from '@/components/ui'
 
 const LEAD = 'ทุกข้อของ TOR พร้อมเหตุผลและหลักฐาน กดแถวเพื่อดูรายละเอียดทางขวา (หรือใช้ปุ่มลูกศรขึ้น/ลง) แล้วยืนยันผลทีละข้อ'
+const API_TAG = 'ขอ API · ถาม Tech'
+/** "Zone › Service" per target, e.g. "App project — Custom › Point Service". Empty for results saved before zones existed. */
+const targetNames = (r: Req) => (r.targets ?? []).map((t) => (t.service === UNKNOWN ? zoneLabel(t.zone) : `${zoneLabel(t.zone)} › ${serviceLabel(t.service)}`))
 const TH = `border-b border-line bg-tint px-4 py-3 text-left ${metaLabel}`
 
 /** Square 44px icon button used in the detail header. */
@@ -25,6 +30,9 @@ function IconButton({ label, className = '', ...p }: { label: string } & React.B
 function MatrixContent({ a }: { a: Assessment }) {
   const { filter, query, selId, valid, coverage, customer, setFilter, setQuery, select, validate } = useAssessmentStore()
   const [moduleFilter, setModuleFilter] = useState('all')
+  const [zoneFilter, setZoneFilter] = useState('all')
+  const [serviceFilter, setServiceFilter] = useState('all')
+  const [apiOnly, setApiOnly] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false) // only matters below lg, where the detail is a bottom sheet
   const [exportError, setExportError] = useState<string | null>(null)
   const body = useRef<HTMLTableSectionElement>(null)
@@ -32,11 +40,13 @@ function MatrixContent({ a }: { a: Assessment }) {
 
   const q = query.trim().toLowerCase()
   const rows = a.reqs.filter(
-    (r) => (filter === 'all' || r.s === filter) && (moduleFilter === 'all' || r.module === moduleFilter) && (!q || `${r.id} ${r.text} ${r.module}`.toLowerCase().includes(q)),
+    (r) => (filter === 'all' || r.s === filter) && (moduleFilter === 'all' || r.module === moduleFilter) && (zoneFilter === 'all' || !!r.targets?.some((t) => t.zone === zoneFilter)) && (serviceFilter === 'all' || !!r.targets?.some((t) => t.service === serviceFilter)) && (!apiOnly || r.wantsApi === true) && (!q || `${r.id} ${r.text} ${r.module}`.toLowerCase().includes(q)),
   )
   const chips = [{ key: 'all' as const, label: 'All', count: a.total }, ...ORDER.map((k) => ({ key: k, label: STATUS[k].label, count: a.counts[k] }))]
   const modules = [...new Set(a.reqs.map((r) => r.module))]
-  const filtering = filter !== 'all' || moduleFilter !== 'all' || q !== ''
+  const hasTargets = a.reqs.some((r) => r.targets)
+  const apiCount = a.reqs.filter((r) => r.wantsApi).length
+  const filtering = filter !== 'all' || moduleFilter !== 'all' || zoneFilter !== 'all' || serviceFilter !== 'all' || apiOnly || q !== ''
 
   const sel = a.reqs.find((r) => r.id === selId) ?? rows[0]
   const idx = sel ? rows.findIndex((r) => r.id === sel.id) : -1
@@ -69,6 +79,9 @@ function MatrixContent({ a }: { a: Assessment }) {
     setFilter('all')
     setQuery('')
     setModuleFilter('all')
+    setZoneFilter('all')
+    setServiceFilter('all')
+    setApiOnly(false)
   }
   async function doExport() {
     setExportError(null)
@@ -111,6 +124,22 @@ function MatrixContent({ a }: { a: Assessment }) {
             <option value="all">All modules</option>
             {modules.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
+          {hasTargets && (
+            <>
+              <label htmlFor="zone" className="sr-only">Zone</label>
+              <select id="zone" value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-surface text-sm">
+                <option value="all">All zones</option>
+                {ZONES.map((z) => <option key={z.id} value={z.id}>{z.label}</option>)}
+                <option value={UNKNOWN}>ไม่ทราบ zone</option>
+              </select>
+              <label htmlFor="svc" className="sr-only">Service</label>
+              <select id="svc" value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-surface text-sm">
+                <option value="all">All services</option>
+                {SERVICES.map((sv) => <option key={sv.id} value={sv.id}>{sv.label}</option>)}
+                <option value={UNKNOWN}>ไม่ระบุ service</option>
+              </select>
+            </>
+          )}
           {filtering && <Button variant="ghost" onClick={clear}>ล้างตัวกรอง</Button>}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -129,6 +158,13 @@ function MatrixContent({ a }: { a: Assessment }) {
             )
           })}
         </div>
+        {apiCount > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" aria-pressed={apiOnly} onClick={() => setApiOnly(!apiOnly)} className={`min-h-11 rounded-full border px-4 text-[13px] transition-colors ${apiOnly ? 'border-ink bg-ink font-medium text-inverse' : 'border-line-strong bg-surface hover:border-ink'}`}>
+              {API_TAG} · {apiCount}
+            </button>
+          </div>
+        )}
         <p className="m-0 text-xs text-muted" aria-live="polite">
           แสดง {rows.length} จาก {a.total} ข้อ · ยืนยันแล้ว {confirmed} · ติดธง {flagged} · ยังไม่ตรวจ {a.total - confirmed - flagged}
         </p>
@@ -179,6 +215,8 @@ function MatrixContent({ a }: { a: Assessment }) {
                       <p className="m-0 leading-7 text-ink wrap-anywhere">{r.text}</p>
                       <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                         <span>{r.module}</span>
+                        {targetNames(r).map((n) => <span key={n}>{n}</span>)}
+                        {r.wantsApi && <span className="font-medium text-danger">{API_TAG}</span>}
                         <span className="flex items-center gap-2 xl:hidden"><StatusBadge s={r.s} /><span className="tabular-nums">{r.conf}</span></span>
                         {state && <span className={state === 'ok' ? 'font-medium text-success' : 'font-medium text-danger'}>{state === 'ok' ? '✓ ยืนยันแล้ว' : '⚑ ติดธง'}</span>}
                       </p>
@@ -225,6 +263,15 @@ function MatrixContent({ a }: { a: Assessment }) {
                   <div className="flex flex-wrap items-center gap-2"><StatusBadge s={sel.s} /><span className="text-xs text-muted">Confidence {sel.conf}</span></div>
                   <p className="m-0 text-xs leading-5 text-muted">{STATUS[sel.s].hint}</p>
                 </div>
+                {(sel.targets || sel.wantsApi) && (
+                  <section className="flex flex-col gap-1.5">
+                    <h2 className={`m-0 text-xs ${metaLabel}`}>Zone and service</h2>
+                    <ul className="m-0 flex list-none flex-col gap-1 p-0 text-[13px] leading-6">
+                      {targetNames(sel).map((n) => <li key={n}>{n}</li>)}
+                    </ul>
+                    {sel.wantsApi && <p className="m-0 text-[13px] font-medium text-danger">{API_TAG}: ลูกค้าสร้างระบบเอง ต้องให้ Tech ตัดสินก่อนสรุปผล</p>}
+                  </section>
+                )}
                 <section className="flex flex-col gap-1.5">
                   <h2 className={`m-0 text-xs ${metaLabel}`}>Agent reasoning</h2>
                   <p className="m-0 leading-7 wrap-anywhere">{sel.reason}</p>

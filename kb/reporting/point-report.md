@@ -1,6 +1,7 @@
 ---
 title: Point report
 module: Reporting
+service: report-analytic
 support: config
 updated: 2026-11-18
 ---

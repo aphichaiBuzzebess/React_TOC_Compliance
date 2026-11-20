@@ -1,6 +1,7 @@
 ---
 title: Multi-brand profile
 module: Member
+service: user-management
 support: custom
 updated: 2026-11-18
 ---

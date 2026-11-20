@@ -1,6 +1,7 @@
 ---
 title: Accounting export
 module: Integration
+service: point
 support: integ
 updated: 2026-11-18
 ---

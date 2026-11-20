@@ -3,10 +3,12 @@ export interface NavItem { to: string; label: string; short: string; section: st
 /** One list for the top bar and the page eyebrows ("03 / Results"). */
 export const NAV: NavItem[] = [
   { to: '/', short: 'New', label: 'New assessment', section: 'เริ่มประเมิน' },
+  { to: '/review', short: 'Review', label: 'Review zones', section: 'เริ่มประเมิน' },
   { to: '/dashboard', short: 'Dashboard', label: 'Coverage dashboard', section: 'ผลประเมิน' },
   { to: '/matrix', short: 'Matrix', label: 'Compliance matrix', section: 'ผลประเมิน' },
   { to: '/gaps', short: 'Gaps', label: 'Gap & recommendation', section: 'ผลประเมิน' },
   { to: '/questions', short: 'Questions', label: 'Open questions', section: 'คำถามถึงลูกค้า' },
+  { to: '/history', short: 'History', label: 'Review history', section: 'ผลประเมิน' },
   { to: '/summary', short: 'Summary', label: 'Executive summary', section: 'ผลประเมิน' },
   { to: '/knowledge-base', short: 'Knowledge base', label: 'Knowledge base', section: 'อ้างอิง' },
   { to: '/ai-settings', short: 'AI settings', label: 'AI settings', section: 'อ้างอิง' },

@@ -1,6 +1,7 @@
 ---
 title: Earn rules
 module: Point
+service: point
 support: config
 updated: 2026-11-18
 ---

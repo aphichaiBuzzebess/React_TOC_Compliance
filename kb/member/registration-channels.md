@@ -1,6 +1,7 @@
 ---
 title: Registration channels
 module: Member
+service: user-management
 support: full
 updated: 2026-11-18
 ---

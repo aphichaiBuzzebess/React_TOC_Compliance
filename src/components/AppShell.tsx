@@ -15,7 +15,7 @@ import { useResolvedTheme } from '@/lib/theme'
 export default function AppShell({ children }: { children: ReactNode }) {
   const a = useAssessment()
   const { pathname } = useLocation()
-  const { customer, running, startedAt, step } = useAssessmentStore()
+  const { customer, running, startedAt, step, mode, user, signOut } = useAssessmentStore()
   const [hot, setHot] = useState(false) // pointer or keyboard focus on the logo
   const use = useAssessmentStore(activeAi)
   const theme = useResolvedTheme()
@@ -53,6 +53,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
             >
               {theme === 'dark' ? <Sun aria-hidden size={18} /> : <Moon aria-hidden size={18} />}
             </button>
+            {mode === 'account' && user && (
+              <span className="flex items-center gap-1 text-sm text-muted">
+                <span className="max-w-[10rem] truncate" title={user}>{user}</span>
+                <button type="button" onClick={() => void signOut()} className="inline-flex min-h-11 items-center rounded-full border border-transparent bg-transparent px-3 text-sm font-medium text-ink underline-offset-4 hover:underline">ออกจากระบบ</button>
+              </span>
+            )}
             {pathname !== '/' && (
               <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-amber bg-amber px-5 text-sm font-semibold text-on-amber no-underline transition-colors hover:bg-amber-hover ">
                 New assessment <span aria-hidden>→</span>
