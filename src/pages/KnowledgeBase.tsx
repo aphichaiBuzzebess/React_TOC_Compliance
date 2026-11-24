@@ -13,8 +13,8 @@ interface Loaded { status: 'database' | 'defaults'; notes: NoteView[]; taxonomy:
 type TabId = 'taxonomy' | 'notes' | 'prompts'
 // The order follows the run: first requirements are sorted with the taxonomy, then judged with the notes. Prompts steer the AI in each step.
 const TABS: { id: TabId; label: string; about: string }[] = [
-  { id: 'taxonomy', label: 'Taxonomy · จัดหมวด', about: 'ใช้ตอนจัดหมวด: AI อ่าน requirement แต่ละข้อแล้วตัดสินว่าอยู่ solution ไหนของ Buzzebees (เช่น CRM+ หรือ App project) และใช้ service อะไร ถ้ายังไม่มี solution หรือ service ที่ต้องการ ให้เพิ่มที่นี่' },
-  { id: 'notes', label: 'Notes · ความสามารถของ Product', about: 'ใช้ตอนประเมิน: ระบบหา note ของ service นั้น แล้วดูว่า Product ทำข้อนั้นได้ไหม ผลที่ได้คือ ทำได้เลย, ตั้งค่า, ต้องพัฒนาเพิ่ม, ต้องเชื่อมระบบ หรือไม่รองรับ ถ้า service ไหนไม่มี note ข้อที่ตกที่ service นั้นจะขึ้นว่า Need Verification' },
+  { id: 'taxonomy', label: 'Solution & Service · ใช้จัดหมวด', about: 'ใช้ตอนจัดหมวด: AI อ่าน requirement แต่ละข้อแล้วตัดสินว่าอยู่ solution ไหนของ Buzzebees (เช่น CRM+ หรือ App project) และใช้ service อะไร ถ้ายังไม่มี solution หรือ service ที่ต้องการ ให้เพิ่มที่นี่' },
+  { id: 'notes', label: 'Capabilities · สิ่งที่ Product ทำได้', about: 'ใช้ตอนประเมิน: ระบบหา note ของ service นั้น แล้วดูว่า Product ทำข้อนั้นได้ไหม ผลที่ได้คือ ทำได้เลย, ตั้งค่า, ต้องพัฒนาเพิ่ม, ต้องเชื่อมระบบ หรือไม่รองรับ ถ้า service ไหนไม่มี note ข้อที่ตกที่ service นั้นจะขึ้นว่า Need Verification' },
   { id: 'prompts', label: 'Prompts · คำสั่งถึง AI', about: 'คำสั่งที่ส่งให้ AI ในแต่ละขั้น: แยก requirement ออกจาก TOR, จัดหมวด, ประเมิน และตรวจว่า TOR ตอบคำถามของ BA ครบหรือยัง' },
 ]
 
@@ -60,7 +60,7 @@ export default function KnowledgeBase() {
 
   return (
     <>
-      <PageHeader title="Product knowledge base" lead="ระบบประเมิน TOR ทีละขั้น: จัดหมวด requirement ด้วย taxonomy แล้วตัดสินแต่ละข้อด้วย note ส่วน prompt คือคำสั่งที่ส่งให้ AI ในแต่ละขั้น" />
+      <PageHeader title="Product knowledge base" lead="ระบบประเมิน TOR ทีละขั้น: จัดหมวด requirement ด้วย Solution และ Service แล้วตัดสินแต่ละข้อด้วยสิ่งที่ Product ทำได้ (note) ส่วน prompt คือคำสั่งที่ส่งให้ AI ในแต่ละขั้น" />
       {/* The shell puts 40px between siblings; the banners, tabs and panel belong together, so they get one tighter column. */}
       <div className="flex flex-col gap-5">
       {error && <p role="alert" className="m-0 text-danger">{error} <Button variant="ghost" onClick={() => void load()}>ลองใหม่</Button></p>}
