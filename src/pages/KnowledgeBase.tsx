@@ -13,7 +13,7 @@ interface Loaded { status: 'database' | 'defaults'; notes: NoteView[]; taxonomy:
 type TabId = 'taxonomy' | 'notes' | 'prompts'
 // The order follows the run: first requirements are sorted with the taxonomy, then judged with the notes. Prompts steer the AI in each step.
 const TABS: { id: TabId; label: string; about: string }[] = [
-  { id: 'taxonomy', label: 'Taxonomy · จัดหมวด', about: 'ใช้ตอนจัดหมวด: AI อ่าน requirement แต่ละข้อแล้วตัดสินว่าอยู่ zone ไหนของ Buzzebees (เช่น CRM+ หรือ App project) และใช้ service อะไร ถ้ายังไม่มี zone หรือ service ที่ต้องการ ให้เพิ่มที่นี่' },
+  { id: 'taxonomy', label: 'Taxonomy · จัดหมวด', about: 'ใช้ตอนจัดหมวด: AI อ่าน requirement แต่ละข้อแล้วตัดสินว่าอยู่ solution type ไหนของ Buzzebees (เช่น CRM+ หรือ App project) และใช้ service อะไร ถ้ายังไม่มี solution type หรือ service ที่ต้องการ ให้เพิ่มที่นี่' },
   { id: 'notes', label: 'Notes · ความสามารถของ Product', about: 'ใช้ตอนประเมิน: ระบบหา note ของ service นั้น แล้วดูว่า Product ทำข้อนั้นได้ไหม ผลที่ได้คือ ทำได้เลย, ตั้งค่า, ต้องพัฒนาเพิ่ม, ต้องเชื่อมระบบ หรือไม่รองรับ ถ้า service ไหนไม่มี note ข้อที่ตกที่ service นั้นจะขึ้นว่า Need Verification' },
   { id: 'prompts', label: 'Prompts · คำสั่งถึง AI', about: 'คำสั่งที่ส่งให้ AI ในแต่ละขั้น: แยก requirement ออกจาก TOR, จัดหมวด, ประเมิน และตรวจว่า TOR ตอบคำถามของ BA ครบหรือยัง' },
 ]

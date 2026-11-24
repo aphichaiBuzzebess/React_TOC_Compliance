@@ -82,7 +82,7 @@ export default function NewAssessment() {
   // A text-only AI (DeepSeek, BytePlus) cannot read so a PDF or an image cannot go through it: say so before the run, not after a failed request.
   const unreadable = ai?.textOnly ? files.find((f) => /\.(pdf|png|jpe?g|webp|gif)$/i.test(f.name)) : undefined
   const blocker = done || running ? null : !aiReady && !hasFiles ? 'ใส่ AI key และเลือกไฟล์ TOR ก่อน' : !aiReady ? 'ใส่ AI key ก่อน' : !hasFiles ? 'เลือกไฟล์ TOR ก่อน' : unreadable ? `${ai?.label} อ่าน ${unreadable.name} ไม่ได้ ใช้ DOCX หรือ XLSX หรือเปลี่ยน AI` : null
-  const runNote = done ? `เสร็จแล้ว · ${result?.length ?? 0} ข้อ` : pending && !running ? 'จัด zone แล้ว รอตรวจก่อนประเมิน' : running ? 'กำลังทำงาน ดูความคืบหน้าด้านล่าง' : (blocker ?? 'พร้อมแล้ว')
+  const runNote = done ? `เสร็จแล้ว · ${result?.length ?? 0} ข้อ` : pending && !running ? 'จัด solution type แล้ว รอตรวจก่อนประเมิน' : running ? 'กำลังทำงาน ดูความคืบหน้าด้านล่าง' : (blocker ?? 'พร้อมแล้ว')
   // Steps in order; the first one not yet done is the current one.
   const flags = [aiReady, hasFiles, done]
   const current = flags.findIndex((f) => !f)
@@ -190,7 +190,7 @@ export default function NewAssessment() {
                   <span id={blocker ? 'run-hint' : undefined} className="text-sm text-muted">{runNote}</span>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {pending && !running && !done && <Button variant="primary" arrow onClick={() => nav('/review')}>Review zones</Button>}
+                  {pending && !running && !done && <Button variant="primary" arrow onClick={() => nav('/review')}>Review solution types</Button>}
                   {!done && !(pending && !running) && <Button variant="primary" arrow disabled={running || !hasFiles || !aiReady || !!unreadable} aria-describedby={blocker ? 'run-hint' : undefined} onClick={start}>{running ? 'Assessing…' : 'Run assessment'}</Button>}
                   {done && (
                     <>

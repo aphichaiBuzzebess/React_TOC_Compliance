@@ -100,18 +100,18 @@ export default function TaxonomyTab({ taxonomy, updatedAt, admin, reload, noteCo
       <div className="flex flex-wrap items-start gap-6">
         <Card className="flex-[1_1_280px]">
           <div className="flex max-h-96 flex-col gap-4 overflow-y-auto p-4 lg:max-h-[70vh] [&>*]:shrink-0">
-            {renderList('zone', 'Zone')}
+            {renderList('zone', 'Solution type')}
             {renderList('service', 'Service')}
           </div>
         </Card>
 
         <Card className="min-w-0 flex-[999_1_480px]">
           {!sel || !current ? (
-            <div className="px-6 py-12 text-center text-muted">เลือก zone หรือ service จากรายการ{admin ? ' หรือเพิ่มใหม่' : ''}</div>
+            <div className="px-6 py-12 text-center text-muted">เลือก solution type หรือ service จากรายการ{admin ? ' หรือเพิ่มใหม่' : ''}</div>
           ) : (
             <div className="flex flex-col gap-4 p-6">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="rounded-full border border-line-strong px-2.5 py-0.5 text-xs text-muted">{sel.kind === 'zone' ? 'Zone' : 'Service'}</span>
+                <span className="rounded-full border border-line-strong px-2.5 py-0.5 text-xs text-muted">{sel.kind === 'zone' ? 'Solution type' : 'Service'}</span>
                 {admin && isNew ? (
                   <>
                     <label className="sr-only" htmlFor="tx-id">id ของ {sel.kind} ใหม่</label>

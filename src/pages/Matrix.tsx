@@ -126,11 +126,11 @@ function MatrixContent({ a }: { a: Assessment }) {
           </select>
           {hasTargets && (
             <>
-              <label htmlFor="zone" className="sr-only">Zone</label>
+              <label htmlFor="zone" className="sr-only">Solution type</label>
               <select id="zone" value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-surface text-sm">
-                <option value="all">All zones</option>
+                <option value="all">All solution types</option>
                 {tx.zones.map((z) => <option key={z.id} value={z.id}>{z.label}</option>)}
-                <option value={UNKNOWN}>ไม่ทราบ zone</option>
+                <option value={UNKNOWN}>ไม่ทราบ solution type</option>
               </select>
               <label htmlFor="svc" className="sr-only">Service</label>
               <select id="svc" value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)} className="h-11 rounded-lg border border-line-strong bg-surface text-sm">
@@ -265,7 +265,7 @@ function MatrixContent({ a }: { a: Assessment }) {
                 </div>
                 {(sel.targets || sel.wantsApi) && (
                   <section className="flex flex-col gap-1.5">
-                    <h2 className={`m-0 text-xs ${metaLabel}`}>Zone and service</h2>
+                    <h2 className={`m-0 text-xs ${metaLabel}`}>Solution type and service</h2>
                     <ul className="m-0 flex list-none flex-col gap-1 p-0 text-[13px] leading-6">
                       {targetNames(sel, tx).map((n) => <li key={n}>{n}</li>)}
                     </ul>

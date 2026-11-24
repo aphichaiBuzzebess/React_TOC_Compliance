@@ -94,7 +94,7 @@ function SummaryContent({ a }: { a: Assessment }) {
             </p>
             <div className="flex flex-col gap-4">
               {sol.zones.map((z) => (
-                <section key={z.zone} aria-label={`Zone ${z.label}`} className="flex flex-col gap-2 rounded-lg border border-line p-4">
+                <section key={z.zone} aria-label={`Solution type ${z.label}`} className="flex flex-col gap-2 rounded-lg border border-line p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <h3 className="m-0 text-base font-semibold text-ink">{z.label}</h3>
                     <span className="text-xs text-muted">{z.total} ข้อ</span>
@@ -109,7 +109,7 @@ function SummaryContent({ a }: { a: Assessment }) {
               <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-sm">
                 {sol.build > 0 && <li>พัฒนาใหม่ {sol.build} ข้อ ไม่มี tool ของ Buzzebees รองรับ ต้องประเมินแรงงานแยก</li>}
                 {sol.api > 0 && <li>ลูกค้าขอ API {sol.api} ข้อ ต้องถาม Tech ว่ายอมให้หรือไม่</li>}
-                {sol.untagged > 0 && <li>{sol.untagged} ข้อยังไม่ได้จัด zone (ผลเก่า) รันประเมินใหม่เพื่อให้รวมในสรุปนี้</li>}
+                {sol.untagged > 0 && <li>{sol.untagged} ข้อยังไม่ได้จัด solution type (ผลเก่า) รันประเมินใหม่เพื่อให้รวมในสรุปนี้</li>}
               </ul>
             )}
           </div>

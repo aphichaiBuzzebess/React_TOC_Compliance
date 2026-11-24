@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { loadKb, parseNote, retrieveForTargets, searchKb } from '../../server/kb'
 import { classify, judge, toBlocks } from '../../server/pipeline'
-import { cleanTargets, DEFAULT_TAXONOMY } from '../../src/data/taxonomy'
+import { activeZones, cleanTargets, DEFAULT_TAXONOMY } from '../../src/data/taxonomy'
 import { DEFAULT_PROMPTS, PROMPT_KEYS, UNTRUSTED, buildSystem } from '../../server/prompts'
 import { openaiLlm } from '../../server/llm-openai'
 import { deepseekLlm } from '../../server/llm-deepseek'
@@ -408,10 +408,10 @@ describe('prompts as data', () => {
   })
   it('puts the zone and service lists in place, or appends them when the editor removed the placeholders', () => {
     const inPlace = buildSystem('classify', 'A\nZones:\n{{zones}}\nmiddle\n{{services}}\nend', tx)
-    expect(inPlace).toMatch(/A\nZones:\n- internal: Internal product/)
+    expect(inPlace).toMatch(/A\nZones:\n- crm-plus: CRM\+ module/)
     expect(inPlace.indexOf('middle')).toBeGreaterThan(inPlace.indexOf('crm-plus'))
     const lost = buildSystem('classify', 'only my instructions', tx)
-    expect(lost).toContain('Zones:\n- internal')
+    expect(lost).toContain('Zones:\n- crm-plus')
     expect(lost).toContain('Services:\n- user-management')
     expect(lost).not.toContain('{{')
   })
@@ -553,7 +553,7 @@ describe('what the TOR needs (roll-up by zone and tool)', () => {
     expect(sol.api).toBe(1)
     expect(sol.untagged).toBe(1)
     expect(sol.total).toBe(7)
-    expect(sol.zones[sol.zones.length - 1]).toMatchObject({ zone: 'unknown', label: 'ยังไม่ระบุ zone' })
+    expect(sol.zones[sol.zones.length - 1]).toMatchObject({ zone: 'unknown', label: 'ยังไม่ระบุ solution type' })
   })
 
   it('has nothing to show for results that never had zones', () => {
@@ -650,5 +650,12 @@ describe('BytePlus ModelArk provider', () => {
     await expect(llmFromRequest(r)).resolves.toEqual(cfg)
     const bad = (async () => ({ ok: false, status: 401, json: async () => ({}) }) as Response) as unknown as typeof fetch
     await expect(byteplusLlm(cfg, bad)({ system: 's', content: [{ type: 'text', text: 'x' }], tool })).rejects.toThrow('401 BytePlus request failed')
+  })
+})
+
+describe('Internal product is archived by default', () => {
+  it('is hidden from the lists but still a valid id, so old results and notes keep working', () => {
+    expect(activeZones().map((z) => z.id)).toEqual(['crm-plus', 'app-standard', 'app-custom'])
+    expect(cleanTargets([{ zone: 'internal', service: 'point' }])).toEqual([{ zone: 'internal', service: 'point' }])
   })
 })

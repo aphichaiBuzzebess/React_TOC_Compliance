@@ -15,7 +15,7 @@ export const CUSTOM_BUILD = 'custom-build'
 export const MAX_TARGETS = 3
 
 export const ZONES: Zone[] = [
-  { id: 'internal', label: 'Internal product', hint: 'Used by Buzzebees staff only (internal tools); looser security.' },
+  { id: 'internal', label: 'Internal product', hint: 'Used by Buzzebees staff only (internal tools); looser security.', archived: true },
   { id: 'crm-plus', label: 'CRM+ module', hint: 'Hub where the customer organisation logs in (AD login) and uses Buzzebees services as modules: User Management, Campaign Management, Report, Analytic. Includes the back office the customer uses to run campaigns themselves with our tool.' },
   { id: 'app-standard', label: 'App project — Standard', hint: 'Out-of-the-box customer app on Buzzebees Login using User Management + Campaign Management (redeem, sell, display customer data).' },
   { id: 'app-custom', label: 'App project — Custom', hint: 'Purpose-built app or web, separate from CRM+, built from Core building blocks (OTP, token auth, Sale Portal behind APIM). Typical for "make us an app and a web".' },
@@ -51,7 +51,7 @@ export const findService = (input: string, tx: Taxonomy = DEFAULT_TAXONOMY) => t
 /** A zone written as its id ("crm-plus") or its label ("CRM+ module"), any case; undefined when unknown. */
 export const findZone = (input: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.zones.find((z) => norm(z.id) === norm(input) || norm(z.label) === norm(input))?.id
 
-export const zoneLabel = (id: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.zones.find((z) => z.id === id)?.label ?? 'ไม่ทราบ zone'
+export const zoneLabel = (id: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.zones.find((z) => z.id === id)?.label ?? 'ไม่ทราบ solution type'
 export const serviceLabel = (id: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.services.find((s) => s.id === id)?.label ?? 'ไม่ทราบ service'
 
 /** Anything -> 1..MAX_TARGETS valid targets. Unknown ids become `unknown`; a fully unknown target is dropped when a better one exists. */

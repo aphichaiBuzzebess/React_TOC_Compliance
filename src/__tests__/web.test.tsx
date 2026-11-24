@@ -625,7 +625,7 @@ describe('zone and service in the matrix', () => {
   it('filters by zone, by service and by the API tag, and clears them', async () => {
     const user = userEvent.setup()
     open('/matrix')
-    await user.selectOptions(screen.getByLabelText('Zone'), 'crm-plus')
+    await user.selectOptions(screen.getByLabelText('Solution type'), 'crm-plus')
     expect(screen.queryByRole('button', { name: 'R-001' })).not.toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Service'), 'report-analytic')
     expect(screen.getByRole('button', { name: 'R-003' })).toBeInTheDocument()
@@ -640,14 +640,14 @@ describe('zone and service in the matrix', () => {
     useAssessmentStore.setState({ result: [mk('R-001', 'full')] })
     open('/matrix')
     expect(screen.getByRole('button', { name: 'R-001' })).toBeInTheDocument()
-    expect(screen.queryByLabelText('Zone')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Solution type')).not.toBeInTheDocument()
   })
 
   it('exports Zone, Service and the API flag', async () => {
     const { buildSheets } = await import('@/lib/exportXlsx')
     const { fromReqs } = await import('@/lib/assessment')
     const rows = buildSheets(fromReqs(data), null, {})[0].data
-    expect((rows[0] as { value: string }[]).slice(2, 5).map((c) => c.value)).toEqual(['Zone', 'Service', 'ขอ API'])
+    expect((rows[0] as { value: string }[]).slice(2, 5).map((c) => c.value)).toEqual(['Solution type', 'Service', 'ขอ API'])
     expect((rows[2] as { value: string }[]).slice(2, 5).map((c) => c.value)).toEqual(['CRM+ module', 'Campaign Management', 'ขอ API · ถาม Tech'])
   })
 })
@@ -667,11 +667,11 @@ describe('review zones page', () => {
   it('shows the zone breakdown, lists unknown first, and warns about them', () => {
     useAssessmentStore.setState({ review: pending })
     open('/review')
-    expect(screen.getByText('TOR นี้ใช้ Buzzebees 3 zone · 3 ข้อ', { exact: false })).toBeInTheDocument()
-    expect(screen.getByRole('list', { name: 'สรุปตาม zone' })).toHaveTextContent('CRM+ module · 1 ข้อ')
-    expect(screen.getByText(/ข้อยังไม่ระบุ zone หรือ service/)).toBeInTheDocument()
+    expect(screen.getByText('TOR นี้ใช้ Buzzebees 3 solution type · 3 ข้อ', { exact: false })).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'สรุปตาม solution type' })).toHaveTextContent('CRM+ module · 1 ข้อ')
+    expect(screen.getByText(/ข้อยังไม่ระบุ solution type หรือ service/)).toBeInTheDocument()
     const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
-    expect(headings[0]).toBe('ไม่ทราบ zone')
+    expect(headings[0]).toBe('ไม่ทราบ solution type')
   })
 
   it('edits zone, service, extra targets (max 3) and the API flag in the store', async () => {
@@ -683,7 +683,7 @@ describe('review zones page', () => {
     // R-003 (unknown) is listed first, so its add button is the first one; it stays first while it is edited
     await user.click(screen.getAllByRole('button', { name: '+ เพิ่ม target' })[0])
     await user.click(screen.getAllByRole('button', { name: '+ เพิ่ม target' })[0])
-    expect(screen.getByLabelText('Zone ของ R-003 ตัวที่ 3')).toBeInTheDocument()
+    expect(screen.getByLabelText('Solution type ของ R-003 ตัวที่ 3')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: '+ เพิ่ม target' })).toHaveLength(2) // R-003 is at the maximum of 3
     await user.click(screen.getAllByRole('checkbox')[0])
     expect(useAssessmentStore.getState().review?.some((r) => r.wantsApi)).toBe(true)
@@ -710,7 +710,7 @@ describe('review zones page', () => {
   it('home points to the review while one is waiting', () => {
     useAssessmentStore.setState({ review: pending, files: [] })
     open('/')
-    expect(screen.getByRole('button', { name: /Review zones/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Review solution types/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Run assessment/ })).not.toBeInTheDocument()
   })
 })
@@ -1223,7 +1223,7 @@ describe('knowledge base page', () => {
     const user = userEvent.setup()
     await user.click(await screen.findByRole('tab', { name: /^Taxonomy/ }))
     const tx = within(screen.getByRole('region', { name: 'หมวด Taxonomy' }))
-    expect(tx.getByRole('region', { name: 'Zone' })).toBeInTheDocument()
+    expect(tx.getByRole('region', { name: 'Solution type' })).toBeInTheDocument()
     expect(tx.getByRole('region', { name: 'Service' })).toBeInTheDocument()
     expect(tx.getByText(/ยืนยันแล้ว · 5/)).toBeInTheDocument() // the four confirmed core services and the new-development bucket
     expect(tx.getByText(/ยังไม่ยืนยัน · 8/)).toBeInTheDocument() // the eight inferred ones
@@ -1312,14 +1312,14 @@ describe('Executive summary: what to build and which tools', () => {
     open('/summary')
     const h = screen.getByRole('heading', { name: /tool ของ Buzzebees ที่ต้องใช้/ })
     expect(h).toBeInTheDocument()
-    const app = screen.getByRole('region', { name: /Zone App project — Custom/ })
+    const app = screen.getByRole('region', { name: /Solution type App project — Custom/ })
     expect(within(app).getByText('User Management')).toBeInTheDocument()
     expect(within(app).getByText(/พัฒนาใหม่ \(ไม่ใช่ tool ของ Buzzebees\)/)).toBeInTheDocument()
     expect(within(app).getByText('ยังไม่ระบุ tool')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: /Zone CRM\+ module/ })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /Solution type CRM\+ module/ })).toBeInTheDocument()
     expect(screen.getByText(/พัฒนาใหม่ 1 ข้อ/)).toBeInTheDocument()
     expect(screen.getByText(/ลูกค้าขอ API 1 ข้อ/)).toBeInTheDocument()
-    expect(screen.getByText(/1 ข้อยังไม่ได้จัด zone/)).toBeInTheDocument()
+    expect(screen.getByText(/1 ข้อยังไม่ได้จัด solution type/)).toBeInTheDocument()
   })
 
   it('leaves the section out for results saved before zones existed', () => {

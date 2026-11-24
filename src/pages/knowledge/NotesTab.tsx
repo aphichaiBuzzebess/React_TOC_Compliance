@@ -182,7 +182,7 @@ export default function NotesTab({ notes, taxonomy, admin, reload, initial, onSe
               </label>
             </div>
             <fieldset className="m-0 flex flex-wrap gap-x-5 border-0 p-0">
-              <legend className="mb-1 p-0 text-sm font-medium">ใช้เฉพาะ zone <span className="font-normal text-muted">(ไม่เลือกเลย = ใช้ได้ทุก zone)</span></legend>
+              <legend className="mb-1 p-0 text-sm font-medium">ใช้เฉพาะ solution type <span className="font-normal text-muted">(ไม่เลือกเลย = ใช้ได้ทุก solution type)</span></legend>
               {[...activeZones(taxonomy), ...taxonomy.zones.filter((z) => z.archived && form.zones.includes(z.id))].map((z) => (
                 <label key={z.id} className="flex min-h-11 items-center gap-2 text-sm">
                   <input type="checkbox" checked={form.zones.includes(z.id)} onChange={(e) => setForm({ ...form, zones: e.target.checked ? [...form.zones, z.id] : form.zones.filter((x) => x !== z.id) })} className="size-5" />{z.label}
