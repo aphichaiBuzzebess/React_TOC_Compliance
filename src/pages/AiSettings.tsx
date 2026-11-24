@@ -58,6 +58,7 @@ export default function AiSettings() {
               {prov.models.map((m) => <option key={m} value={m}>{m}</option>)}
               <option value={CUSTOM}>Custom…</option>
             </select>
+            {s.provider === 'deepseek' && <p className="m-0 text-sm text-muted">DeepSeek อ่านได้เฉพาะข้อความ: ใช้กับไฟล์ DOCX และ XLSX ได้ แต่ PDF และรูปภาพต้องใช้ Claude, Gemini หรือ ChatGPT</p>}
             {custom && <input aria-label="Custom model id" type="text" placeholder="model id" value={s.model} onChange={(e) => s.setModel(e.target.value.trim())} className={INPUT} />}
           </div>
 

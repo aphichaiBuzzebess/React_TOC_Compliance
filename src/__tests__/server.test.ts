@@ -4,13 +4,14 @@ import { classify, judge, toBlocks } from '../../server/pipeline'
 import { cleanTargets, DEFAULT_TAXONOMY } from '../../src/data/taxonomy'
 import { DEFAULT_PROMPTS, PROMPT_KEYS, UNTRUSTED, buildSystem } from '../../server/prompts'
 import { openaiLlm } from '../../server/llm-openai'
+import { deepseekLlm } from '../../server/llm-deepseek'
 import { buildSolution } from '../../src/lib/solution'
 import * as hoop from '../../src/lib/hoop'
 import { AI_PROVIDERS } from '../../src/data/models'
 import { checkKb, checkNote } from '../../server/kbCheck'
 import { checkCoverage, loadTopics } from '../../server/questions'
 import { pingProvider } from '../../server/status'
-import type { Llm } from '../../server/llm'
+import type { Block, Llm } from '../../server/llm'
 import { errorMessage, guard, handle, llmFromRequest, redact, serverDefault } from '../../server/http'
 import { fromReqs } from '@/lib/assessment'
 import type { Req } from '@/lib/types'
@@ -479,7 +480,7 @@ describe('ChatGPT (OpenAI) provider', () => {
     process.env.OPENAI_MODEL = 'gpt-4.1'
     expect(serverDefault()!.model).toBe('gpt-4.1')
     delete process.env.LLM_PROVIDER; delete process.env.OPENAI_API_KEY; delete process.env.OPENAI_MODEL
-    expect(AI_PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'gemini', 'openai'])
+    expect(AI_PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'gemini', 'openai', 'deepseek'])
   })
 })
 
@@ -586,5 +587,40 @@ describe('basketball drop: the shot is simulated up front', () => {
   })
   it('things look smaller the deeper they are', () => {
     expect(hoop.proj(0, 40, 500).k).toBeLessThan(hoop.proj(0, 40, 0).k)
+  })
+})
+
+describe('DeepSeek provider', () => {
+  const tool = { name: 'report', description: 'Report it.', schema: { type: 'object', properties: { ok: { type: 'boolean' } } } }
+  const cfg = { provider: 'deepseek' as const, apiKey: 'sk-ds-123456789', model: 'deepseek-chat' }
+  const ok = { choices: [{ message: { tool_calls: [{ function: { name: 'report', arguments: '{"ok":true}' } }] } }] }
+
+  it('calls its own endpoint with a forced function call, text only, and an output limit it accepts', async () => {
+    let seen: { url: string; body: Record<string, any> } | undefined
+    const fetcher = (async (url: string, init: RequestInit) => { seen = { url, body: JSON.parse(init.body as string) }; return { ok: true, status: 200, json: async () => ok } as Response }) as unknown as typeof fetch
+    const out = await deepseekLlm(cfg, fetcher)<{ ok: boolean }>({ system: 's', content: [{ type: 'text', text: 'hi' }], tool, maxTokens: 16000 })
+    expect(out).toEqual({ ok: true })
+    expect(seen!.url).toBe('https://api.deepseek.com/chat/completions')
+    expect(seen!.body).toMatchObject({ model: 'deepseek-chat', max_tokens: 8192, tool_choice: { type: 'function', function: { name: 'report' } } })
+    expect(seen!.body.max_completion_tokens).toBeUndefined()
+    expect(seen!.body.messages[1].content).toEqual([{ type: 'text', text: 'hi' }])
+  })
+
+  it('refuses a PDF or an image before sending anything, in words the BA can act on', async () => {
+    const fetcher = vi.fn()
+    const call = (b: Block) => deepseekLlm(cfg, fetcher as unknown as typeof fetch)({ system: 's', content: [b], tool })
+    await expect(call({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'x' } })).rejects.toThrow('DeepSeek อ่านได้เฉพาะข้อความ')
+    await expect(call({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'x' } })).rejects.toThrow('DOCX')
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('is chosen by header or by the operator default, and its error text names DeepSeek', async () => {
+    const r = new Request('http://localhost/api/extract', { method: 'POST', headers: { 'x-llm-provider': 'deepseek', 'x-llm-model': 'deepseek-chat', 'x-llm-key': 'sk-ds-123456789' } })
+    await expect(llmFromRequest(r)).resolves.toEqual(cfg)
+    process.env.LLM_PROVIDER = 'deepseek'; process.env.DEEPSEEK_API_KEY = 'operator-ds-key-123'
+    expect(serverDefault()).toEqual({ provider: 'deepseek', apiKey: 'operator-ds-key-123', model: 'deepseek-chat' })
+    delete process.env.LLM_PROVIDER; delete process.env.DEEPSEEK_API_KEY
+    const bad = (async () => ({ ok: false, status: 402, json: async () => ({}) }) as Response) as unknown as typeof fetch
+    await expect(deepseekLlm(cfg, bad)({ system: 's', content: [{ type: 'text', text: 'x' }], tool })).rejects.toThrow('402 DeepSeek request failed')
   })
 })

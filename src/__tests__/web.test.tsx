@@ -1413,3 +1413,25 @@ describe('basketball mode with many files', () => {
     expect(within(screen.getByRole('group', { name: /สนามบาส/ })).getByText('2 ไฟล์')).toBeInTheDocument()
   })
 })
+
+describe('DeepSeek in the app', () => {
+  it('is a provider choice with a note that it reads text only', async () => {
+    const user = userEvent.setup()
+    open('/ai-settings')
+    await user.click(screen.getByRole('radio', { name: 'DeepSeek' }))
+    expect(screen.getByText(/DeepSeek อ่านได้เฉพาะข้อความ/)).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('deepseek-chat')
+  })
+
+  it('holds the run when a PDF is chosen with DeepSeek, and lets a DOCX through', () => {
+    useAssessmentStore.setState({ provider: 'deepseek', model: 'deepseek-chat', apiKey: 'sk-ds-123456789', files: [new File(['x'], 'tor.pdf')], running: false, step: -1, error: null })
+    const { unmount } = open('/')
+    expect(screen.getByText(/DeepSeek อ่าน tor\.pdf ไม่ได้/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run assessment' })).toBeDisabled()
+    unmount()
+    useAssessmentStore.setState({ files: [new File(['x'], 'tor.docx')] })
+    open('/')
+    expect(screen.getByRole('button', { name: 'Run assessment' })).toBeEnabled()
+    useAssessmentStore.setState({ provider: 'anthropic', model: 'claude-sonnet-5-5', apiKey: '', files: [] })
+  })
+})

@@ -58,7 +58,7 @@ export async function llmFromRequest(req: Request): Promise<LlmConfig> {
   const provider = (req.headers.get('x-llm-provider') ?? '').toLowerCase()
   const apiKey = (req.headers.get('x-llm-key') ?? '').trim()
   const model = (req.headers.get('x-llm-model') ?? '').trim()
-  if (!PROVIDERS.includes(provider as Provider)) throw new Error('Choose an AI provider (anthropic, gemini or openai)')
+  if (!PROVIDERS.includes(provider as Provider)) throw new Error('Choose an AI provider (anthropic, gemini, openai or deepseek)')
   if (!apiKey) throw new Error('Enter your API key in AI settings')
   if (apiKey.length > 512) throw new Error('API key is too long')
   if (!/^[A-Za-z0-9._:/-]{1,100}$/.test(model)) throw new Error('Choose a model')
