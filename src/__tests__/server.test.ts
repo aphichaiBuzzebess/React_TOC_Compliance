@@ -553,7 +553,7 @@ describe('what the TOR needs (roll-up by zone and tool)', () => {
     expect(sol.api).toBe(1)
     expect(sol.untagged).toBe(1)
     expect(sol.total).toBe(7)
-    expect(sol.zones[sol.zones.length - 1]).toMatchObject({ zone: 'unknown', label: 'ยังไม่ระบุ solution type' })
+    expect(sol.zones[sol.zones.length - 1]).toMatchObject({ zone: 'unknown', label: 'ยังไม่ระบุ solution' })
   })
 
   it('has nothing to show for results that never had zones', () => {

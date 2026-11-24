@@ -18,7 +18,7 @@ export function buildSheets(a: Assessment, coverage: FunctionCoverage[] | null, 
     {
       sheet: 'Compliance matrix',
       data: [
-        head(['ID', 'Module', 'Solution type', 'Service', 'ขอ API', 'Requirement', 'Status', 'Confidence', 'Agent reasoning', 'Evidence', 'Recommendation', 'PM validation']),
+        head(['ID', 'Module', 'Solution', 'Service', 'ขอ API', 'Requirement', 'Status', 'Confidence', 'Agent reasoning', 'Evidence', 'Recommendation', 'PM validation']),
         ...a.reqs.map((r) =>
           [r.id, r.module, (r.targets ?? []).map((t) => zoneLabel(t.zone, tx)).join('\n'), (r.targets ?? []).map((t) => (t.service === UNKNOWN ? '-' : serviceLabel(t.service, tx))).join('\n'), r.wantsApi ? 'ขอ API · ถาม Tech' : '', r.text, STATUS[r.s].label, r.conf, r.reason, r.evidence, r.rec, valid[r.id] ? VALIDATION[valid[r.id]] : 'Not yet validated'].map(wrapped),
         ),

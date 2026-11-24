@@ -29,10 +29,10 @@ function TargetEditor({ r }: { r: RawReq }) {
     <div className="flex flex-col gap-2">
       {targets.map((t, i) => (
         <div key={i} className="flex flex-wrap items-center gap-2">
-          <label className="sr-only" htmlFor={`${r.id}-z${i}`}>Solution type ของ {r.id} ตัวที่ {i + 1}</label>
+          <label className="sr-only" htmlFor={`${r.id}-z${i}`}>Solution ของ {r.id} ตัวที่ {i + 1}</label>
           <select id={`${r.id}-z${i}`} value={t.zone} onChange={(e) => set(i, { zone: e.target.value })} className={pick}>
             {[...activeZones(tx), ...tx.zones.filter((z) => z.archived && z.id === t.zone)].map((z) => <option key={z.id} value={z.id}>{z.label}{z.archived ? ' (เก็บแล้ว)' : ''}</option>)}
-            <option value={UNKNOWN}>ไม่ทราบ solution type</option>
+            <option value={UNKNOWN}>ไม่ทราบ solution</option>
           </select>
           <label className="sr-only" htmlFor={`${r.id}-s${i}`}>Service ของ {r.id} ตัวที่ {i + 1}</label>
           <select id={`${r.id}-s${i}`} value={t.service} onChange={(e) => set(i, { service: e.target.value })} className={pick}>
@@ -70,10 +70,10 @@ export default function Review() {
   if (!review) {
     return (
       <>
-        <PageHeader title="Review solution types" lead="ตรวจว่า requirement แต่ละข้อใช้ solution type และ service ไหนของ Buzzebees ก่อนประเมิน" />
+        <PageHeader title="Review solutions" lead="ตรวจว่า requirement แต่ละข้อใช้ solution และ service ไหนของ Buzzebees ก่อนประเมิน" />
         <div className="flex flex-col items-center gap-4 rounded-[10px] border border-line bg-surface px-6 py-20 text-center">
           <p className="m-0 text-3xl tracking-[-0.03em] text-ink">ยังไม่มี requirement รอตรวจ</p>
-          <p className="m-0 max-w-sm text-muted">อัปโหลด TOR แล้วกด Run ระบบจะจัด solution type ให้ แล้วมาหยุดที่หน้านี้</p>
+          <p className="m-0 max-w-sm text-muted">อัปโหลด TOR แล้วกด Run ระบบจะจัด solution ให้ แล้วมาหยุดที่หน้านี้</p>
           <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-amber bg-amber px-5 text-sm font-semibold text-on-amber no-underline hover:bg-amber-hover">New assessment <span aria-hidden>→</span></Link>
         </div>
       </>
@@ -91,13 +91,13 @@ export default function Review() {
 
   return (
     <>
-      <PageHeader title="Review solution types" lead="ตรวจว่า requirement แต่ละข้อใช้ solution type และ service ไหนของ Buzzebees แก้ได้ก่อนกดยืนยัน ระบบจะหาหลักฐานเฉพาะ note ของ service นั้น" />
+      <PageHeader title="Review solutions" lead="ตรวจว่า requirement แต่ละข้อใช้ solution และ service ไหนของ Buzzebees แก้ได้ก่อนกดยืนยัน ระบบจะหาหลักฐานเฉพาะ note ของ service นั้น" />
       <div className="flex flex-col gap-4 rounded-[10px] border border-line bg-surface p-5">
-        <p className="m-0 text-sm text-muted">TOR นี้ใช้ Buzzebees {counts.size} solution type · {review.length} ข้อ</p>
-        <ul aria-label="สรุปตาม solution type" className="m-0 flex list-none flex-wrap gap-2 p-0">
+        <p className="m-0 text-sm text-muted">TOR นี้ใช้ Buzzebees {counts.size} solution · {review.length} ข้อ</p>
+        <ul aria-label="สรุปตาม solution" className="m-0 flex list-none flex-wrap gap-2 p-0">
           {[...counts].map(([z, n]) => <li key={z}><Pill>{zoneLabel(z, tx)} · {n} ข้อ</Pill></li>)}
         </ul>
-        {unknown > 0 && <Alert tone="warning" title={`${unknown} ข้อยังไม่ระบุ solution type หรือ service`}>ข้อพวกนี้จะได้สถานะ Need Verification ถ้าไม่มี note ที่ตรง แก้ได้ในรายการด้านล่าง (อยู่บนสุด)</Alert>}
+        {unknown > 0 && <Alert tone="warning" title={`${unknown} ข้อยังไม่ระบุ solution หรือ service`}>ข้อพวกนี้จะได้สถานะ Need Verification ถ้าไม่มี note ที่ตรง แก้ได้ในรายการด้านล่าง (อยู่บนสุด)</Alert>}
         {error && <p role="alert" className="m-0 text-sm text-danger">{error}</p>}
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="primary" arrow disabled={running || !aiReady} onClick={confirm}>{running ? 'กำลังประเมิน…' : 'ยืนยันและประเมิน'}</Button>

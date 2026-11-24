@@ -3,7 +3,7 @@ export interface NavItem { to: string; label: string; short: string; section: st
 /** One list for the top bar and the page eyebrows ("03 / Results"). */
 export const NAV: NavItem[] = [
   { to: '/', short: 'New assessment', label: 'New assessment', section: 'เริ่มประเมิน' },
-  { to: '/review', short: 'Review', label: 'Review solution types', section: 'เริ่มประเมิน' },
+  { to: '/review', short: 'Review', label: 'Review solutions', section: 'เริ่มประเมิน' },
   { to: '/dashboard', short: 'Dashboard', label: 'Coverage dashboard', section: 'ผลประเมิน' },
   { to: '/matrix', short: 'Matrix', label: 'Compliance matrix', section: 'ผลประเมิน' },
   { to: '/gaps', short: 'Gaps', label: 'Gap & recommendation', section: 'ผลประเมิน' },

@@ -51,7 +51,7 @@ export const findService = (input: string, tx: Taxonomy = DEFAULT_TAXONOMY) => t
 /** A zone written as its id ("crm-plus") or its label ("CRM+ module"), any case; undefined when unknown. */
 export const findZone = (input: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.zones.find((z) => norm(z.id) === norm(input) || norm(z.label) === norm(input))?.id
 
-export const zoneLabel = (id: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.zones.find((z) => z.id === id)?.label ?? 'ไม่ทราบ solution type'
+export const zoneLabel = (id: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.zones.find((z) => z.id === id)?.label ?? 'ไม่ทราบ solution'
 export const serviceLabel = (id: string, tx: Taxonomy = DEFAULT_TAXONOMY) => tx.services.find((s) => s.id === id)?.label ?? 'ไม่ทราบ service'
 
 /** Anything -> 1..MAX_TARGETS valid targets. Unknown ids become `unknown`; a fully unknown target is dropped when a better one exists. */

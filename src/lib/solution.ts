@@ -47,7 +47,7 @@ export function buildSolution(reqs: Req[], tx: Taxonomy): Solution {
       const z = zones.get(id)!
       return {
         zone: id,
-        label: id === UNKNOWN ? 'ยังไม่ระบุ solution type' : zoneLabel(id, tx),
+        label: id === UNKNOWN ? 'ยังไม่ระบุ solution' : zoneLabel(id, tx),
         total: z.reqs.length,
         byStatus: count(z.reqs),
         lines: [...z.lines].map(([s, rs]) => line(s, rs)).sort((a, b) => rank(a) - rank(b) || b.total - a.total),
