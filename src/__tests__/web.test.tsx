@@ -1423,12 +1423,12 @@ describe('DeepSeek in the app', () => {
     expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('deepseek-chat')
   })
 
-  it('BytePlus (GLM) is a choice too, with the same text-only note', async () => {
+  it('BytePlus ModelArk is a choice too, with the same text-only note', async () => {
     const user = userEvent.setup()
     open('/ai-settings')
-    await user.click(screen.getByRole('radio', { name: 'BytePlus (GLM)' }))
-    expect(screen.getByText(/BytePlus \(GLM\) อ่านได้เฉพาะข้อความ/)).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('glm-5.3-flash')
+    await user.click(screen.getByRole('radio', { name: 'BytePlus ModelArk' }))
+    expect(screen.getByText(/BytePlus ModelArk อ่านได้เฉพาะข้อความ/)).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('deepseek-v4-1-flash-261017')
   })
 
   it('holds the run when a PDF is chosen with DeepSeek, and lets a DOCX through', () => {

@@ -278,7 +278,7 @@ export default function NewAssessment() {
             <div className="flex flex-wrap gap-2">
               {['แยก requirement', 'เทียบกับหลักฐาน', 'คำถามค้างถึงลูกค้า', 'Export Excel', 'PDF สรุป'].map((c) => <Pill key={c}>{c}</Pill>)}
             </div>
-            <p className="m-0 text-sm text-muted">รองรับ PDF · DOCX · XLSX · รูปภาพ · Claude · Gemini · ChatGPT · DeepSeek · BytePlus GLM · Obsidian KB</p>
+            <p className="m-0 text-sm text-muted">รองรับ PDF · DOCX · XLSX · รูปภาพ · Claude · Gemini · ChatGPT · DeepSeek · BytePlus ModelArk · Obsidian KB</p>
           </div>
           <Preview />
         </div>
