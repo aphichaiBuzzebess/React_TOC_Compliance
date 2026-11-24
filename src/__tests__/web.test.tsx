@@ -1336,9 +1336,9 @@ describe('basketball mode for the file step', () => {
   it('is off by default, switches on, and is remembered', async () => {
     const user = userEvent.setup()
     open('/')
-    expect(screen.getByRole('switch', { name: /โหมดบาสเก็ต/ })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('switch', { name: /Boredom buster mode/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.queryByRole('group', { name: /สนามบาส/ })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('switch', { name: /โหมดบาสเก็ต/ }))
+    await user.click(screen.getByRole('switch', { name: /Boredom buster mode/ }))
     expect(await screen.findByRole('group', { name: /สนามบาส/ })).toBeInTheDocument()
     expect(localStorage.getItem('tor-scouter-hoop')).toBe('1')
   })
@@ -1358,7 +1358,7 @@ describe('basketball mode for the file step', () => {
   it('cannot be switched while a run is going', () => {
     useAssessmentStore.setState({ running: true })
     open('/')
-    expect(screen.getByRole('switch', { name: /โหมดบาสเก็ต/ })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: /Boredom buster mode/ })).toBeDisabled()
     useAssessmentStore.setState({ running: false })
   })
 })
@@ -1383,34 +1383,24 @@ describe('landing animation', () => {
   })
 })
 
-describe('basketball mode with many files', () => {
-  it('gathers the whole selection into one ball and adds every file with one shot', async () => {
+describe('boredom-buster mode with many files', () => {
+  it('shoots one file at a time: the first is the ball, the rest wait on the floor', async () => {
     localStorage.setItem('tor-scouter-hoop', '1')
     useAssessmentStore.setState({ files: [], error: null })
     const user = userEvent.setup()
     open('/')
     const input = await screen.findByLabelText('เลือกไฟล์ TOR')
-    const many = ['a.pdf', 'b.docx', 'c.xlsx'].map((n) => new File([n], n))
+    const many = ['a.pdf', 'b.docx', 'c.xlsx', 'd.png', 'e.jpg', 'f.pdf', 'g.pdf', 'h.pdf'].map((n) => new File([n], n))
     await user.upload(input, many)
     const court = screen.getByRole('group', { name: /สนามบาส/ })
-    expect(within(court).getByText('3 ไฟล์')).toBeInTheDocument() // one ball, labelled with the count
-    expect(court.querySelectorAll('text')).toHaveLength(1)
-    expect(screen.getByText(/ยิงครั้งเดียวได้ทั้งหมด/)).toBeInTheDocument()
-    expect(useAssessmentStore.getState().files).toHaveLength(0)
+    expect(court.querySelectorAll('text').length).toBeGreaterThanOrEqual(6) // the ball's label and five waiting files
+    expect(within(court).getByText('+2')).toBeInTheDocument() // 7 waiting, 5 drawn
+    expect(screen.getByText(/a\.pdf พร้อมแล้ว/)).toBeInTheDocument()
+    expect(screen.getByText(/เหลืออีก 7 ไฟล์ ยิงทีละไฟล์/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'ใส่ไฟล์เลย' }))
-    expect(useAssessmentStore.getState().files.map((f) => f.name)).toEqual(['a.pdf', 'b.docx', 'c.xlsx'])
-    expect(screen.getByText(/เพิ่ม 3 ไฟล์ แล้ว/)).toBeInTheDocument()
-  })
-
-  it('files chosen later join the ball that has not been shot yet', async () => {
-    localStorage.setItem('tor-scouter-hoop', '1')
-    useAssessmentStore.setState({ files: [], error: null })
-    const user = userEvent.setup()
-    open('/')
-    const input = await screen.findByLabelText('เลือกไฟล์ TOR')
-    await user.upload(input, [new File(['a'], 'a.pdf')])
-    await user.upload(input, [new File(['b'], 'b.png')])
-    expect(within(screen.getByRole('group', { name: /สนามบาส/ })).getByText('2 ไฟล์')).toBeInTheDocument()
+    expect(useAssessmentStore.getState().files.map((f) => f.name)).toEqual(['a.pdf']) // only the one in hand
+    expect(screen.getByText(/b\.docx พร้อมแล้ว/)).toBeInTheDocument()
+    expect(within(court).getByText('+1')).toBeInTheDocument()
   })
 })
 

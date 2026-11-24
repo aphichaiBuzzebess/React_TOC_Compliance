@@ -4,14 +4,15 @@ import { Button } from '@/components/ui'
 import { BALL_R, COURT, DT, MAXPULL, SURE_SHOT, fly, preview, proj, shotFromPull, START, type Ball, type Shot } from '@/lib/hoop'
 
 /** "PDF", "DOCX", "PNG"… from the file name: the lettering on the ball. */
+const PILE_MAX = 5
 const kind = (name: string) => (name.split('.').pop() || 'FILE').toUpperCase().slice(0, 4)
 
 /**
- * Basketball file drop (front view). Choose or drop files: they are gathered into one ball (a stack of pages with the count), so one shot adds them all. Pull it toward you like a slingshot
+ * Basketball file drop (front view). Choose or drop files: the first file's icon is the ball and the others wait on the floor, so each file is shot on its own. Pull it toward you like a slingshot
  * (further = more power, sideways = aim) and let go. Through the hoop = the file is added. A miss brings it back.
  * "ยิงให้" and "ใส่เลย" are the keyboard and no-motion routes; with reduced motion the shot is not animated.
  */
-export default function HoopDrop({ onScore, accept, disabled = false }: { onScore: (files: File[]) => void; accept: string; disabled?: boolean }) {
+export default function HoopDrop({ onScore, accept, disabled = false }: { onScore: (f: File) => void; accept: string; disabled?: boolean }) {
   const reduced = useReducedMotion()
   const [queue, setQueue] = useState<File[]>([])
   const [pose, setPose] = useState<Ball | null>(null) // null = in hand
@@ -36,9 +37,9 @@ export default function HoopDrop({ onScore, accept, disabled = false }: { onScor
   const enqueue = (list: File[]) => { if (list.length) { setQueue((q) => [...q, ...list]); setAdded(''); setMisses(0) } }
 
   const score = () => {
-    onScore(queue)
-    setAdded(queue.length === 1 ? queue[0].name : `${queue.length} ไฟล์`)
-    setQueue([])
+    onScore(file)
+    setAdded(file.name)
+    setQueue((q) => q.slice(1))
     setPose(null); setMisses(0)
   }
   const finish = (result: 'score' | 'miss') => {
@@ -118,21 +119,30 @@ export default function HoopDrop({ onScore, accept, disabled = false }: { onScor
       >
         <rect x="-26" y="-22" width="100" height="110" fill="transparent" />
         <g className="drop-shadow-sm">
-          {queue.length > 2 && <path d="M2 2h30l14 14v42H2z" transform="translate(9 -6)" className="fill-tint stroke-line-strong" strokeWidth="2" strokeLinejoin="round" />}
-          {queue.length > 1 && <path d="M2 2h30l14 14v42H2z" transform="translate(4.5 -3)" className="fill-tint stroke-line-strong" strokeWidth="2" strokeLinejoin="round" />}
           <path d="M2 2h30l14 14v42H2z" className="fill-surface stroke-line-strong" strokeWidth="2" strokeLinejoin="round" />
           <path d="M32 2v14h14" fill="none" className="stroke-line-strong" strokeWidth="2" strokeLinejoin="round" />
           <rect x="2" y="32" width="44" height="18" rx="2" className="fill-ink" />
-          <text x="24" y="45.5" textAnchor="middle" fontSize="11" fontWeight="700" className="fill-inverse">{queue.length > 1 ? `${queue.length} ไฟล์` : kind(file.name)}</text>
+          <text x="24" y="45.5" textAnchor="middle" fontSize="11" fontWeight="700" className="fill-inverse">{kind(file.name)}</text>
         </g>
       </g>
     </g>
   )
 
+  // The files waiting their turn lie on the floor beside the ball, up to five; "+N" stands for the rest.
+  const waiting = queue.slice(1)
+  const pile = waiting.slice(0, PILE_MAX).map((f, i) => (
+    <g key={`${f.name}:${f.size}:${f.lastModified}`} transform={`translate(${392 + i * 40} 322) scale(0.7)`}>
+      <path d="M2 2h30l14 14v42H2z" className="fill-surface stroke-line-strong" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M32 2v14h14" fill="none" className="stroke-line-strong" strokeWidth="2" strokeLinejoin="round" />
+      <rect x="2" y="32" width="44" height="18" rx="2" className="fill-ink" />
+      <text x="24" y="45.5" textAnchor="middle" fontSize="11" fontWeight="700" className="fill-inverse">{kind(f.name)}</text>
+    </g>
+  ))
+
   const status = !file
     ? added ? `เพิ่ม ${added} แล้ว เลือกหรือวางไฟล์ต่อได้` : 'เลือกไฟล์หรือวางลงที่สนาม ไอคอนไฟล์จะกลายเป็นลูกบาส แล้วดึงลงมายิงเข้าห่วง'
     : aim ? `แรง ${power}%${pv?.onTarget ? ' · เข้าเป้า' : ''} ปล่อยเพื่อยิง ดึงลงมากขึ้นแรงขึ้น ดึงไปข้างๆ เพื่อเล็ง`
-      : misses ? 'พลาด ไฟล์กลับมาแล้ว ดึงลงมาลองใหม่' : `${queue.length > 1 ? `${queue.length} ไฟล์ (${file.name} และอีก ${queue.length - 1})` : file.name} พร้อมแล้ว ดึงไอคอนลงมาหาตัว เล็ง แล้วปล่อย${queue.length > 1 ? ' ยิงครั้งเดียวได้ทั้งหมด' : ''}`
+      : misses ? 'พลาด ไฟล์กลับมาแล้ว ดึงลงมาลองใหม่' : `${file.name} พร้อมแล้ว ดึงไอคอนลงมาหาตัว เล็ง แล้วปล่อย${waiting.length ? ` · เหลืออีก ${waiting.length} ไฟล์ ยิงทีละไฟล์` : ''}`
 
   return (
     <div className="flex flex-col gap-3">
@@ -144,6 +154,8 @@ export default function HoopDrop({ onScore, accept, disabled = false }: { onScor
       >
         <svg ref={svg} role="group" aria-label="สนามบาส: ยิงไฟล์เข้าห่วงเพื่อเพิ่มไฟล์" viewBox={`0 0 ${COURT.w} ${COURT.h}`} className="block h-auto w-full select-none">
           <rect x="0" y="214" width={COURT.w} height="166" className="fill-line opacity-60" />
+          {pile}
+          {waiting.length > PILE_MAX && <text x={392 + PILE_MAX * 40 + 4} y="362" fontSize="16" fontWeight="600" className="fill-muted">+{waiting.length - PILE_MAX}</text>}
           {layer === 'behind' && ball}
           <rect x="310" y="106" width="8" height="137" className="fill-line-strong" />
           <rect x="251" y="8" width="126" height="98" rx="3" className="fill-surface stroke-ink" strokeWidth="3" />

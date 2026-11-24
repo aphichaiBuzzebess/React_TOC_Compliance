@@ -125,10 +125,10 @@ export default function NewAssessment() {
             <motion.li initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.35 }} aria-current={current === 1 ? 'step' : undefined} className="flex items-start gap-3 border-t border-line px-5 py-4">
               <Marker n={2} done={flags[1]} current={current === 1} />
               <div className="flex min-w-0 flex-1 flex-col gap-3">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-x-3">
                   <span className="font-semibold">เลือกไฟล์ TOR</span>
-                  <button type="button" role="switch" aria-checked={hoop} disabled={running} onClick={toggleHoop} className="inline-flex min-h-11 items-center gap-2 rounded-full px-2 text-sm text-muted transition-colors hover:text-ink disabled:opacity-50">
-                    โหมดบาสเก็ต
+                  <button type="button" role="switch" aria-checked={hoop} disabled={running} onClick={toggleHoop} className="inline-flex whitespace-nowrap min-h-11 items-center gap-2 rounded-full px-2 text-sm text-muted transition-colors hover:text-ink disabled:opacity-50">
+                    Boredom buster mode
                     <span aria-hidden className={`relative h-5 w-9 rounded-full border transition-colors ${hoop ? 'border-amber bg-amber' : 'border-line-strong bg-tint'}`}>
                       <span className={`absolute top-0.5 size-3.5 rounded-full bg-ink transition-all ${hoop ? 'left-[18px]' : 'left-0.5'}`} />
                     </span>
@@ -136,7 +136,7 @@ export default function NewAssessment() {
                 </div>
                 {hoop ? (
                   <Suspense fallback={<p className="m-0 text-sm text-muted">กำลังเตรียมสนาม…</p>}>
-                    <HoopDrop accept={ACCEPT} disabled={running} onScore={addFiles} />
+                    <HoopDrop accept={ACCEPT} disabled={running} onScore={(f) => addFiles([f])} />
                   </Suspense>
                 ) : (
                 <label
