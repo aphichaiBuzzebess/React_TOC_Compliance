@@ -5,6 +5,7 @@ import { cleanTargets, DEFAULT_TAXONOMY } from '../../src/data/taxonomy'
 import { DEFAULT_PROMPTS, PROMPT_KEYS, UNTRUSTED, buildSystem } from '../../server/prompts'
 import { openaiLlm } from '../../server/llm-openai'
 import { deepseekLlm } from '../../server/llm-deepseek'
+import { byteplusLlm } from '../../server/llm-byteplus'
 import { buildSolution } from '../../src/lib/solution'
 import * as hoop from '../../src/lib/hoop'
 import { AI_PROVIDERS } from '../../src/data/models'
@@ -480,7 +481,7 @@ describe('ChatGPT (OpenAI) provider', () => {
     process.env.OPENAI_MODEL = 'gpt-4.1'
     expect(serverDefault()!.model).toBe('gpt-4.1')
     delete process.env.LLM_PROVIDER; delete process.env.OPENAI_API_KEY; delete process.env.OPENAI_MODEL
-    expect(AI_PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'gemini', 'openai', 'deepseek'])
+    expect(AI_PROVIDERS.map((p) => p.id)).toEqual(['anthropic', 'gemini', 'openai', 'deepseek', 'byteplus'])
   })
 })
 
@@ -622,5 +623,32 @@ describe('DeepSeek provider', () => {
     delete process.env.LLM_PROVIDER; delete process.env.DEEPSEEK_API_KEY
     const bad = (async () => ({ ok: false, status: 402, json: async () => ({}) }) as Response) as unknown as typeof fetch
     await expect(deepseekLlm(cfg, bad)({ system: 's', content: [{ type: 'text', text: 'x' }], tool })).rejects.toThrow('402 DeepSeek request failed')
+  })
+})
+
+describe('BytePlus (GLM) provider', () => {
+  const tool = { name: 'report', description: 'Report it.', schema: { type: 'object', properties: { ok: { type: 'boolean' } } } }
+  const cfg = { provider: 'byteplus' as const, apiKey: 'bp-key-123456789', model: 'glm-5.3-flash' }
+
+  it('calls the BytePlus ModelArk endpoint with a forced function call and text only', async () => {
+    let seen: { url: string; body: Record<string, any>; auth: string } | undefined
+    const fetcher = (async (url: string, init: RequestInit) => {
+      seen = { url, body: JSON.parse(init.body as string), auth: (init.headers as Record<string, string>).authorization }
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { tool_calls: [{ function: { arguments: '{"ok":true}' } }] } }] }) } as Response
+    }) as unknown as typeof fetch
+    await expect(byteplusLlm(cfg, fetcher)({ system: 's', content: [{ type: 'text', text: 'hi' }], tool })).resolves.toEqual({ ok: true })
+    expect(seen!.url).toBe('https://ark.ap-southeast.bytepluses.com/api/coding/v3/chat/completions')
+    expect(seen!.auth).toBe('Bearer bp-key-123456789')
+    expect(seen!.body).toMatchObject({ model: 'glm-5.3-flash', max_tokens: 8000, tool_choice: { type: 'function', function: { name: 'report' } } })
+  })
+
+  it('refuses a PDF before sending, naming the provider; is chosen by header; and names itself in errors', async () => {
+    const fetcher = vi.fn()
+    await expect(byteplusLlm(cfg, fetcher as unknown as typeof fetch)({ system: 's', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'x' } }], tool })).rejects.toThrow('BytePlus (GLM) อ่านได้เฉพาะข้อความ')
+    expect(fetcher).not.toHaveBeenCalled()
+    const r = new Request('http://localhost/api/extract', { method: 'POST', headers: { 'x-llm-provider': 'byteplus', 'x-llm-model': 'glm-5.3-flash', 'x-llm-key': 'bp-key-123456789' } })
+    await expect(llmFromRequest(r)).resolves.toEqual(cfg)
+    const bad = (async () => ({ ok: false, status: 401, json: async () => ({}) }) as Response) as unknown as typeof fetch
+    await expect(byteplusLlm(cfg, bad)({ system: 's', content: [{ type: 'text', text: 'x' }], tool })).rejects.toThrow('401 BytePlus request failed')
   })
 })

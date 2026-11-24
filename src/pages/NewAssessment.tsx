@@ -79,9 +79,9 @@ export default function NewAssessment() {
   const ai = AI_PROVIDERS.find((p) => p.id === use?.provider)
   const runLabel = done ? `Completed · ${result?.length ?? 0} requirements assessed` : running ? `Running step ${step + 1} of ${STEPS.length}` : 'Ready to run'
 
-  // DeepSeek reads text only, so a PDF or an image cannot go through it: say so before the run, not after a failed request.
-  const unreadable = use?.provider === 'deepseek' ? files.find((f) => /\.(pdf|png|jpe?g|webp|gif)$/i.test(f.name)) : undefined
-  const blocker = done || running ? null : !aiReady && !hasFiles ? 'ใส่ AI key และเลือกไฟล์ TOR ก่อน' : !aiReady ? 'ใส่ AI key ก่อน' : !hasFiles ? 'เลือกไฟล์ TOR ก่อน' : unreadable ? `DeepSeek อ่าน ${unreadable.name} ไม่ได้ ใช้ DOCX หรือ XLSX หรือเปลี่ยน AI` : null
+  // A text-only AI (DeepSeek, BytePlus) cannot read so a PDF or an image cannot go through it: say so before the run, not after a failed request.
+  const unreadable = ai?.textOnly ? files.find((f) => /\.(pdf|png|jpe?g|webp|gif)$/i.test(f.name)) : undefined
+  const blocker = done || running ? null : !aiReady && !hasFiles ? 'ใส่ AI key และเลือกไฟล์ TOR ก่อน' : !aiReady ? 'ใส่ AI key ก่อน' : !hasFiles ? 'เลือกไฟล์ TOR ก่อน' : unreadable ? `${ai?.label} อ่าน ${unreadable.name} ไม่ได้ ใช้ DOCX หรือ XLSX หรือเปลี่ยน AI` : null
   const runNote = done ? `เสร็จแล้ว · ${result?.length ?? 0} ข้อ` : pending && !running ? 'จัด zone แล้ว รอตรวจก่อนประเมิน' : running ? 'กำลังทำงาน ดูความคืบหน้าด้านล่าง' : (blocker ?? 'พร้อมแล้ว')
   // Steps in order; the first one not yet done is the current one.
   const flags = [aiReady, hasFiles, done]
@@ -117,7 +117,7 @@ export default function NewAssessment() {
               <Marker n={1} done={flags[0]} current={current === 0} />
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="font-semibold">ใส่ AI key</span>
-                <span className="text-sm text-muted wrap-anywhere">{use ? `${ai?.label} · ${use.model}${use.own ? '' : ' · ค่าจากเซิร์ฟเวอร์'}` : 'Claude, Gemini, ChatGPT หรือ DeepSeek ของคุณเอง ไม่ถูกเก็บ'}</span>
+                <span className="text-sm text-muted wrap-anywhere">{use ? `${ai?.label} · ${use.model}${use.own ? '' : ' · ค่าจากเซิร์ฟเวอร์'}` : 'Claude, Gemini, ChatGPT, DeepSeek หรือ BytePlus ของคุณเอง ไม่ถูกเก็บ'}</span>
               </div>
               <Link to="/ai-settings" className="inline-flex min-h-11 flex-none items-center text-sm font-medium text-amber-text underline underline-offset-4">{use ? 'เปลี่ยน' : 'ตั้งค่า AI'}</Link>
             </motion.li>
@@ -278,7 +278,7 @@ export default function NewAssessment() {
             <div className="flex flex-wrap gap-2">
               {['แยก requirement', 'เทียบกับหลักฐาน', 'คำถามค้างถึงลูกค้า', 'Export Excel', 'PDF สรุป'].map((c) => <Pill key={c}>{c}</Pill>)}
             </div>
-            <p className="m-0 text-sm text-muted">รองรับ PDF · DOCX · XLSX · รูปภาพ · Claude · Gemini · ChatGPT · DeepSeek · Obsidian KB</p>
+            <p className="m-0 text-sm text-muted">รองรับ PDF · DOCX · XLSX · รูปภาพ · Claude · Gemini · ChatGPT · DeepSeek · BytePlus GLM · Obsidian KB</p>
           </div>
           <Preview />
         </div>

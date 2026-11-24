@@ -21,6 +21,13 @@ export const toContent = (blocks: Block[]) =>
     : { type: 'file', file: { filename: 'tor.pdf', file_data: `data:${b.source.media_type};base64,${b.source.data}` } },
   )
 
+/** Content for providers that read text only: a PDF or an image is refused before anything is sent, in words the BA can act on. */
+export const textOnly = (name: string) => (blocks: Block[]) =>
+  blocks.map((b) => {
+    if (b.type !== 'text') throw new Error(`${name} อ่านได้เฉพาะข้อความ: ใช้ไฟล์ DOCX หรือ XLSX หรือเปลี่ยนไปใช้ Claude, Gemini หรือ ChatGPT สำหรับ PDF และรูปภาพ`)
+    return { type: 'text', text: b.text }
+  })
+
 const OPENAI: Flavor = { name: 'OpenAI', url: 'https://api.openai.com/v1/chat/completions', limit: (_m, n) => ({ max_completion_tokens: Math.max(n, FLOOR) }), content: toContent }
 
 /** The answer is forced through one function call, like the other providers. `fetcher` is injectable for tests. */

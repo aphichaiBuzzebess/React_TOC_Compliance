@@ -19,7 +19,7 @@ export async function PUT(req: Request): Promise<Response> {
     const provider = String(b.provider ?? '').toLowerCase()
     const model = String(b.model ?? '').trim()
     const key = String(b.key ?? '').trim()
-    if (!PROVIDERS.includes(provider as Provider)) throw new HttpError(400, 'Choose an AI provider (anthropic, gemini, openai or deepseek)')
+    if (!PROVIDERS.includes(provider as Provider)) throw new HttpError(400, 'Choose an AI provider (anthropic, gemini, openai, deepseek or byteplus)')
     if (!key) throw new HttpError(400, 'Enter your API key')
     if (key.length > 512) throw new HttpError(400, 'API key is too long')
     if (!/^[A-Za-z0-9._:/-]{1,100}$/.test(model)) throw new HttpError(400, 'Choose a model')
