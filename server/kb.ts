@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import type { StatusKey } from '../src/lib/types.js'
-import { UNKNOWN, SERVICES, findService, findZone, type Target } from '../src/data/taxonomy.js'
+import { UNKNOWN, SERVICES, findService, findSolution, type Target } from '../src/data/taxonomy.js'
 
 export interface Note {
   path: string // relative to the vault, e.g. member/registration-channels.md
@@ -11,7 +11,7 @@ export interface Note {
   updated: string
   body: string
   service?: string // taxonomy service id this capability belongs to
-  zone?: string[] // zones it is limited to; absent = every zone
+  solution?: string[] // solutions it is limited to; absent = every solution
 }
 
 const SUPPORT = new Set<string>(['full', 'config', 'custom', 'integ', 'none'])
@@ -34,8 +34,9 @@ export function parseNote(path: string, raw: string): Note | null {
   // `module` is optional when there is a service: it defaults to the service's name.
   const module = fm.module || SERVICES.find((x) => x.id === service)?.label
   if (!fm.title || !module || !SUPPORT.has(fm.support)) return null // README and malformed notes are skipped (kb:check says why)
-  const zone = typeof fm.zone === 'string' ? (fm.zone as string).split(',').map((z) => findZone(z)).filter((z): z is string => !!z) : []
-  return { path, title: fm.title, module, support: fm.support as StatusKey, updated: fm.updated ?? '', body: m[2].trim(), ...(service && { service }), ...(zone.length && { zone }) }
+  const tag = fm.solution ?? fm.zone // `zone:` is the old name of the line
+  const solution = typeof tag === 'string' ? (tag as string).split(',').map((z) => findSolution(z)).filter((z): z is string => !!z) : []
+  return { path, title: fm.title, module, support: fm.support as StatusKey, updated: fm.updated ?? '', body: m[2].trim(), ...(service && { service }), ...(solution.length && { solution }) }
 }
 
 export function loadKb(dir = kbDir()): Note[] {
@@ -64,10 +65,10 @@ export function searchKb(notes: Note[], query: string, limit = 4): Note[] {
   return scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map((s) => s.n)
 }
 
-/** The notes that can answer one target: same service (and zone, when the note is zone-limited); a zone-only target takes the notes tagged with that zone and no service. */
+/** The notes that can answer one target: same service (and solution, when the note is solution-limited); a solution-only target takes the notes tagged with that solution and no service. */
 export function poolFor(kb: Note[], t: Target): Note[] {
-  if (t.service !== UNKNOWN) return kb.filter((n) => n.service === t.service && (!n.zone || n.zone.includes(t.zone)))
-  if (t.zone !== UNKNOWN) return kb.filter((n) => !n.service && n.zone?.includes(t.zone))
+  if (t.service !== UNKNOWN) return kb.filter((n) => n.service === t.service && (!n.solution || n.solution.includes(t.solution)))
+  if (t.solution !== UNKNOWN) return kb.filter((n) => !n.service && n.solution?.includes(t.solution))
   return []
 }
 

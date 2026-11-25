@@ -38,8 +38,8 @@ function One({ k, p, admin, onSaved }: { k: PromptKey; p: PromptView; admin: boo
 
   return (
     <Card title={PROMPT_TITLES[k]} right={<span className="text-xs text-muted">{p.isDefault ? 'ใช้ค่าเริ่มต้น' : `แก้เมื่อ ${when(p.updatedAt)}`}</span>}>
-      <div className="flex flex-col gap-3 p-6">
-        {k === 'classify' && <p className="m-0 text-xs leading-5 text-muted">ระบบใส่รายการ solution และ service (พร้อมตัวอย่าง) ตรงตำแหน่ง <code>{'{{zones}}'}</code> กับ <code>{'{{services}}'}</code> ถ้าลบสองตัวนี้ออก ระบบจะต่อรายการไว้ท้าย prompt ให้เอง</p>}
+      <div className="flex flex-col gap-3 p-5">
+        {k === 'classify' && <p className="m-0 text-xs leading-5 text-muted">ระบบใส่รายการ solution และ service (พร้อมตัวอย่าง) ตรงตำแหน่ง <code>{'{{solutions}}'}</code> กับ <code>{'{{services}}'}</code> ถ้าลบสองตัวนี้ออก ระบบจะต่อรายการไว้ท้าย prompt ให้เอง</p>}
         {admin ? (
           <>
             <label htmlFor={`p-${k}`} className="sr-only">{PROMPT_TITLES[k]}</label>

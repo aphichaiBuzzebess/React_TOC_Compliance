@@ -2,8 +2,9 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STEPS } from '@/data/tor'
 import { defaultModel, type ProviderId } from '@/data/models'
-import type { FunctionCoverage, RawReq, Req, StatusKey, Target } from '@/lib/types'
-import { DEFAULT_TAXONOMY, MAX_TARGETS, type Taxonomy } from '@/data/taxonomy'
+import type { FunctionCoverage, Priority, RawReq, Req, StatusKey, Target, Term } from '@/lib/types'
+import { isCommercial } from '@/data/categories'
+import { DEFAULT_TAXONOMY, MAX_TARGETS, legacyTargets, type Taxonomy } from '@/data/taxonomy'
 
 type Validation = 'ok' | 'flag'
 const BATCH = 10
@@ -14,13 +15,16 @@ const MAX_FILES = 10
 const fileKey = (f: File) => `${f.name}:${f.size}:${f.lastModified}`
 
 export interface StoredKey { provider: ProviderId; model: string; last4: string }
+/** The project details from the upload form. Saved with the result (history `data.meta`); every field is optional. */
+export interface Project { title: string; industry: string; sub: string; leaf: string; due: string; value: number | null }
+export const EMPTY_PROJECT: Project = { title: '', industry: '', sub: '', leaf: '', due: '', value: null }
 const CSRF = { 'x-requested-with': 'tor-scouter' }
 
 interface AssessmentState {
   mode: 'unknown' | 'stateless' | 'account' // what the server said on first load; unknown until then
   user: string | null // signed-in username (account mode)
   admin: boolean // the signed-in person may manage users
-  taxonomy: Taxonomy // zones and services; the built-in ones until the server sends the saved ones
+  taxonomy: Taxonomy // solutions and services; the built-in ones until the server sends the saved ones
   loadTaxonomy: () => Promise<void>
   owner: string | null // persisted: whose data is in this browser; null = from before accounts
   storedKey: StoredKey | null // the key saved on the server (never the key itself)
@@ -34,8 +38,8 @@ interface AssessmentState {
   saveKey: (key: string) => Promise<string | null>
   removeKey: () => Promise<void>
   openHistory: (id: string) => Promise<boolean>
-  saveHistory: () => Promise<void> // POST the finished run (account mode)
-  syncHistory: () => void // debounced PUT of validations / coverage to the saved entry
+  saveHistory: () => Promise<void> // POST the review or the finished run (account mode), or PUT it when it is saved already
+  syncHistory: () => void // debounced PUT of review edits, validations, terms, overrides and coverage to the saved entry
   step: number // -1 idle, 0..n-1 running, n done
   running: boolean
   startedAt: number | null
@@ -43,6 +47,8 @@ interface AssessmentState {
   error: string | null
   files: File[]
   customer: string
+  project: Project
+  setProject: (p: Partial<Project>) => void // picking another industry clears the levels under it
   accessCode: string // optional, only if the operator set one
   provider: ProviderId
   model: string
@@ -52,7 +58,10 @@ interface AssessmentState {
   serverDefault: { provider: ProviderId; model: string } | null // the operator's AI, if the server offers one (no key here)
   loadServerDefault: () => Promise<void>
   result: Req[] | null // null until a TOR has been assessed
-  review: RawReq[] | null // classified requirements waiting for the BA to confirm zones; null when nothing is pending
+  review: RawReq[] | null // classified requirements waiting for the BA to confirm solutions; null when nothing is pending
+  scope: string // what the TOR as a whole asks for, in a sentence or two (from the extract step)
+  terms: Term[] // contract and bidder terms: not judged, ticked off by the BD
+  confirmed: { by: string; at: string } | null // who confirmed the requirement list, and when (ISO)
   coverage: FunctionCoverage[] | null
   filter: 'all' | StatusKey
   query: string
@@ -68,6 +77,13 @@ interface AssessmentState {
   runReal: () => Promise<void> // extract + classify, then stops at the review
   setTargets: (id: string, targets: Target[]) => void
   setWantsApi: (id: string, flag: boolean) => void
+  editReq: (id: string, patch: Partial<Pick<RawReq, 'text' | 'module' | 'pri'>>) => void // marks it seen
+  markSeen: (id: string) => void
+  removeReq: (id: string) => { r: RawReq; at: number } | null // what to give restoreReq for an undo
+  restoreReq: (r: RawReq, at: number) => void
+  addReq: (text: string, module: string, pri: Priority) => string // the new id
+  setTermOk: (id: string, ok: boolean) => void
+  override: (id: string, s: StatusKey, note: string) => void // a person changes the status; back to the AI's status removes the override
   confirmReview: () => Promise<void> // judge the confirmed requirements
   clearReview: () => void // drop the pending review (results already judged are untouched)
   coverageBusy: boolean
@@ -113,7 +129,7 @@ async function fetchCoverage(auth: Auth, requirements: RawReq[]): Promise<Functi
 }
 
 /** What a person leaves behind on screen: wiped on sign-out, when the session ends, and when another person signs in. */
-const WIPE = { result: null, review: null, coverage: null, valid: {}, selId: null, customer: '', historyId: null, historyError: null, apiKey: '', files: [] as File[], step: -1, error: null }
+const WIPE = { result: null, review: null, scope: '', terms: [] as Term[], confirmed: null, coverage: null, valid: {}, selId: null, customer: '', project: EMPTY_PROJECT, historyId: null, historyError: null, apiKey: '', files: [] as File[], step: -1, error: null }
 
 /** A JSON call to our own API with the CSRF header and the session cookie. */
 async function send(path: string, method: string, body?: unknown) {
@@ -147,6 +163,10 @@ function enter(username: string | undefined, admin = false): null {
 
 let syncTimer: ReturnType<typeof setTimeout> | undefined
 
+/** What a history entry holds: the review while one waits, else the judged result. */
+const entryData = (s: AssessmentState) => ({ meta: s.project, scope: s.scope, review: s.review, terms: s.terms, confirmed: s.confirmed, result: s.result ?? [], coverage: s.coverage, valid: s.valid })
+const nextId = (rows: { id: string }[]) => `R-${String(Math.max(0, ...rows.map((r) => Number(r.id.replace(/\D/g, '')) || 0)) + 1).padStart(3, '0')}`
+
 /** `fn` over BATCH-sized slices, PARALLEL at a time, joined in order. `progress` gets (done, total) after each slice. */
 async function inBatches<I, O>(items: I[], fn: (batch: I[]) => Promise<O[]>, progress: (done: number, total: number) => void): Promise<O[]> {
   const batches: I[][] = []
@@ -177,6 +197,14 @@ export const useAssessmentStore = create<AssessmentState>()(
       error: null,
       files: [],
       customer: '',
+      project: EMPTY_PROJECT,
+      setProject: (p) => {
+        const cur = get().project
+        const next = { ...cur, ...p }
+        if (p.industry !== undefined && p.industry !== cur.industry) Object.assign(next, { sub: p.sub ?? '', leaf: p.leaf ?? '' })
+        else if (p.sub !== undefined && p.sub !== cur.sub) next.leaf = p.leaf ?? ''
+        set({ project: next })
+      },
       accessCode: '',
       provider: 'anthropic',
       model: defaultModel('anthropic'),
@@ -203,7 +231,7 @@ export const useAssessmentStore = create<AssessmentState>()(
         try {
           const res = await fetch('/api/knowledge?part=taxonomy')
           const body = res.ok ? await res.json() : null
-          if (body?.taxonomy?.zones && body?.taxonomy?.services) set({ taxonomy: body.taxonomy })
+          if (body?.taxonomy?.solutions && body?.taxonomy?.services) set({ taxonomy: body.taxonomy })
         } catch {
           /* keep what is here */
         }
@@ -259,27 +287,39 @@ export const useAssessmentStore = create<AssessmentState>()(
         if (res.status === 401) get().expireSession()
         if (!res.ok || !body.entry) { set({ error: body.error ?? 'เปิดรายการนี้ไม่ได้' }); return false }
         const { entry } = body
-        set({ result: entry.data.result, coverage: entry.data.coverage, valid: entry.data.valid, customer: entry.customer, selId: entry.data.result[0]?.id ?? null, historyId: id, review: null, step: STEPS.length, filter: 'all', query: '', error: null, historyError: null })
+        const d = entry.data
+        const pending = Array.isArray(d.review)
+        set({ result: pending ? null : d.result, review: pending ? d.review : null, scope: d.scope ?? '', terms: d.terms ?? [], confirmed: d.confirmed ?? null, coverage: d.coverage, valid: d.valid, customer: entry.customer, project: { ...EMPTY_PROJECT, ...d.meta }, selId: pending ? null : (d.result[0]?.id ?? null), historyId: id, step: pending ? 2 : STEPS.length, filter: 'all', query: '', error: null, historyError: null })
         return true
       },
       saveHistory: async () => {
         const s = get()
-        if (s.mode !== 'account' || !s.user || !s.result) return
-        const r = await send('/api/history', 'POST', { customer: s.customer, files: s.files.map((f) => f.name), data: { result: s.result, coverage: s.coverage, valid: s.valid } })
+        if (s.mode !== 'account' || !s.user || (!s.result && !s.review)) return
+        if (s.historyId) {
+          clearTimeout(syncTimer) // this write supersedes a pending one
+          const r = await send(`/api/history?id=${s.historyId}`, 'PUT', { data: entryData(s) })
+          if (r.ok) return set({ historyError: null })
+          if (r.status !== 404) return set({ historyError: r.json.error ?? 'ไม่ได้บันทึกประวัติ' })
+          // deleted or pruned meanwhile: save it as a new entry
+        }
+        const r = await send('/api/history', 'POST', { customer: s.customer, files: s.files.map((f) => f.name), data: entryData(s) })
         set(r.ok ? { historyId: r.json.id, historyError: null } : { historyError: r.json.error ?? 'ไม่ได้บันทึกประวัติ' })
       },
       syncHistory: () => {
         clearTimeout(syncTimer)
         syncTimer = setTimeout(async () => {
           const s = get()
-          if (s.mode !== 'account' || !s.historyId || !s.result) return
-          const r = await send(`/api/history?id=${s.historyId}`, 'PUT', { data: { result: s.result, coverage: s.coverage, valid: s.valid } })
+          if (s.mode !== 'account' || !s.historyId || (!s.result && !s.review)) return
+          const r = await send(`/api/history?id=${s.historyId}`, 'PUT', { data: entryData(s) })
           if (r.status === 404) set({ historyId: null }) // deleted or pruned: stop updating it
           else if (!r.ok) set({ historyError: r.json.error ?? 'ไม่ได้บันทึกประวัติ' })
         }, 800)
       },
       result: null,
       review: null,
+      scope: '',
+      terms: [],
+      confirmed: null,
       coverage: null,
       filter: 'all',
       query: '',
@@ -306,9 +346,10 @@ export const useAssessmentStore = create<AssessmentState>()(
         const auth = get()
         set({ running: true, step: 0, error: null, historyId: null, historyError: null, startedAt: Date.now(), detail: 'กำลังอ่านไฟล์และแยก requirement ด้วย AI (ใช้เวลาประมาณ 30-60 วินาที)' })
         try {
-          await get().loadTaxonomy() // the saved zones/services, in case an admin changed them
+          await get().loadTaxonomy() // the saved solutions/services, in case an admin changed them
           // One request per file (a request body is capped at ~4.5 MB), a few at a time. Ids are renumbered once all are in.
           const perFile: RawReq[][] = []
+          const scopes: string[] = []
           let read = 0
           let nextFile = 0
           await Promise.all(
@@ -317,7 +358,9 @@ export const useAssessmentStore = create<AssessmentState>()(
                 const i = nextFile++
                 const f = files[i]
                 try {
-                  perFile[i] = (await api<{ requirements: RawReq[] }>('/api/extract', auth, { body: f, headers: { 'x-filename': encodeURIComponent(f.name) } })).requirements
+                  const out = await api<{ requirements: RawReq[]; scope?: string }>('/api/extract', auth, { body: f, headers: { 'x-filename': encodeURIComponent(f.name) } })
+                  perFile[i] = out.requirements
+                  scopes[i] = out.scope ?? ''
                 } catch (e) {
                   throw new Error(files.length > 1 ? `${f.name}: ${e instanceof Error ? e.message : 'read failed'}` : e instanceof Error ? e.message : 'read failed')
                 }
@@ -327,33 +370,87 @@ export const useAssessmentStore = create<AssessmentState>()(
           )
           const requirements = perFile.flat().map((r, i) => ({ ...r, id: `R-${String(i + 1).padStart(3, '0')}` }))
           if (requirements.length === 0) throw new Error('No requirements found in these files')
-          set({ step: 1, detail: `พบ ${requirements.length} requirement กำลังจัดเข้า zone และ service (0/${Math.ceil(requirements.length / BATCH)} ชุด)` }) // Extract done
+          set({ step: 1, detail: `พบ ${requirements.length} requirement กำลังจัดเข้า solution และ service (0/${Math.ceil(requirements.length / BATCH)} ชุด)` }) // Extract done
+          const byId = new Map(requirements.map((r) => [r.id, r]))
           const classified = await inBatches(requirements, (batch) => api<{ results: RawReq[] }>('/api/classify', auth, { body: JSON.stringify({ requirements: batch }), headers: { 'content-type': 'application/json' } }).then((r) => r.results), (done, total) =>
-            set({ detail: `พบ ${requirements.length} requirement จัด zone แล้ว ${done}/${total} ชุด` }),
+            set({ detail: `พบ ${requirements.length} requirement จัด solution แล้ว ${done}/${total} ชุด` }),
           )
-          // Stop here: the BA confirms zones and services before anything is judged.
-          set({ review: classified, result: null, coverage: null, step: 2, running: false, startedAt: null, detail: '' })
+          // Stop here: the BA checks the list (text, category, priority, solution and service) before anything is judged.
+          // Classify answers with id, module, text and the targets; what extract found besides is put back from the request.
+          const review = classified.map((c) => ({ ...byId.get(c.id), ...c }))
+          set({ review, scope: scopes.filter(Boolean).join(' '), terms: [], confirmed: null, result: null, coverage: null, valid: {}, step: 2, running: false, startedAt: null, detail: '' })
+          void get().saveHistory() // the TOR is in the list from here on, waiting for its review
         } catch (e) {
           set({ running: false, startedAt: null, detail: '', step: -1, error: e instanceof Error ? e.message : 'Assessment failed' })
         }
       },
       // A blank target is allowed while editing; the judge endpoint drops blank/duplicate ones (cleanTargets).
-      setTargets: (id, targets) => set({ review: get().review?.map((r) => (r.id === id ? { ...r, targets: targets.slice(0, MAX_TARGETS) } : r)) ?? null }),
-      setWantsApi: (id, flag) => set({ review: get().review?.map((r) => (r.id === id ? { ...r, wantsApi: flag } : r)) ?? null }),
-      clearReview: () => set({ review: null, step: -1, error: null }),
+      setTargets: (id, targets) => { set({ review: get().review?.map((r) => (r.id === id ? { ...r, targets: targets.slice(0, MAX_TARGETS) } : r)) ?? null }); get().syncHistory() },
+      setWantsApi: (id, flag) => { set({ review: get().review?.map((r) => (r.id === id ? { ...r, wantsApi: flag } : r)) ?? null }); get().syncHistory() },
+      editReq: (id, patch) => {
+        const text = patch.text?.trim()
+        set({ review: get().review?.map((r) => (r.id === id ? { ...r, ...patch, ...(patch.text !== undefined && { text: text || r.text }), seen: true, ...(patch.pri && { inf: false }) } : r)) ?? null })
+        get().syncHistory()
+      },
+      markSeen: (id) => { set({ review: get().review?.map((r) => (r.id === id ? { ...r, seen: true } : r)) ?? null }); get().syncHistory() },
+      removeReq: (id) => {
+        const list = get().review ?? []
+        const at = list.findIndex((r) => r.id === id)
+        if (at < 0) return null
+        set({ review: list.filter((_, i) => i !== at) })
+        get().syncHistory()
+        return { r: list[at], at }
+      },
+      restoreReq: (r, at) => {
+        const list = (get().review ?? []).filter((x) => x.id !== r.id)
+        set({ review: [...list.slice(0, at), r, ...list.slice(at)] })
+        get().syncHistory()
+      },
+      addReq: (text, module, pri) => {
+        const list = get().review ?? []
+        const id = nextId(list)
+        set({ review: [...list, { id, module, text: text.trim(), pri, ref: 'เพิ่มโดย BD', seen: true, targets: [{ solution: 'unknown', service: 'unknown' }] }] })
+        get().syncHistory()
+        return id
+      },
+      setTermOk: (id, ok) => { set({ terms: get().terms.map((t) => (t.id === id ? { ...t, ok } : t)) }); get().syncHistory() },
+      override: (id, s, note) => {
+        set({
+          result: get().result?.map((r) => {
+            if (r.id !== id) return r
+            const from = r.override?.from ?? r.s
+            const { override: _o, ...rest } = r
+            return from === s ? { ...rest, s } : { ...rest, s, override: { from, note: note.trim() } }
+          }) ?? null,
+        })
+        get().syncHistory()
+      },
+      clearReview: () => {
+        const { historyId, mode } = get()
+        // A review saved to the list goes from the list too: nothing was judged, so nothing is lost.
+        if (historyId && mode === 'account') void send(`/api/history?id=${historyId}`, 'DELETE')
+        set({ review: null, historyId: null, scope: '', terms: [], confirmed: null, step: -1, error: null })
+      },
       confirmReview: async () => {
-        const { review } = get()
-        if (!review || review.length === 0 || !hasAi(get())) return
+        const { review: all } = get()
+        // Contract terms are not product features: they become a checklist and are never judged.
+        const review = all?.filter((r) => !isCommercial(r)) ?? []
+        if (review.length === 0 || !hasAi(get())) return
         const auth = get()
+        const terms: Term[] = (all ?? []).filter(isCommercial).map((r) => ({ id: r.id, text: r.text, ...(r.ref && { ref: r.ref }), ok: get().terms.find((t) => t.id === r.id)?.ok }))
+        const confirmed = { by: get().user ?? '', at: new Date().toISOString() }
         set({ running: true, step: 2, error: null, startedAt: Date.now(), detail: `กำลังเทียบกับ KB (0/${Math.ceil(review.length / BATCH)} ชุด)` })
         try {
           // Independent of judging, so it runs alongside; a failure here must not lose the results.
           const coverageP = fetchCoverage(auth, review).then((t) => t, (e: unknown) => (e instanceof Error ? e : new Error('Open-question check failed')))
-          const result = await inBatches(review, (batch) => api<{ results: Req[] }>('/api/judge', auth, { body: JSON.stringify({ requirements: batch }), headers: { 'content-type': 'application/json' } }).then((r) => r.results), (done, total) =>
+          const raw = new Map(review.map((r) => [r.id, r]))
+          const judged = await inBatches(review, (batch) => api<{ results: Req[] }>('/api/judge', auth, { body: JSON.stringify({ requirements: batch }), headers: { 'content-type': 'application/json' } }).then((r) => r.results), (done, total) =>
             set({ step: 2 + Math.min(2, Math.floor((done / total) * 3)), detail: `ประเมินแล้ว ${done}/${total} ชุด` }),
           )
+          // The judge answers with the verdict; priority, clause and wording come back from the review list.
+          const result = judged.map((j) => { const { pri, ref, orig, amb } = raw.get(j.id) ?? {}; return { ...j, ...(pri && { pri }), ...(ref && { ref }), ...(orig && { orig }), ...(amb && { amb }) } })
           const coverage = await coverageP
-          set({ result, review: null, coverage: Array.isArray(coverage) ? coverage : null, error: Array.isArray(coverage) ? null : `ประเมินสำเร็จ แต่สร้างคำถามค้างไม่ได้: ${coverage.message}`, selId: result[0]?.id ?? null, valid: {}, filter: 'all', query: '', historyId: null, step: STEPS.length, running: false, startedAt: null, detail: '' })
+          set({ result, review: null, terms, confirmed, coverage: Array.isArray(coverage) ? coverage : null, error: Array.isArray(coverage) ? null : `ประเมินสำเร็จ แต่สร้างคำถามค้างไม่ได้: ${coverage.message}`, selId: result[0]?.id ?? null, valid: {}, filter: 'all', query: '', step: STEPS.length, running: false, startedAt: null, detail: '' })
           void get().saveHistory()
         } catch (e) {
           set({ running: false, startedAt: null, detail: '', step: 2, error: e instanceof Error ? e.message : 'Assessment failed' }) // the review is kept: confirm again to retry
@@ -386,7 +483,14 @@ export const useAssessmentStore = create<AssessmentState>()(
     // Keep the result and PM validation across refresh; the key and access code are never persisted.
     {
       name: 'tor-scouter',
-      partialize: (s) => ({ theme: s.theme, owner: s.owner, historyId: s.historyId, result: s.result, review: s.review, coverage: s.coverage, valid: s.valid, selId: s.selId, customer: s.customer, provider: s.provider, model: s.model }),
+      // v1: targets are { solution, service } (they were { zone, service }). Older saved state is read with the new key.
+      version: 1,
+      migrate: (saved, from) => {
+        const st = (saved ?? {}) as Partial<Pick<AssessmentState, 'result' | 'review'>>
+        if (from < 1) return { ...st, result: st.result?.map(legacyTargets) ?? null, review: st.review?.map(legacyTargets) ?? null } as AssessmentState
+        return st as AssessmentState
+      },
+      partialize: (s) => ({ theme: s.theme, owner: s.owner, historyId: s.historyId, result: s.result, review: s.review, scope: s.scope, terms: s.terms, confirmed: s.confirmed, coverage: s.coverage, valid: s.valid, selId: s.selId, customer: s.customer, project: s.project, provider: s.provider, model: s.model }),
     },
   ),
 )

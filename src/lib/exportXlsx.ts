@@ -2,7 +2,7 @@ import type { SheetData } from 'write-excel-file/browser'
 import { ORDER, STATUS } from '@/data/tor'
 import type { Assessment } from '@/lib/assessment'
 import type { FunctionCoverage } from '@/lib/types'
-import { UNKNOWN, serviceLabel, zoneLabel, DEFAULT_TAXONOMY, type Taxonomy } from '@/data/taxonomy'
+import { UNKNOWN, serviceLabel, solutionLabel, DEFAULT_TAXONOMY, type Taxonomy } from '@/data/taxonomy'
 
 type Validation = 'ok' | 'flag'
 
@@ -18,12 +18,12 @@ export function buildSheets(a: Assessment, coverage: FunctionCoverage[] | null, 
     {
       sheet: 'Compliance matrix',
       data: [
-        head(['ID', 'Module', 'Solution', 'Service', 'ขอ API', 'Requirement', 'Status', 'Confidence', 'Agent reasoning', 'Evidence', 'Recommendation', 'PM validation']),
+        head(['ID', 'Module', 'Solution', 'Service', 'ขอ API', 'Requirement', 'Status', 'Confidence', 'Agent reasoning', 'Evidence', 'Recommendation', 'PM validation', 'ระดับ', 'ข้อใน TOR', 'ยังขาด', 'คำถามถึงลูกค้า', 'แก้ผลโดย BD']),
         ...a.reqs.map((r) =>
-          [r.id, r.module, (r.targets ?? []).map((t) => zoneLabel(t.zone, tx)).join('\n'), (r.targets ?? []).map((t) => (t.service === UNKNOWN ? '-' : serviceLabel(t.service, tx))).join('\n'), r.wantsApi ? 'ขอ API · ถาม Tech' : '', r.text, STATUS[r.s].label, r.conf, r.reason, r.evidence, r.rec, valid[r.id] ? VALIDATION[valid[r.id]] : 'Not yet validated'].map(wrapped),
+          [r.id, r.module, (r.targets ?? []).map((t) => solutionLabel(t.solution, tx)).join('\n'), (r.targets ?? []).map((t) => (t.service === UNKNOWN ? '-' : serviceLabel(t.service, tx))).join('\n'), r.wantsApi ? 'ขอ API · ถาม Tech' : '', r.text, STATUS[r.s].label, r.conf, r.reason, r.evidence, r.rec, valid[r.id] ? VALIDATION[valid[r.id]] : 'Not yet validated', r.pri === 'O' ? 'ไม่บังคับ' : 'บังคับ', r.ref ?? '', r.gap ?? '', r.q ?? '', r.override ? `จาก ${STATUS[r.override.from].label}${r.override.note ? `: ${r.override.note}` : ''}` : ''].map(wrapped),
         ),
       ],
-      columns: [9, 14, 24, 26, 16, 55, 24, 11, 50, 34, 45, 20].map((width) => ({ width })),
+      columns: [9, 14, 24, 26, 16, 55, 24, 11, 50, 34, 45, 20, 11, 14, 40, 40, 30].map((width) => ({ width })),
       stickyRowsCount: 1,
     },
   ]
@@ -47,9 +47,9 @@ export function buildSheets(a: Assessment, coverage: FunctionCoverage[] | null, 
   return sheets
 }
 
-export async function exportXlsx(a: Assessment, coverage: FunctionCoverage[] | null, valid: Record<string, Validation>, customer: string, tx: Taxonomy = DEFAULT_TAXONOMY) {
-  const name = `${(customer || 'TOR').replace(/[^\p{L}\p{N}_-]+/gu, '_')}_compliance_${new Date().toISOString().slice(0, 10)}.xlsx`
+export async function exportXlsx(a: Assessment, coverage: FunctionCoverage[] | null, valid: Record<string, Validation>, name: string, tx: Taxonomy = DEFAULT_TAXONOMY) {
+  const file = `${(name || 'TOR').replace(/[^\p{L}\p{N}_-]+/gu, '_')}_compliance_${new Date().toISOString().slice(0, 10)}.xlsx`
   const writeXlsxFile = (await import('write-excel-file/browser')).default // loaded on first export only
-  await writeXlsxFile(buildSheets(a, coverage, valid, tx)).toFile(name)
-  return name
+  await writeXlsxFile(buildSheets(a, coverage, valid, tx)).toFile(file)
+  return file
 }

@@ -1,0 +1,74 @@
+{
+  "key": "taxonomy",
+  "data": {
+    "zones": [
+      {
+        "id": "crm-plus",
+        "hint": "Hub where the customer organisation logs in (AD login) and uses Buzzebees services as modules: User Management, Campaign Management, Report, Analytic. Includes the back office the customer uses to run campaigns themselves with our tool.",
+        "label": "CRM+",
+        "archived": false,
+        "examples": []
+      }
+    ],
+    "services": [
+      {
+        "id": "user-management",
+        "hint": "Member/customer data and identity: registration, login, OTP, token, session, profile.",
+        "label": "User Management",
+        "archived": false,
+        "examples": [],
+        "confirmed": true
+      },
+      {
+        "id": "campaign-management",
+        "hint": "Stock, create campaigns, targeting and schedule, redeem, coupons, selling items.",
+        "label": "Campaign Management",
+        "archived": false,
+        "examples": [],
+        "confirmed": true
+      },
+      {
+        "id": "report-analytic",
+        "hint": "Reports, dashboards, analytics, segmentation insight.",
+        "label": "Report / Analytic",
+        "archived": false,
+        "examples": [],
+        "confirmed": true
+      },
+      {
+        "id": "point",
+        "hint": "Earn/deduct points, earn rules, expiry, point liability.",
+        "label": "Point Service",
+        "archived": false,
+        "examples": [],
+        "confirmed": false
+      },
+      {
+        "id": "notification",
+        "hint": "In-app notifications, list and mark as read.",
+        "label": "Notification",
+        "archived": false,
+        "examples": [],
+        "confirmed": true
+      },
+      {
+        "id": "consent",
+        "hint": "Consent capture, status, withdraw, history.",
+        "label": "Consent (PDPA)",
+        "archived": false,
+        "examples": [],
+        "confirmed": true
+      },
+      {
+        "id": "fraud-tagging",
+        "hint": "Fraud checks, user and app tags.",
+        "label": "Fraud Detection, User/App Tagging",
+        "archived": false,
+        "examples": [],
+        "confirmed": true
+      }
+    ]
+  },
+  "updatedBy": "aphichai@buzzebees.com",
+  "updatedAt": "2026-11-24T11:08:34.885141Z"
+}

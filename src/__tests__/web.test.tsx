@@ -4,7 +4,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import App from '@/App'
-import { useAssessmentStore } from '@/store/useAssessmentStore'
+import { EMPTY_PROJECT, useAssessmentStore } from '@/store/useAssessmentStore'
+import { STEPS } from '@/data/tor'
 import type { Req } from '@/lib/types'
 import { pageSlices } from '@/lib/exportPdf'
 import { Logo, logoPath, spreadFor } from '@/components/Logo'
@@ -26,7 +27,7 @@ function open(path: string) {
 
 beforeEach(() => {
   localStorage.clear()
-  useAssessmentStore.setState({ result: null, review: null, coverage: null, selId: null, valid: {}, apiKey: '', accessCode: '' })
+  useAssessmentStore.setState({ result: null, review: null, coverage: null, selId: null, valid: {}, apiKey: '', accessCode: '', project: EMPTY_PROJECT, scope: '', terms: [], confirmed: null })
 })
 
 describe('no mock data', () => {
@@ -108,7 +109,7 @@ describe('run progress', () => {
   const run = async (questionsOk: boolean) => {
     vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
       if (url === '/api/extract') return ok({ requirements: reqs })
-      if (url === '/api/classify') return ok({ results: (JSON.parse(init.body as string).requirements as typeof reqs).map((r) => ({ ...r, targets: [{ zone: 'app-custom', service: 'user-management' }], wantsApi: false })) })
+      if (url === '/api/classify') return ok({ results: (JSON.parse(init.body as string).requirements as typeof reqs).map((r) => ({ ...r, targets: [{ solution: 'app-custom', service: 'user-management' }], wantsApi: false })) })
       if (url === '/api/judge') return ok({ results: (JSON.parse(init.body as string).requirements as typeof reqs).map((r) => req(r.id, 'full')) })
       return questionsOk ? ok({ topics: [{ function: 'Point', coverage: 'covered', reqIds: [], open: [] }] }) : ({ ok: false, status: 500, json: async () => ({ error: 'quota exceeded' }) } as Response)
     }))
@@ -118,11 +119,11 @@ describe('run progress', () => {
     return useAssessmentStore.getState()
   }
 
-  it('stops after classify so the BA can confirm zones, and judges nothing yet', async () => {
+  it('stops after classify so the BA can confirm solutions, and judges nothing yet', async () => {
     const judged = vi.fn()
     vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
       if (url === '/api/extract') return ok({ requirements: reqs })
-      if (url === '/api/classify') return ok({ results: (JSON.parse(init.body as string).requirements as typeof reqs).map((r) => ({ ...r, targets: [{ zone: 'crm-plus', service: 'campaign-management' }], wantsApi: r.id === 'R-001' })) })
+      if (url === '/api/classify') return ok({ results: (JSON.parse(init.body as string).requirements as typeof reqs).map((r) => ({ ...r, targets: [{ solution: 'crm-plus', service: 'campaign-management' }], wantsApi: r.id === 'R-001' })) })
       judged(url)
       return ok({ results: [], topics: [] })
     }))
@@ -130,24 +131,24 @@ describe('run progress', () => {
     await useAssessmentStore.getState().runReal()
     const s = useAssessmentStore.getState()
     expect(s.review).toHaveLength(12)
-    expect(s.review?.[0]).toMatchObject({ targets: [{ zone: 'crm-plus', service: 'campaign-management' }], wantsApi: true })
+    expect(s.review?.[0]).toMatchObject({ targets: [{ solution: 'crm-plus', service: 'campaign-management' }], wantsApi: true })
     expect(s.result).toBeNull()
     expect(s.running).toBe(false)
     expect(s.step).toBe(2)
     expect(judged).not.toHaveBeenCalled()
   })
 
-  it('sends the edited zones and the API flag to the judge, then clears the review', async () => {
+  it('sends the edited solutions and the API flag to the judge, then clears the review', async () => {
     const sent: { id: string; targets?: unknown; wantsApi?: boolean }[] = []
     vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
       if (url === '/api/judge') { const rs = JSON.parse(init.body as string).requirements as typeof sent; sent.push(...rs); return ok({ results: rs.map((r) => req(r.id, 'full')) }) }
       return ok({ topics: [] })
     }))
-    useAssessmentStore.setState({ apiKey: 'k-123456789', review: [{ id: 'R-1', module: 'M', text: 't', targets: [{ zone: 'unknown', service: 'unknown' }] }], result: null })
-    useAssessmentStore.getState().setTargets('R-1', [{ zone: 'app-custom', service: 'point' }, { zone: 'crm-plus', service: 'report-analytic' }])
+    useAssessmentStore.setState({ apiKey: 'k-123456789', review: [{ id: 'R-1', module: 'M', text: 't', targets: [{ solution: 'unknown', service: 'unknown' }] }], result: null })
+    useAssessmentStore.getState().setTargets('R-1', [{ solution: 'app-custom', service: 'point' }, { solution: 'crm-plus', service: 'report-analytic' }])
     useAssessmentStore.getState().setWantsApi('R-1', true)
     await useAssessmentStore.getState().confirmReview()
-    expect(sent[0]).toMatchObject({ id: 'R-1', wantsApi: true, targets: [{ zone: 'app-custom', service: 'point' }, { zone: 'crm-plus', service: 'report-analytic' }] })
+    expect(sent[0]).toMatchObject({ id: 'R-1', wantsApi: true, targets: [{ solution: 'app-custom', service: 'point' }, { solution: 'crm-plus', service: 'report-analytic' }] })
     expect(useAssessmentStore.getState().review).toBeNull()
     expect(useAssessmentStore.getState().result).toHaveLength(1)
   })
@@ -201,6 +202,17 @@ describe('summary pdf', () => {
     expect(exportPdfMock.mock.calls[0][1]).toMatch(/^Bangchak_executive_summary_\d{4}-\d{2}-\d{2}\.pdf$/)
     expect(print).not.toHaveBeenCalled()
     print.mockRestore()
+  })
+
+  it('names the PDF for the project title when there is one', async () => {
+    exportPdfMock.mockClear()
+    useAssessmentStore.setState({ result: [req('R-001', 'full')], customer: 'Bangchak', project: { ...EMPTY_PROJECT, title: 'Loyalty App 2027' } })
+    open('/summary')
+    screen.getByRole('button', { name: 'Download PDF' }).click()
+    await vi.waitFor(() => expect(exportPdfMock).toHaveBeenCalled())
+    expect(exportPdfMock.mock.calls[0][1]).toMatch(/^Loyalty_App_2027_executive_summary_\d{4}-\d{2}-\d{2}\.pdf$/)
+    expect(screen.getByText(/TOR Scouter · Loyalty App 2027 · Bangchak ·/)).toBeInTheDocument()
+    useAssessmentStore.setState({ project: EMPTY_PROJECT })
   })
 
   it('splits a tall page into A4-sized slices', () => {
@@ -269,7 +281,7 @@ describe('dark mode', () => {
   })
 
   it('has no colours hardcoded in the pages: every colour comes from the palette', () => {
-    const files = ['src/components/ui.tsx', 'src/components/AppShell.tsx', 'src/pages/Dashboard.tsx', 'src/pages/Matrix.tsx', 'src/pages/Gaps.tsx', 'src/pages/Questions.tsx', 'src/pages/Summary.tsx', 'src/pages/KnowledgeBase.tsx', 'src/pages/AiSettings.tsx']
+    const files = ['src/components/ui.tsx', 'src/components/AppShell.tsx', 'src/components/tor.tsx', 'src/components/ResultHead.tsx', 'src/pages/Matrix.tsx', 'src/pages/Questions.tsx', 'src/pages/Summary.tsx', 'src/pages/Review.tsx', 'src/pages/History.tsx', 'src/pages/KnowledgeBase.tsx', 'src/pages/AiSettings.tsx']
     for (const f of files) {
       const text = readFileSync(join(process.cwd(), f), 'utf8')
       expect(text, f).not.toMatch(/bg-white|text-\[#|bg-\[#|border-\[#/)
@@ -332,7 +344,7 @@ describe('accessibility fixes', () => {
   })
 
   it.each([
-    ['/dashboard', /Coverage dashboard/],
+    ['/summary', /Executive summary/],
     ['/matrix', /Compliance matrix/],
     ['/knowledge-base', /Knowledge base/],
   ])('%s sets its own tab title', (path, title) => {
@@ -360,17 +372,16 @@ describe('accessibility fixes', () => {
   it('says why Run is disabled', () => {
     useAssessmentStore.setState({ files: [], apiKey: '' })
     open('/')
-    const hint = screen.getByText('ใส่ AI key และเลือกไฟล์ TOR ก่อน')
-    expect(screen.getByRole('button', { name: /Run assessment/ })).toHaveAttribute('aria-describedby', hint.id)
+    const hint = screen.getByText('เพิ่มไฟล์ TOR และตั้งค่า AI ก่อน')
+    expect(screen.getByRole('button', { name: 'แยก Requirement' })).toHaveAttribute('aria-describedby', hint.id)
   })
 
-  it('gives data tables a caption and column scopes, and marks the selected requirement', () => {
-    useAssessmentStore.setState({ result: [req('R-001', 'full'), req('R-002', 'none')], selId: 'R-002' })
+  it('the per-requirement list is a labelled table with its column headers', () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'full'), req('R-002', 'none')] })
     open('/matrix')
-    expect(screen.getByRole('table', { name: 'Requirements and their compliance status' })).toBeInTheDocument()
-    for (const th of screen.getAllByRole('columnheader')) expect(th).toHaveAttribute('scope', 'col')
-    expect(screen.getByRole('button', { name: 'R-002' })).toHaveAttribute('aria-current', 'true')
-    expect(screen.getByRole('button', { name: 'R-001' })).not.toHaveAttribute('aria-current')
+    const table = screen.getByRole('table', { name: 'Requirement รายข้อ' })
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['ข้อ', 'Requirement', 'ระดับ', 'ผล', 'Feature ของเรา'])
+    expect(within(table).getAllByRole('row')).toHaveLength(3)
   })
 })
 
@@ -382,68 +393,90 @@ describe('compliance matrix review flow', () => {
     mk('R-003', 'Point', 'integ', 'ส่งคะแนนเข้า SAP'),
     mk('R-004', 'Point', 'verify', 'โอนคะแนนข้าม Brand'),
   ]
-  const panel = () => within(screen.getByRole('complementary', { name: 'Requirement detail' }))
+  const drawer = () => within(screen.getByRole('dialog'))
+  const row = (id: string) => screen.getByRole('button', { name: new RegExp(`^${id} `) })
 
   beforeEach(() => {
-    useAssessmentStore.setState({ result: data, selId: 'R-001', filter: 'all', query: '', valid: {} })
+    useAssessmentStore.setState({ result: data, selId: null, filter: 'all', query: '', valid: {} })
   })
 
-  it('shows the detail of the row you picked, next to it', async () => {
+  it('opens the requirement you picked in a drawer, with its reasoning, evidence and advice', async () => {
     const user = userEvent.setup()
     open('/matrix')
-    expect(panel().getByText('reason for R-001')).toBeInTheDocument()
-    await user.click(screen.getByText('ส่งคะแนนเข้า SAP')) // click anywhere on the row, not just the ID
-    expect(panel().getByText('reason for R-003')).toBeInTheDocument()
-    expect(panel().getByText('evidence for R-003')).toBeInTheDocument()
-    expect(panel().getByText('rec for R-003')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'R-003' })).toHaveAttribute('aria-current', 'true')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByText('ส่งคะแนนเข้า SAP')) // anywhere on the row
+    expect(screen.getByRole('dialog', { name: 'ส่งคะแนนเข้า SAP' })).toBeInTheDocument()
+    expect(drawer().getByText('reason for R-003')).toBeInTheDocument()
+    expect(drawer().getByText('evidence for R-003')).toBeInTheDocument()
+    expect(drawer().getByText('rec for R-003')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('steps with next/previous inside the filtered rows and shows the position', async () => {
     const user = userEvent.setup()
     open('/matrix')
-    await user.selectOptions(screen.getByLabelText('Module'), 'Point')
-    await user.click(screen.getByRole('button', { name: 'R-003' }))
-    expect(panel().getByText('1 / 2')).toBeInTheDocument()
-    expect(panel().getByRole('button', { name: 'Previous requirement' })).toBeDisabled()
-    await user.click(panel().getByRole('button', { name: 'Next requirement' }))
-    expect(panel().getByText('reason for R-004')).toBeInTheDocument()
-    expect(panel().getByText('2 / 2')).toBeInTheDocument()
-    expect(panel().getByRole('button', { name: 'Next requirement' })).toBeDisabled()
+    await user.selectOptions(screen.getByLabelText('หมวด'), 'Point')
+    await user.click(row('R-003'))
+    expect(drawer().getByText('1 / 2')).toBeInTheDocument()
+    expect(drawer().getByRole('button', { name: 'ข้อก่อนหน้า' })).toBeDisabled()
+    await user.click(drawer().getByRole('button', { name: 'ข้อถัดไป' }))
+    expect(drawer().getByText('reason for R-004')).toBeInTheDocument()
+    expect(drawer().getByText('2 / 2')).toBeInTheDocument()
+    expect(drawer().getByRole('button', { name: 'ข้อถัดไป' })).toBeDisabled()
   })
 
-  it('filters by module and status, and clears the filters', async () => {
+  it('filters by category and result group, mandatory only, and clears the filters', async () => {
     const user = userEvent.setup()
+    useAssessmentStore.setState({ result: [...data.slice(0, 3), { ...data[3], pri: 'O' }] })
     open('/matrix')
-    await user.selectOptions(screen.getByLabelText('Module'), 'Member')
-    expect(screen.queryByRole('button', { name: 'R-003' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /Customization Required/ }))
-    expect(screen.getByRole('button', { name: 'R-002' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'R-001' })).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('หมวด'), 'Member')
+    expect(screen.queryByRole('button', { name: /^R-003 / })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^มีงานเพิ่ม/ }))
+    expect(row('R-002')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^R-001 / })).not.toBeInTheDocument()
     await user.click(screen.getAllByRole('button', { name: 'ล้างตัวกรอง' })[0])
-    expect(screen.getByRole('button', { name: 'R-004' })).toBeInTheDocument()
+    expect(row('R-004')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'เฉพาะข้อบังคับ' }))
+    expect(screen.queryByRole('button', { name: /^R-004 / })).not.toBeInTheDocument()
   })
 
   it('confirming records the result and moves on to the next requirement', async () => {
     const user = userEvent.setup()
     open('/matrix')
-    await user.click(panel().getByRole('button', { name: /Confirm result/ }))
+    await user.click(row('R-001'))
+    await user.click(drawer().getByRole('button', { name: /ยืนยันผล/ }))
     expect(useAssessmentStore.getState().valid['R-001']).toBe('ok')
-    expect(useAssessmentStore.getState().selId).toBe('R-002')
-    expect(panel().getByText('reason for R-002')).toBeInTheDocument()
-    await user.click(panel().getByRole('button', { name: 'Flag for review' }))
+    expect(drawer().getByText('reason for R-002')).toBeInTheDocument()
+    await user.click(drawer().getByRole('button', { name: 'ติดธง' }))
     expect(useAssessmentStore.getState().valid['R-002']).toBe('flag')
     expect(screen.getByText(/ยืนยันแล้ว 1 · ติดธง 1 · ยังไม่ตรวจ 2/)).toBeInTheDocument()
   })
 
-  it('moves the selection with the arrow keys', async () => {
+  it('a person can change the status, with a reason; the AI status is kept and shown', async () => {
     const user = userEvent.setup()
     open('/matrix')
-    screen.getByRole('button', { name: 'R-001' }).focus()
+    await user.click(row('R-004'))
+    await user.selectOptions(drawer().getByLabelText('ผลใหม่'), 'none')
+    await user.type(drawer().getByLabelText('เหตุผลที่เปลี่ยน'), 'Product ยืนยันว่าไม่มี')
+    await user.click(drawer().getByRole('button', { name: 'บันทึกผล' }))
+    expect(useAssessmentStore.getState().result?.find((r) => r.id === 'R-004')).toMatchObject({ s: 'none', override: { from: 'verify', note: 'Product ยืนยันว่าไม่มี' } })
+    expect(drawer().getByText('แก้โดย BD จากเดิม ต้องตรวจสอบ: Product ยืนยันว่าไม่มี')).toBeInTheDocument()
+    expect(screen.getByText('แก้โดย BD')).toBeInTheDocument() // the row says so too
+    // back to what the AI said: the override goes
+    await user.selectOptions(drawer().getByLabelText('ผลใหม่'), 'verify')
+    await user.click(drawer().getByRole('button', { name: 'บันทึกผล' }))
+    expect(useAssessmentStore.getState().result?.find((r) => r.id === 'R-004')?.override).toBeUndefined()
+  })
+
+  it('moves between rows with the arrow keys', async () => {
+    const user = userEvent.setup()
+    open('/matrix')
+    row('R-001').focus()
     await user.keyboard('{ArrowDown}{ArrowDown}')
-    expect(useAssessmentStore.getState().selId).toBe('R-003')
+    expect(document.activeElement).toBe(row('R-003'))
     await user.keyboard('{ArrowUp}')
-    expect(useAssessmentStore.getState().selId).toBe('R-002')
+    expect(document.activeElement).toBe(row('R-002'))
   })
 
   it('keeps long unbroken text (URLs) from stretching the table', () => {
@@ -453,40 +486,43 @@ describe('compliance matrix review flow', () => {
   })
 })
 
-describe('home: task first', () => {
-  const stepItems = () => [...screen.getByRole('list', { name: 'ขั้นตอน' }).children] // top-level steps only, not the file list inside step 2
+describe('home: upload form', () => {
+  const runBtn = () => screen.getByRole('button', { name: 'แยก Requirement' })
 
   beforeEach(() => {
-    useAssessmentStore.setState({ result: null, coverage: null, files: [], apiKey: '', running: false, step: -1, error: null, detail: '', startedAt: null })
+    useAssessmentStore.setState({ result: null, coverage: null, files: [], customer: '', project: EMPTY_PROJECT, apiKey: '', running: false, step: -1, error: null, detail: '', startedAt: null })
   })
 
-  it('tells a first-time user what is missing, in order, and marks the current step', () => {
-    open('/')
-    const items = stepItems()
-    expect(items).toHaveLength(3)
-    expect(items[0]).toHaveAttribute('aria-current', 'step') // key comes first
-    expect(items[0]).toHaveTextContent('ใส่ AI key')
-    expect(items[2]).toHaveTextContent('ใส่ AI key และเลือกไฟล์ TOR ก่อน')
-  })
-
-  it('ticks steps off as the key and file arrive, and then Run is ready', () => {
+  it('says what is missing before the run, and is ready once a key and a file are in', () => {
+    const { unmount } = open('/')
+    expect(runBtn()).toBeDisabled()
+    expect(screen.getByText('เพิ่มไฟล์ TOR และตั้งค่า AI ก่อน')).toBeInTheDocument()
+    expect(screen.getByText('ยังไม่ได้ตั้งค่า')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'ตั้งค่า AI' })).toHaveAttribute('href', '/ai-settings')
+    unmount()
     useAssessmentStore.setState({ apiKey: 'k-123456789', files: [new File(['x'], 'bangchak-tor.pdf')] })
     open('/')
-    const items = stepItems()
-    expect(items[0]).toHaveTextContent('✓')
-    expect(items[1]).toHaveTextContent('bangchak-tor.pdf')
-    expect(items[2]).toHaveAttribute('aria-current', 'step')
-    expect(items[2]).toHaveTextContent('พร้อมแล้ว')
-    expect(screen.getByRole('button', { name: /Run assessment/ })).toBeEnabled()
+    expect(screen.getByText('bangchak-tor.pdf')).toBeInTheDocument()
+    expect(screen.getByText('พร้อมแล้ว')).toBeInTheDocument()
+    expect(runBtn()).toBeEnabled()
+  })
+
+  it('takes files from a drop zone that accepts several files, including CSV and TXT', () => {
+    open('/')
+    const input = document.getElementById('torFile') as HTMLInputElement
+    expect(input.multiple).toBe(true)
+    for (const ext of ['.pdf', '.docx', '.xlsx', '.csv', '.txt', '.png']) expect(input.accept).toContain(ext)
+    expect(input.closest('label')).toHaveTextContent('ลาก TOR มาวางตรงนี้')
+    const drop = new Event('drop', { bubbles: true }) as Event & { dataTransfer: unknown }
+    drop.dataTransfer = { files: [new File(['a'], 'annex.csv')] }
+    act(() => { input.closest('label')!.dispatchEvent(drop) })
+    expect(useAssessmentStore.getState().files.map((f) => f.name)).toEqual(['annex.csv'])
   })
 
   it('attaches several files, including images, lets you remove one, and skips duplicates', async () => {
     const user = userEvent.setup()
-    useAssessmentStore.setState({ files: [], error: null })
     open('/')
     const input = document.getElementById('torFile') as HTMLInputElement
-    expect(input.multiple).toBe(true)
-    expect(input.accept).toContain('.png')
     const pdf = new File(['x'], 'tor.pdf', { type: 'application/pdf', lastModified: 1 })
     const shot = new File(['y'], 'table.png', { type: 'image/png', lastModified: 1 })
     await user.upload(input, [pdf, shot])
@@ -500,11 +536,42 @@ describe('home: task first', () => {
   })
 
   it('refuses a file over 4 MB and says which one', () => {
-    useAssessmentStore.setState({ files: [], error: null })
     const big = new File([new Uint8Array(4 * 1024 * 1024 + 1)], 'huge.pdf')
     useAssessmentStore.getState().addFiles([big])
     expect(useAssessmentStore.getState().files).toHaveLength(0)
     expect(useAssessmentStore.getState().error).toContain('huge.pdf')
+  })
+
+  it('loads the sample TOR and fills an empty project name and customer', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => (url === '/samples/tor-sample.txt' ? ({ ok: true, blob: async () => new Blob(['ระบบต้องมี OTP']) } as Response) : ({ ok: false, status: 404, json: async () => ({}) } as Response))))
+    open('/')
+    await user.click(screen.getByRole('button', { name: 'ใช้ไฟล์ตัวอย่าง' }))
+    await waitFor(() => expect(useAssessmentStore.getState().files).toHaveLength(1))
+    expect(useAssessmentStore.getState().files[0].name).toMatch(/\.txt$/)
+    expect(screen.getByLabelText('ชื่อโครงการ')).toHaveValue('TOR ระบบสมาชิกเครือร้านอาหาร')
+    expect(screen.getByLabelText('ลูกค้า')).toHaveValue('บจก. ตัวอย่าง ฟู้ดส์')
+    expect(screen.queryByRole('button', { name: 'ใช้ไฟล์ตัวอย่าง' })).not.toBeInTheDocument() // the offer goes once there are files
+    vi.unstubAllGlobals()
+  })
+
+  it('records the project details, with industry levels that open one after another', async () => {
+    const user = userEvent.setup()
+    open('/')
+    await user.type(screen.getByLabelText('ชื่อโครงการ'), 'TOR CRM')
+    await user.type(screen.getByLabelText('ลูกค้า'), 'ACME')
+    expect(screen.getByLabelText('Sub-Industry')).toBeDisabled()
+    await user.selectOptions(screen.getByLabelText('Industry'), 'Retail Business')
+    await user.selectOptions(screen.getByLabelText('Sub-Industry'), 'Department Store')
+    await user.selectOptions(screen.getByLabelText('Sub-Sub-Industry'), 'Department Store')
+    fireEvent.change(screen.getByLabelText('กำหนดยื่นข้อเสนอ'), { target: { value: '2026-12-15' } })
+    await user.type(screen.getByLabelText(/มูลค่าโครงการ/), '1500000')
+    expect(screen.getByLabelText(/มูลค่าโครงการ/)).toHaveValue('1,500,000')
+    expect(useAssessmentStore.getState().project).toEqual({ title: 'TOR CRM', industry: 'Retail Business', sub: 'Department Store', leaf: 'Department Store', due: '2026-12-15', value: 1500000 })
+    expect(useAssessmentStore.getState().customer).toBe('ACME')
+    await user.selectOptions(screen.getByLabelText('Industry'), 'Hospital') // another industry clears the levels under it
+    expect(useAssessmentStore.getState().project).toMatchObject({ industry: 'Hospital', sub: '', leaf: '' })
+    expect(screen.getByLabelText('Sub-Sub-Industry')).toBeDisabled()
   })
 
   it('reads each file with its own request and renumbers the requirements across all of them', async () => {
@@ -520,7 +587,7 @@ describe('home: task first', () => {
       if (url === '/api/judge') return ok({ results: (JSON.parse(init.body as string).requirements as { id: string; module: string; text: string }[]).map((r) => req(r.id, 'full')) })
       return ok({ topics: [] })
     }))
-    useAssessmentStore.setState({ files: [new File(['a'], 'a.pdf'), new File(['b'], 'b.png')], apiKey: 'k-123456789', running: false, step: -1, error: null })
+    useAssessmentStore.setState({ files: [new File(['a'], 'a.pdf'), new File(['b'], 'b.png')], apiKey: 'k-123456789' })
     await useAssessmentStore.getState().runReal()
     await useAssessmentStore.getState().confirmReview()
     expect(seen.sort()).toEqual(['a.pdf', 'b.png'])
@@ -537,9 +604,9 @@ describe('home: task first', () => {
       if (url === '/api/judge') return ok({ results: [req('R-001', 'full')] })
       return ok({ topics: [] })
     }))
-    useAssessmentStore.setState({ apiKey: '', files: [new File(['x'], 'tor.pdf')], serverDefault: { provider: 'gemini', model: 'gemini-3.8-flash' }, running: false, step: -1, error: null })
+    useAssessmentStore.setState({ files: [new File(['x'], 'tor.pdf')], serverDefault: { provider: 'gemini', model: 'gemini-3.8-flash' } })
     open('/')
-    expect(screen.getByRole('button', { name: /Run assessment/ })).toBeEnabled()
+    expect(runBtn()).toBeEnabled()
     expect(screen.getByText(/ค่าจากเซิร์ฟเวอร์/)).toBeInTheDocument()
     await useAssessmentStore.getState().runReal()
     useAssessmentStore.setState({ serverDefault: { provider: 'gemini', model: 'gemini-3.8-flash' } }) // the mounted app's status probe got {} from this fake fetch and cleared it
@@ -550,100 +617,105 @@ describe('home: task first', () => {
     vi.unstubAllGlobals()
   })
 
-  it('puts the upload before the progress band, so the work is not buried under explanation', () => {
+  it('shows progress while running, with the step and the live detail', () => {
+    useAssessmentStore.setState({ running: true, step: 1, startedAt: Date.now(), detail: 'พบ 12 requirement', files: [new File(['x'], 'tor.pdf')], apiKey: 'k-123456789' })
     open('/')
-    const upload = document.getElementById('torFile')!
-    const band = document.getElementById('workflow')!
-    expect(upload.compareDocumentPosition(band) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // the long explanation is collapsed by default
-    expect(document.querySelector('details')).not.toHaveAttribute('open')
+    expect(screen.getByText(/ขั้น 2\/5/)).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('พบ 12 requirement')
+    expect(screen.getByRole('button', { name: 'กำลังแยก Requirement…' })).toBeDisabled()
+    expect(document.getElementById('torFile')).toBeDisabled()
+    useAssessmentStore.setState({ running: false, startedAt: null, detail: '', step: -1 })
   })
 
-  it('shows returning users their last result with shortcuts, and hides it while a run is in progress', () => {
-    useAssessmentStore.setState({ result: [req('R-001', 'verify'), req('R-002', 'integ')] })
+  it('shows the last result with shortcuts when there are no accounts, and hides it while running', () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'verify'), req('R-002', 'integ')], project: { ...EMPTY_PROJECT, title: 'TOR CRM' } })
+    const { unmount } = open('/')
+    const recent = within(screen.getByRole('region', { name: 'TOR ล่าสุด' }))
+    expect(recent.getByText('TOR CRM')).toBeInTheDocument()
+    expect(recent.getByRole('link', { name: 'รายข้อ' })).toHaveAttribute('href', '/matrix')
+    expect(recent.getByRole('link', { name: 'สรุป' })).toHaveAttribute('href', '/summary')
+    unmount()
+    useAssessmentStore.setState({ running: true })
     open('/')
-    expect(screen.getByText('ผลประเมินล่าสุด')).toBeInTheDocument()
-    const row = within(screen.getByText('ผลประเมินล่าสุด').parentElement!) // the top bar has links with the same names
-    expect(row.getByRole('link', { name: 'Matrix' })).toHaveAttribute('href', '/matrix')
-    expect(row.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '/dashboard')
+    expect(screen.queryByRole('region', { name: 'TOR ล่าสุด' })).not.toBeInTheDocument()
+    useAssessmentStore.setState({ running: false })
   })
 
-  it('puts the last result after the card in reading order, so the task comes first', () => {
-    useAssessmentStore.setState({ result: [req('R-001', 'verify')] })
+  it('has no recent list before the first assessment', () => {
     open('/')
-    const card = screen.getByRole('list', { name: 'ขั้นตอน' }).closest('section')!
-    const last = screen.getByText('ผลประเมินล่าสุด')
-    expect(card.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'TOR ล่าสุด' })).not.toBeInTheDocument()
   })
 
-  it('has no last-result card before the first assessment', () => {
-    open('/')
-    expect(screen.queryByText('ผลประเมินล่าสุด')).not.toBeInTheDocument()
-  })
-
-  it('shows a failure next to the Run button, not buried in the progress band', () => {
+  it('shows a failure next to the button', () => {
     useAssessmentStore.setState({ error: 'API key not valid. Please pass a valid API key.' })
     open('/')
-    const alert = screen.getByRole('alert')
-    expect(alert).toHaveTextContent('API key not valid')
-    expect(document.getElementById('workflow')!.contains(alert)).toBe(false)
+    expect(screen.getByRole('alert')).toHaveTextContent('API key not valid')
+  })
+
+  it('after a run, starts a new TOR with an empty form', async () => {
+    const user = userEvent.setup()
+    useAssessmentStore.setState({ result: [req('R-001', 'full')], step: STEPS.length, files: [new File(['x'], 'tor.pdf')], customer: 'ACME', project: { ...EMPTY_PROJECT, title: 'TOR CRM' } })
+    open('/')
+    expect(screen.getByRole('button', { name: 'ดูผลประเมิน' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'ตรวจ TOR ใหม่' }))
+    expect(useAssessmentStore.getState()).toMatchObject({ files: [], customer: '', project: EMPTY_PROJECT, step: -1 })
+    expect(runBtn()).toBeInTheDocument()
+  })
+
+  it('heads the result with the project name, its details, what it asks for and who confirmed the list', () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'full')], customer: 'ACME', scope: 'ระบบสมาชิกสำหรับห้าง', confirmed: { by: 'ann', at: '2026-11-20T09:05:00.000Z' }, project: { title: 'TOR CRM', industry: 'Retail Business', sub: 'Department Store', leaf: 'Department Store', due: '2026-12-15', value: 1800000 } })
+    open('/summary')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('TOR CRM')
+    for (const fact of ['ACME', 'Retail Business › Department Store', 'มูลค่า 1,800,000 บาท', '1 ข้อ']) expect(screen.getByText(fact)).toBeInTheDocument() // a repeated level is shown once
+    expect(screen.getByText(/^ยื่น /)).toBeInTheDocument()
+    expect(screen.getByText(/^ยืนยัน requirement โดย ann /)).toBeInTheDocument()
+    expect(screen.getByText('ระบบสมาชิกสำหรับห้าง')).toBeInTheDocument()
+    useAssessmentStore.setState({ scope: '', confirmed: null })
+  })
+
+  it('shows a disabled button as gray rather than a faded primary', () => {
+    open('/')
+    expect(runBtn().className).toContain('disabled:bg-tint')
   })
 })
 
-describe('home: one container style', () => {
-  it('keeps the steps and the form in a single surface, with no dashed drop box and no nested cards', () => {
-    open('/')
-    const list = screen.getByRole('list', { name: 'ขั้นตอน' })
-    const surface = list.closest('section')!
-    expect(surface.contains(document.getElementById('torFile')!)).toBe(true) // upload is step 2
-    expect(surface.contains(screen.getByLabelText(/ชื่อลูกค้า/))).toBe(true)
-    expect(surface.contains(screen.getByRole('button', { name: /Run assessment/ }))).toBe(true) // Run is step 3
-    expect(document.querySelector('.border-dashed')).toBeNull() // drag-and-drop is not supported, so nothing should look like a drop target
-  })
-
-  it('shows a disabled Run as gray rather than a faded primary', () => {
-    open('/')
-    expect(screen.getByRole('button', { name: /Run assessment/ }).className).toContain('disabled:bg-tint')
-  })
-})
-
-describe('zone and service in the matrix', () => {
+describe('solution and service in the matrix', () => {
   const mk = (id: string, s: Req['s'], extra: Partial<Req> = {}): Req => ({ id, module: 'Member', s, conf: '80%', text: `text ${id}`, reason: `reason ${id}`, evidence: `evidence ${id}`, rec: `rec ${id}`, ...extra })
   const data = [
-    mk('R-001', 'full', { targets: [{ zone: 'app-custom', service: 'user-management' }] }),
-    mk('R-002', 'verify', { targets: [{ zone: 'crm-plus', service: 'campaign-management' }], wantsApi: true }),
-    mk('R-003', 'config', { targets: [{ zone: 'crm-plus', service: 'report-analytic' }] }),
+    mk('R-001', 'full', { targets: [{ solution: 'app-custom', service: 'user-management' }] }),
+    mk('R-002', 'verify', { targets: [{ solution: 'crm-plus', service: 'campaign-management' }], wantsApi: true }),
+    mk('R-003', 'config', { targets: [{ solution: 'crm-plus', service: 'report-analytic' }] }),
   ]
   beforeEach(() => useAssessmentStore.setState({ result: data, selId: 'R-001', filter: 'all', query: '', valid: {} }))
 
-  it('shows zone › service per requirement and the API tag', () => {
+  it('shows solution › service per requirement and the API tag', () => {
     open('/matrix')
-    expect(screen.getAllByText('App project — Custom › User Management').length).toBeGreaterThan(0) // the row, and the detail panel of the selected one
+    expect(screen.getAllByText('App project — Custom › User Management').length).toBeGreaterThan(0)
     expect(screen.getAllByText('ขอ API · ถาม Tech').length).toBeGreaterThan(0)
   })
 
-  it('filters by zone, by service and by the API tag, and clears them', async () => {
+  it('filters by solution, by service and by the API tag, and clears them', async () => {
     const user = userEvent.setup()
     open('/matrix')
     await user.selectOptions(screen.getByLabelText('Solution'), 'crm-plus')
-    expect(screen.queryByRole('button', { name: 'R-001' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^R-001 / })).not.toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Service'), 'report-analytic')
-    expect(screen.getByRole('button', { name: 'R-003' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'R-002' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^R-003 / })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^R-002 / })).not.toBeInTheDocument()
     await user.click(screen.getAllByRole('button', { name: 'ล้างตัวกรอง' })[0])
     await user.click(screen.getByRole('button', { name: /ขอ API · ถาม Tech · 1/ }))
-    expect(screen.getByRole('button', { name: 'R-002' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'R-001' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^R-002 / })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^R-001 / })).not.toBeInTheDocument()
   })
 
-  it('still renders a result saved before zones existed, without zone filters', () => {
+  it('still renders a result saved before solutions existed, without solution filters', () => {
     useAssessmentStore.setState({ result: [mk('R-001', 'full')] })
     open('/matrix')
-    expect(screen.getByRole('button', { name: 'R-001' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^R-001 / })).toBeInTheDocument()
     expect(screen.queryByLabelText('Solution')).not.toBeInTheDocument()
   })
 
-  it('exports Zone, Service and the API flag', async () => {
+  it('exports Solution, Service and the API flag', async () => {
     const { buildSheets } = await import('@/lib/exportXlsx')
     const { fromReqs } = await import('@/lib/assessment')
     const rows = buildSheets(fromReqs(data), null, {})[0].data
@@ -652,11 +724,11 @@ describe('zone and service in the matrix', () => {
   })
 })
 
-describe('review zones page', () => {
+describe('review solutions page', () => {
   const pending = [
-    { id: 'R-001', module: 'Member', text: 'ทำแอป', targets: [{ zone: 'app-custom', service: 'unknown' }] },
-    { id: 'R-002', module: 'Campaign', text: 'หลังบ้านจัดการ campaign เอง', targets: [{ zone: 'crm-plus', service: 'campaign-management' }] },
-    { id: 'R-003', module: 'X', text: 'ไม่รู้ว่าอะไร', targets: [{ zone: 'unknown', service: 'unknown' }] },
+    { id: 'R-001', module: 'Member', text: 'ทำแอป', targets: [{ solution: 'app-custom', service: 'unknown' }] },
+    { id: 'R-002', module: 'Campaign', text: 'หลังบ้านจัดการ campaign เอง', targets: [{ solution: 'crm-plus', service: 'campaign-management' }] },
+    { id: 'R-003', module: 'X', text: 'ไม่รู้ว่าอะไร', targets: [{ solution: 'unknown', service: 'unknown' }] },
   ]
 
   it('says there is nothing to review when no run is waiting', () => {
@@ -664,29 +736,91 @@ describe('review zones page', () => {
     expect(screen.getByText('ยังไม่มี requirement รอตรวจ')).toBeInTheDocument()
   })
 
-  it('shows the zone breakdown, lists unknown first, and warns about them', () => {
-    useAssessmentStore.setState({ review: pending })
+  it('opens with what the TOR asks for, its categories and its contract terms, then what needs a look first', () => {
+    useAssessmentStore.setState({
+      scope: 'ระบบสมาชิกผ่าน LINE',
+      apiKey: 'k',
+      review: [
+        { id: 'R-001', module: 'Membership & Tier', text: 'สมัครผ่าน LINE', pri: 'M', targets: [{ solution: 'app-custom', service: 'user-management' }] },
+        { id: 'R-002', module: 'Dashboard & Report', text: 'Real-time dashboard', pri: 'M', amb: 'ไม่ได้บอกว่าหน่วงได้กี่นาที', targets: [{ solution: 'crm-plus', service: 'report-analytic' }] },
+        { id: 'R-003', module: 'System Point', text: 'คะแนนต่อยอดซื้อ', pri: 'O', inf: true, targets: [{ solution: 'crm-plus', service: 'point' }] },
+        { id: 'R-004', module: 'เงื่อนไขสัญญาและผู้ยื่น', text: 'ส่งมอบใน 120 วัน', ref: 'ข้อ 6.2', pri: 'M' },
+      ],
+    })
     open('/review')
-    expect(screen.getByText('TOR นี้ใช้ Buzzebees 3 solution · 3 ข้อ', { exact: false })).toBeInTheDocument()
-    expect(screen.getByRole('list', { name: 'สรุปตาม solution' })).toHaveTextContent('CRM+ module · 1 ข้อ')
-    expect(screen.getByText(/ข้อยังไม่ระบุ solution หรือ service/)).toBeInTheDocument()
-    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
-    expect(headings[0]).toBe('ไม่ทราบ solution')
+    expect(screen.getByText('ขั้นที่ 1 จาก 2 · ตรวจ requirement')).toBeInTheDocument()
+    expect(screen.getByText('ระบบสมาชิกผ่าน LINE')).toBeInTheDocument()
+    expect(screen.getByText('3 ข้อ ใน 3 หมวด · ข้อบังคับ 2')).toBeInTheDocument() // contract terms are not product requirements
+    const brief = within(screen.getByRole('region', { name: 'สรุป TOR' }))
+    expect(brief.getByRole('button', { name: /Dashboard & Report/ })).toBeInTheDocument()
+    expect(brief.getByText('ส่งมอบใน 120 วัน')).toBeInTheDocument()
+    const look = within(screen.getByRole('region', { name: 'ต้องดูก่อนยืนยัน 2 ข้อ' }))
+    expect(look.getByText('ข้อความไม่ชัด')).toBeInTheDocument()
+    expect(look.getByText('ระบบเดาว่าบังคับ')).toBeInTheDocument()
+    expect(screen.getByText('ไม่ใช่ฟีเจอร์ product จึงไม่เทียบกับ KB ให้ BD ตรวจเอง')).toBeInTheDocument()
+    expect(screen.getByText('ไม่บังคับ')).toBeInTheDocument() // R-003's tag
+    expect(screen.getByText(/ยังมี/)).toHaveTextContent('ยังมี 2 ข้อ ที่ควรดูก่อน')
+    useAssessmentStore.setState({ scope: '' })
   })
 
-  it('edits zone, service, extra targets (max 3) and the API flag in the store', async () => {
+  it('edits a requirement: text, category and priority; saving marks it looked at', async () => {
+    const user = userEvent.setup()
+    useAssessmentStore.setState({ review: [{ id: 'R-001', module: 'Dashboard & Report', text: 'Real-time dashboard', pri: 'M', inf: true, targets: [{ solution: 'crm-plus', service: 'report-analytic' }] }] })
+    open('/review')
+    expect(screen.getByRole('region', { name: 'ต้องดูก่อนยืนยัน 1 ข้อ' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^R-001 Real-time dashboard/ }))
+    const box = screen.getByLabelText('ข้อความ R-001')
+    await user.clear(box)
+    await user.type(box, 'Dashboard หน่วงไม่เกิน 15 นาที')
+    await user.selectOptions(screen.getByLabelText('หมวดของ R-001'), 'System Point')
+    await user.click(within(screen.getByRole('group', { name: 'ระดับของ R-001' })).getByRole('button', { name: 'ไม่บังคับ' }))
+    await user.click(screen.getByRole('button', { name: 'บันทึก' }))
+    expect(useAssessmentStore.getState().review?.[0]).toMatchObject({ text: 'Dashboard หน่วงไม่เกิน 15 นาที', module: 'System Point', pri: 'O', seen: true, inf: false })
+    expect(screen.getByRole('heading', { name: 'ดูครบทุกข้อที่ระบบไม่มั่นใจแล้ว' })).toBeInTheDocument()
+  })
+
+  it('edits solution, service, extra targets (max 3) and the API flag in the store', async () => {
     const user = userEvent.setup()
     useAssessmentStore.setState({ review: pending })
     open('/review')
+    await user.click(screen.getByRole('button', { name: /^R-001 ทำแอป/ }))
     await user.selectOptions(screen.getByLabelText('Service ของ R-001 ตัวที่ 1'), 'point')
-    expect(useAssessmentStore.getState().review?.[0].targets).toEqual([{ zone: 'app-custom', service: 'point' }])
-    // R-003 (unknown) is listed first, so its add button is the first one; it stays first while it is edited
-    await user.click(screen.getAllByRole('button', { name: '+ เพิ่ม target' })[0])
-    await user.click(screen.getAllByRole('button', { name: '+ เพิ่ม target' })[0])
-    expect(screen.getByLabelText('Solution ของ R-003 ตัวที่ 3')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: '+ เพิ่ม target' })).toHaveLength(2) // R-003 is at the maximum of 3
-    await user.click(screen.getAllByRole('checkbox')[0])
-    expect(useAssessmentStore.getState().review?.some((r) => r.wantsApi)).toBe(true)
+    expect(useAssessmentStore.getState().review?.[0].targets).toEqual([{ solution: 'app-custom', service: 'point' }])
+    await user.click(screen.getByRole('button', { name: '+ เพิ่ม target' }))
+    await user.click(screen.getByRole('button', { name: '+ เพิ่ม target' }))
+    expect(screen.getByLabelText('Solution ของ R-001 ตัวที่ 3')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '+ เพิ่ม target' })).not.toBeInTheDocument() // at the maximum of 3
+    await user.click(screen.getByRole('checkbox'))
+    expect(useAssessmentStore.getState().review?.[0].wantsApi).toBe(true)
+  })
+
+  it('adds a requirement, and deletes one with an undo', async () => {
+    const user = userEvent.setup()
+    useAssessmentStore.setState({ review: pending })
+    open('/review')
+    await user.click(screen.getByRole('button', { name: '+ เพิ่ม requirement' }))
+    await user.type(screen.getByLabelText('Requirement ใหม่'), 'ส่ง SMS แจ้งคะแนน')
+    await user.selectOptions(screen.getByLabelText('หมวด'), 'Marketing Automation')
+    await user.click(screen.getByRole('button', { name: 'เพิ่ม' }))
+    expect(useAssessmentStore.getState().review?.at(-1)).toMatchObject({ id: 'R-004', text: 'ส่ง SMS แจ้งคะแนน', module: 'Marketing Automation', pri: 'M', ref: 'เพิ่มโดย BD' })
+    await user.click(screen.getByRole('button', { name: /^R-002 / }))
+    await user.click(screen.getByRole('button', { name: 'ลบข้อนี้' }))
+    expect(useAssessmentStore.getState().review?.map((r) => r.id)).toEqual(['R-001', 'R-003', 'R-004'])
+    await user.click(screen.getByRole('button', { name: 'เลิกทำ' }))
+    expect(useAssessmentStore.getState().review?.map((r) => r.id)).toEqual(['R-001', 'R-002', 'R-003', 'R-004'])
+  })
+
+  it('asks once before judging while something still needs a look, and can go back to it', async () => {
+    const user = userEvent.setup()
+    useAssessmentStore.setState({ review: pending, apiKey: 'k' })
+    const confirm = vi.spyOn(useAssessmentStore.getState(), 'confirmReview')
+    open('/review')
+    await user.click(screen.getByRole('button', { name: 'ยืนยันและเริ่มเทียบ' }))
+    expect(screen.getByText(/ที่ควรดูก่อน: R-001, R-003/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'กลับไปดู' }))
+    expect(screen.getByLabelText('ข้อความ R-001')).toHaveFocus()
+    expect(confirm).not.toHaveBeenCalled()
+    confirm.mockRestore()
   })
 
   it('clears the pending review after one confirmation, and cancel keeps it', async () => {
@@ -699,7 +833,7 @@ describe('review zones page', () => {
     await user.click(screen.getByRole('button', { name: 'ล้างรายการ review' }))
     await user.click(screen.getByRole('button', { name: 'ล้างเลย' }))
     expect(useAssessmentStore.getState().review).toBeNull()
-    expect(screen.getByText('Read the TOR.')).toBeInTheDocument() // back on the home page
+    expect(screen.getByText('ลาก TOR มาวางตรงนี้')).toBeInTheDocument() // back on the home page
   })
 
   it('keeps the pending review across a reload (it is persisted)', () => {
@@ -711,7 +845,7 @@ describe('review zones page', () => {
     useAssessmentStore.setState({ review: pending, files: [] })
     open('/')
     expect(screen.getByRole('button', { name: /Review solutions/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Run assessment/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'แยก Requirement' })).not.toBeInTheDocument()
   })
 })
 
@@ -814,11 +948,11 @@ describe('accounts in the app', () => {
     reset({ mode: 'account', user: 'ann', owner: 'ann', storedKey: { provider: 'gemini', model: 'gemini-3.8-flash', last4: '1234' }, apiKey: '', files: [new File(['x'], 'tor.pdf')] })
     server('ann')
     open('/')
-    expect(screen.getByRole('button', { name: /Run assessment/ })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'แยก Requirement' })).toBeEnabled()
   })
 
   it('saves a finished run to history, and later validation changes to the same entry', async () => {
-    reset({ mode: 'account', user: 'ann', owner: 'ann', customer: 'ACME', files: [new File(['x'], 'tor.pdf')], storedKey: { provider: 'gemini', model: 'm', last4: '1234' }, review: [{ id: 'R-001', module: 'M', text: 't', targets: [{ zone: 'app-custom', service: 'point' }] }], result: null })
+    reset({ mode: 'account', user: 'ann', owner: 'ann', customer: 'ACME', project: { ...EMPTY_PROJECT, title: 'TOR CRM', due: '2026-12-15' }, files: [new File(['x'], 'tor.pdf')], storedKey: { provider: 'gemini', model: 'm', last4: '1234' }, review: [{ id: 'R-001', module: 'M', text: 't', targets: [{ solution: 'app-custom', service: 'point' }] }], result: null })
     server('ann', {
       'POST /api/judge': (b) => json({ results: (b as { requirements: { id: string }[] }).requirements.map((r) => req(r.id, 'full')) }),
       'POST /api/history': () => json({ id: 'h-1' }),
@@ -827,11 +961,11 @@ describe('accounts in the app', () => {
     await useAssessmentStore.getState().confirmReview()
     await waitFor(() => expect(useAssessmentStore.getState().historyId).toBe('h-1'))
     const post = calls.find((c) => c.method === 'POST' && c.url === '/api/history')!
-    expect(post.body).toMatchObject({ customer: 'ACME', files: ['tor.pdf'], data: { result: [{ id: 'R-001' }] } })
+    expect(post.body).toMatchObject({ customer: 'ACME', files: ['tor.pdf'], data: { meta: { title: 'TOR CRM', due: '2026-12-15' }, result: [{ id: 'R-001' }] } })
     useAssessmentStore.setState({ selId: 'R-001' })
     useAssessmentStore.getState().validate('ok')
     await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/history?id=h-1')).toBe(true), { timeout: 3000 })
-    expect(calls.find((c) => c.method === 'PUT')!.body).toMatchObject({ data: { valid: { 'R-001': 'ok' } } })
+    expect(calls.find((c) => c.method === 'PUT')!.body).toMatchObject({ data: { meta: { title: 'TOR CRM' }, valid: { 'R-001': 'ok' } } }) // a PUT replaces data: the details must ride along
   })
 
   it('keeps showing results when saving history fails, and says so', async () => {
@@ -862,7 +996,54 @@ describe('accounts in the app', () => {
     await waitFor(() => expect(useAssessmentStore.getState().historyId).toBe('h-1'))
     expect(useAssessmentStore.getState()).toMatchObject({ customer: 'ACME', valid: { 'R-001': 'flag' } })
     expect(useAssessmentStore.getState().result).toHaveLength(2)
-    expect(await screen.findByText('requirement R-002')).toBeInTheDocument() // landed on the matrix
+    expect(await screen.findByText('requirement R-002')).toBeInTheDocument() // landed on the result summary
+  })
+
+  it('draws a strip of one bar per requirement in each row, lightest status first', async () => {
+    reset({ owner: 'ann' })
+    server('ann', {
+      'GET /api/history': () => json({ entries: [{ id: 'h-1', customer: 'ACME', files: [], counts: { none: 2, full: 3, verify: 1 }, createdAt: '2026-11-20T10:00:00.000Z' }] }),
+    })
+    open('/history')
+    const row = (await screen.findByText('ACME')).closest('[role="row"]') as HTMLElement
+    const bars = [...row.querySelectorAll('span[aria-hidden] > i')] as HTMLElement[]
+    expect(bars).toHaveLength(6)
+    expect(bars[0].style.background).toContain('--st-full-dot') // fully supported first, the heaviest and the unknown last
+    expect(bars[3].style.background).toContain('--st-none-dot')
+    expect(row).toHaveTextContent('60%') // 3 of the 5 that could be judged
+    expect(row).toHaveTextContent('ยื่นได้ แต่มีเงื่อนไข')
+    expect(row).toHaveTextContent('เพราะข้อบังคับไม่รองรับ 2 ข้อ')
+  })
+
+  it('an optional requirement draws a short bar, and does not count as a deal breaker', async () => {
+    reset({ owner: 'ann' })
+    server('ann', {
+      'GET /api/history': () => json({ entries: [{ id: 'h-1', customer: 'ACME', files: [], counts: { full: 9, none: 1, 'o:none': 1 }, createdAt: '2026-11-20T10:00:00.000Z' }] }),
+    })
+    open('/history')
+    const row = (await screen.findByText('ACME')).closest('[role="row"]') as HTMLElement
+    const bars = [...row.querySelectorAll('span[aria-hidden] > i')] as HTMLElement[]
+    expect(bars[9].style.height).toBe('52%')
+    expect(row).toHaveTextContent('90%')
+    expect(row).toHaveTextContent('ยื่นได้เพราะข้อบังคับรองรับได้ทุกข้อ')
+  })
+
+  it('a TOR waiting for its review is in the list, and opens on the review', async () => {
+    const user = userEvent.setup()
+    reset({ owner: 'ann' })
+    server('ann', {
+      'GET /api/history': () => json({ entries: [{ id: 'h-2', customer: 'ACME', title: 'TOR CRM', files: [], counts: { review: 4 }, createdAt: '2026-11-20T10:00:00.000Z' }] }),
+      'GET /api/history?id=h-2': () => json({ entry: { id: 'h-2', customer: 'ACME', data: { meta: { title: 'TOR CRM' }, scope: 'ระบบสมาชิก', review: [{ id: 'R-001', module: 'Mission', text: 'ภารกิจ' }], terms: [], confirmed: null, result: [], coverage: null, valid: {} } } }),
+    })
+    open('/history')
+    const row = (await screen.findByText('TOR CRM')).closest('[role="row"]') as HTMLElement
+    expect(row).toHaveTextContent('ยังไม่ได้เทียบกับ KB')
+    expect(row).toHaveTextContent('รอตรวจ requirement')
+    expect(row).toHaveTextContent('4 ข้อ กดเพื่อตรวจแล้วเริ่มเทียบ')
+    await user.click(screen.getByRole('button', { name: 'เปิด TOR CRM' }))
+    expect(await screen.findByText('ขั้นที่ 1 จาก 2 · ตรวจ requirement')).toBeInTheDocument()
+    expect(useAssessmentStore.getState()).toMatchObject({ historyId: 'h-2', result: null, scope: 'ระบบสมาชิก' })
+    expect(useAssessmentStore.getState().review).toHaveLength(1)
   })
 
   it('deletes an entry after confirming', async () => {
@@ -990,7 +1171,7 @@ describe('accounts in the app', () => {
 describe('the taxonomy comes from the server', () => {
   const json = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body }) as Response
   const custom = {
-    zones: [{ id: 'crm-plus', label: 'CRM+ renamed', hint: '', archived: false }, { id: 'old-zone', label: 'Old zone', hint: '', archived: true }],
+    solutions: [{ id: 'crm-plus', label: 'CRM+ renamed', hint: '', archived: false }, { id: 'old-solution', label: 'Old solution', hint: '', archived: true }],
     services: [{ id: 'billing', label: 'Billing', hint: '', confirmed: true, archived: false }, { id: 'point', label: 'Point Service', hint: '', confirmed: false, archived: false }, { id: 'retired', label: 'Retired svc', hint: '', confirmed: true, archived: true }],
   }
   afterEach(() => { vi.unstubAllGlobals(); useAssessmentStore.setState({ mode: 'unknown', user: null, taxonomy: DEFAULT_TAXONOMY }) })
@@ -1007,29 +1188,32 @@ describe('the taxonomy comes from the server', () => {
     vi.stubGlobal('fetch', vi.fn(async () => json({}, 500)))
     await useAssessmentStore.getState().loadTaxonomy()
     expect(useAssessmentStore.getState().taxonomy.services.map((s) => s.id)).toContain('billing') // a failure changes nothing
-    vi.stubGlobal('fetch', vi.fn(async () => json({ taxonomy: { zones: 'x' } })))
+    vi.stubGlobal('fetch', vi.fn(async () => json({ taxonomy: { solutions: 'x' } })))
     await useAssessmentStore.getState().loadTaxonomy()
-    expect(useAssessmentStore.getState().taxonomy.zones).toHaveLength(2) // garbage is ignored
+    expect(useAssessmentStore.getState().taxonomy.solutions).toHaveLength(2) // garbage is ignored
   })
 
   it('Review offers the saved services, hides archived ones, and still shows an archived one that is selected', () => {
     useAssessmentStore.setState({
       taxonomy: custom,
-      review: [{ id: 'R-001', module: 'M', text: 't', targets: [{ zone: 'old-zone', service: 'retired' }] }, { id: 'R-002', module: 'M', text: 't2', targets: [{ zone: 'crm-plus', service: 'billing' }] }],
+      review: [{ id: 'R-001', module: 'M', text: 't', targets: [{ solution: 'old-solution', service: 'retired' }] }, { id: 'R-002', module: 'M', text: 't2', targets: [{ solution: 'crm-plus', service: 'billing' }] }],
     })
     open('/review')
+    expect(screen.getAllByText('CRM+ renamed › Billing').length).toBeGreaterThan(0) // the row says where it lands, with the saved names
     const optionsOf = (label: string) => [...(screen.getByLabelText(label) as HTMLSelectElement).options].map((o) => o.textContent)
+    fireEvent.click(screen.getByRole('button', { name: /^R-002 t2/ }))
     const r2 = optionsOf('Service ของ R-002 ตัวที่ 1')
     expect(r2).toContain('Billing')
     expect(r2).toContain('Point Service (ยังไม่ยืนยัน)')
     expect(r2.some((t) => t?.includes('Retired'))).toBe(false) // archived and not selected: hidden
+    fireEvent.click(screen.getByRole('button', { name: 'ยกเลิก' }))
+    fireEvent.click(screen.getByRole('button', { name: /^R-001 t / }))
     expect(optionsOf('Service ของ R-001 ตัวที่ 1').some((t) => t === 'Retired svc (เก็บแล้ว)')).toBe(true) // archived but chosen: kept visible
-    expect(screen.getAllByText('CRM+ renamed').length).toBeGreaterThan(0)
     useAssessmentStore.setState({ review: null })
   })
 
   it('Matrix and the Excel export use the saved labels', async () => {
-    useAssessmentStore.setState({ taxonomy: custom, result: [{ id: 'R-001', module: 'M', s: 'full', conf: '1%', text: 't', reason: 'r', evidence: 'e', rec: 'c', targets: [{ zone: 'crm-plus', service: 'billing' }] }], selId: 'R-001' })
+    useAssessmentStore.setState({ taxonomy: custom, result: [{ id: 'R-001', module: 'M', s: 'full', conf: '1%', text: 't', reason: 'r', evidence: 'e', rec: 'c', targets: [{ solution: 'crm-plus', service: 'billing' }] }], selId: 'R-001' })
     open('/matrix')
     expect(screen.getAllByText('CRM+ renamed › Billing').length).toBeGreaterThan(0)
     const { buildSheets } = await import('@/lib/exportXlsx')
@@ -1042,7 +1226,7 @@ describe('the taxonomy comes from the server', () => {
 
 describe('knowledge base page', () => {
   const json = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body }) as Response
-  const note = (extra: object = {}) => ({ path: 'point/earn-rules.md', title: 'Earn rules', module: 'Point', service: 'point', zones: [], support: 'config', body: 'ตั้งค่าได้ **ต่อ Brand** ดู [[point/expiry-policy]]', updatedAt: 'tok-1', updatedBy: 'ann', ...extra })
+  const note = (extra: object = {}) => ({ path: 'point/earn-rules.md', title: 'Earn rules', module: 'Point', service: 'point', solutions: [], support: 'config', body: 'ตั้งค่าได้ **ต่อ Brand** ดู [[point/expiry-policy]]', updatedAt: 'tok-1', updatedBy: 'ann', ...extra })
   const note2 = note({ path: 'point/expiry-policy.md', title: 'Expiry policy', support: 'full', body: 'หมดอายุได้หลายแบบ', updatedAt: 'tok-2' })
   const promptsView = (extra: object = {}) => Object.fromEntries(['extract', 'classify', 'judge', 'questions'].map((k) => [k, { body: `${k} default text`, isDefault: true, defaultBody: `${k} default text`, updatedAt: null, ...(k === 'judge' ? extra : {}) }]))
   let calls: { url: string; method: string; body?: unknown }[] = []
@@ -1143,6 +1327,22 @@ describe('knowledge base page', () => {
     await user.click(screen.getByRole('button', { name: /Expiry policy/ }))
     await user.click(screen.getByRole('button', { name: 'ทิ้งการแก้ไขแล้วไปต่อ' }))
     expect(screen.getByDisplayValue('Expiry policy')).toBeInTheDocument()
+  })
+
+  it('lists the services that still need a note, and an admin starts a note on one', async () => {
+    const user = userEvent.setup()
+    as(true)
+    server()
+    open('/knowledge-base')
+    await user.click(await screen.findByRole('tab', { name: /^Capabilities/ }))
+    expect(screen.queryByText('note ทั้งหมด')).not.toBeInTheDocument() // no summary counts
+    const { activeServices } = await import('@/data/taxonomy')
+    const missing = activeServices(DEFAULT_TAXONOMY).filter((sv) => sv.id !== 'point') // only Point has notes
+    const panel = within(screen.getByRole('region', { name: 'ต้องเขียน note เพิ่ม' }))
+    expect(panel.getAllByRole('button', { name: /^เขียน note ของ / })).toHaveLength(missing.length)
+    await user.click(panel.getByRole('button', { name: `เขียน note ของ ${missing[0].label}` }))
+    const notesPanel = within(screen.getByRole('region', { name: 'หมวด Notes' }))
+    expect((notesPanel.getByLabelText('Service') as HTMLSelectElement).value).toBe(missing[0].id) // the new note starts on that service
   })
 
   it('an admin creates a note and deletes one after a confirmation', async () => {
@@ -1278,14 +1478,22 @@ describe('ChatGPT in AI settings', () => {
 })
 
 describe('header actions', () => {
-  it('has New assessment as the first menu item instead of a separate button, on every page', () => {
+  it('has อัปโหลด TOR as the first menu item instead of a separate button, on every page', () => {
     open('/matrix')
     const nav = within(screen.getByRole('navigation', { name: 'Main' }))
     const links = nav.getAllByRole('link')
-    expect(links[0]).toHaveTextContent('New assessment')
+    expect(links[0]).toHaveTextContent('อัปโหลด TOR')
     expect(links[0]).toHaveAttribute('href', '/')
-    expect(links.map((l) => l.textContent)).toContain('Matrix')
-    expect(within(document.querySelector('header') as HTMLElement).queryByRole('link', { name: /New assessment →/ })).not.toBeInTheDocument()
+    expect(links.map((l) => l.textContent)).toEqual(['อัปโหลด TOR', 'TOR ทั้งหมด', 'Knowledge base', 'AI settings'])
+    expect(within(document.querySelector('header') as HTMLElement).queryByRole('link', { name: /อัปโหลด TOR →/ })).not.toBeInTheDocument()
+  })
+
+  it('page headers carry no "01 / section" label', () => {
+    for (const path of ['/', '/history', '/knowledge-base', '/ai-settings']) {
+      const { unmount } = open(path)
+      expect(screen.queryByText(/^0\d \//)).not.toBeInTheDocument()
+      unmount()
+    }
   })
 
   it('without an account the theme switch stands alone in the header', () => {
@@ -1296,10 +1504,10 @@ describe('header actions', () => {
 })
 
 describe('Executive summary: what to build and which tools', () => {
-  const t = (zone: string, service: string) => ({ zone, service })
+  const t = (solution: string, service: string) => ({ solution, service })
   const withTargets = (id: string, s: Req['s'], targets: Req['targets'], extra: Partial<Req> = {}): Req => ({ ...req(id, s), targets, ...extra })
 
-  it('lists each zone with its Buzzebees tools, new development and API requests', () => {
+  it('lists each solution with its Buzzebees tools, new development and API requests', () => {
     useAssessmentStore.setState({
       result: [
         withTargets('R-001', 'full', [t('app-custom', 'user-management')]),
@@ -1322,10 +1530,10 @@ describe('Executive summary: what to build and which tools', () => {
     expect(screen.getByText(/1 ข้อยังไม่ได้จัด solution/)).toBeInTheDocument()
   })
 
-  it('leaves the section out for results saved before zones existed', () => {
+  it('leaves the section out for results saved before solutions existed', () => {
     useAssessmentStore.setState({ result: [req('R-001', 'full')] })
     open('/summary')
-    expect(screen.getByRole('heading', { name: 'Executive summary' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'สรุป' })).toHaveAttribute('aria-current', 'page')
     expect(screen.queryByRole('heading', { name: /tool ของ Buzzebees ที่ต้องใช้/ })).not.toBeInTheDocument()
   })
 })
@@ -1341,6 +1549,7 @@ describe('basketball mode for the file step', () => {
     await user.click(screen.getByRole('switch', { name: /Boredom buster mode/ }))
     expect(await screen.findByRole('group', { name: /สนามบาส/ })).toBeInTheDocument()
     expect(localStorage.getItem('tor-scouter-hoop')).toBe('1')
+    expect(screen.queryByText('ลาก TOR มาวางตรงนี้')).not.toBeInTheDocument() // the court takes the drop zone's place
   })
 
   it('a file becomes the ball, and "ใส่ไฟล์เลย" adds it without playing', async () => {
@@ -1369,6 +1578,7 @@ describe('landing animation', () => {
     const { unmount } = render(<Splash />)
     expect(screen.getByTestId('splash')).toBeInTheDocument()
     expect(screen.getByTestId('splash')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByTestId('splash').textContent).toBe('') // the logo alone, no name
     act(() => { vi.advanceTimersByTime(2100) })
     expect(screen.getByTestId('splash').style.opacity).toBe('0') // fading
     act(() => { vi.advanceTimersByTime(600) })
@@ -1413,23 +1623,183 @@ describe('DeepSeek in the app', () => {
     expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('deepseek-chat')
   })
 
-  it('BytePlus ModelArk is a choice too, with the same text-only note', async () => {
+  it('BytePlus ModelArk is a choice too: it reads images, not PDF', async () => {
     const user = userEvent.setup()
     open('/ai-settings')
     await user.click(screen.getByRole('radio', { name: 'BytePlus ModelArk' }))
-    expect(screen.getByText(/BytePlus ModelArk อ่านได้เฉพาะข้อความ/)).toBeInTheDocument()
+    expect(screen.getByText(/BytePlus ModelArk อ่านข้อความและรูปภาพได้/)).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Model' })).toHaveValue('deepseek-v4-1-flash-261017')
+  })
+
+  it('lets an image through with BytePlus, and still holds a PDF', () => {
+    useAssessmentStore.setState({ provider: 'byteplus', model: 'deepseek-v4-1-flash-261017', apiKey: 'bp-key-123456789', files: [new File(['x'], 'TOR B2S.png')], running: false, step: -1, error: null })
+    const { unmount } = open('/')
+    expect(screen.getByRole('button', { name: 'แยก Requirement' })).toBeEnabled()
+    unmount()
+    useAssessmentStore.setState({ files: [new File(['x'], 'tor.pdf')] })
+    open('/')
+    expect(screen.getByText('BytePlus ModelArk อ่าน tor.pdf ไม่ได้ ใช้ DOCX, XLSX, CSV, TXT หรือรูปภาพ หรือเปลี่ยน AI')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'แยก Requirement' })).toBeDisabled()
+    useAssessmentStore.setState({ files: [], provider: 'anthropic', apiKey: '' })
   })
 
   it('holds the run when a PDF is chosen with DeepSeek, and lets a DOCX through', () => {
     useAssessmentStore.setState({ provider: 'deepseek', model: 'deepseek-chat', apiKey: 'sk-ds-123456789', files: [new File(['x'], 'tor.pdf')], running: false, step: -1, error: null })
     const { unmount } = open('/')
     expect(screen.getByText(/DeepSeek อ่าน tor\.pdf ไม่ได้/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Run assessment' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'แยก Requirement' })).toBeDisabled()
     unmount()
     useAssessmentStore.setState({ files: [new File(['x'], 'tor.docx')] })
     open('/')
-    expect(screen.getByRole('button', { name: 'Run assessment' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'แยก Requirement' })).toBeEnabled()
     useAssessmentStore.setState({ provider: 'anthropic', model: 'claude-sonnet-5-5', apiKey: '', files: [] })
+  })
+})
+
+describe('one menu for the TOR pages', () => {
+  it('lights "TOR ทั้งหมด" on every page of the TOR flow', () => {
+    for (const path of ['/history', '/review', '/summary', '/matrix']) {
+      const { unmount } = open(path)
+      expect(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'TOR ทั้งหมด' })).toHaveAttribute('aria-current', 'page')
+      unmount()
+    }
+  })
+
+  it('a result has a way back to the list and two tabs, with the number of requirements on the second', () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'full'), req('R-002', 'none')], customer: 'ACME' })
+    for (const path of ['/summary', '/matrix']) {
+      const { unmount } = open(path)
+      expect(screen.getByRole('main').querySelector('a[href="/history"]')).toHaveTextContent('TOR ทั้งหมด') // the way back
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('ACME')
+      const tabs = within(screen.getByRole('navigation', { name: 'TOR' })).getAllByRole('link')
+      expect(tabs.map((t) => t.textContent)).toEqual(['สรุป', 'รายข้อ2'])
+      expect(tabs.filter((t) => t.getAttribute('aria-current') === 'page')).toHaveLength(1)
+      unmount()
+    }
+  })
+
+  it('leaves the tabs out of the list, the review and the other pages', () => {
+    for (const path of ['/history', '/review', '/knowledge-base']) {
+      const { unmount } = open(path)
+      expect(screen.queryByRole('navigation', { name: 'TOR' })).not.toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('the old dashboard, gaps and questions addresses lead to the summary', () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'full')] })
+    for (const path of ['/dashboard', '/gaps', '/questions']) {
+      const { unmount } = open(path)
+      expect(screen.getByRole('link', { name: 'สรุป' })).toHaveAttribute('aria-current', 'page')
+      unmount()
+    }
+  })
+
+  it('the summary page holds the verdict, the matches, what to do next, the categories, the contract terms and the open questions', () => {
+    useAssessmentStore.setState({
+      result: [{ ...req('R-001', 'full'), evidence: 'KB › Member › Registration' }, { ...req('R-002', 'custom'), gap: 'ไม่มีตัวกรองสาขา' }, { ...req('R-003', 'verify'), q: 'หน่วงได้กี่นาที' }],
+      terms: [{ id: 'R-004', text: 'ส่งมอบใน 120 วัน', ref: 'ข้อ 6.2' }],
+      coverage: null,
+    })
+    open('/summary')
+    for (const h of ['ตรงกับ product ที่เรามี', 'ต้องตัดสินใจ', 'ถามลูกค้า', 'ต้องพัฒนาหรือเชื่อมระบบ', 'รายหมวด', 'เงื่อนไขสัญญาและคุณสมบัติผู้ยื่น', 'Open questions for customer']) expect(screen.getByRole('heading', { name: h })).toBeInTheDocument()
+    expect(screen.getByText('Registration')).toBeInTheDocument() // the feature of ours it maps to
+    expect(screen.getByText('ต้องพัฒนาเพิ่ม: ไม่มีตัวกรองสาขา')).toBeInTheDocument()
+    expect(screen.getByText('หน่วงได้กี่นาที')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox', { name: /ส่งมอบใน 120 วัน/ }))
+    expect(useAssessmentStore.getState().terms[0].ok).toBe(true)
+    expect(screen.getByText('ตรวจแล้ว 1 จาก 1 ข้อ')).toBeInTheDocument()
+    useAssessmentStore.setState({ terms: [] })
+  })
+
+  it('the summary draws one bar per requirement in four groups, and a bar opens that requirement', async () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'full'), req('R-002', 'config'), { ...req('R-003', 'none'), rec: 'เสนอเป็น Phase 2' }, req('R-004', 'verify')], customer: 'ACME' })
+    const user = userEvent.setup()
+    open('/summary')
+    const strip = within(screen.getByRole('region', { name: 'requirement ทุกข้อ แยกตามผล' }))
+    expect(strip.getAllByRole('button', { name: /^R-00\d requirement/ })).toHaveLength(4)
+    await user.click(strip.getByRole('button', { name: 'R-003 requirement R-003, ไม่รองรับ, ข้อบังคับ' }))
+    const drawer = within(screen.getByRole('dialog', { name: 'requirement R-003' }))
+    expect(drawer.getByText('เสนอเป็น Phase 2')).toBeInTheDocument()
+    expect(drawer.getByText('ข้อบังคับ')).toBeInTheDocument()
+  })
+
+  it('the summary starts with the share supported out of what could be judged, and the verdict', () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'full'), req('R-002', 'none'), req('R-003', 'verify')], customer: 'ACME' })
+    open('/summary')
+    expect(screen.getByLabelText('รองรับได้ 50%')).toBeInTheDocument()
+    expect(screen.getByText('รองรับได้ 1 จาก 2 ข้อที่ประเมินได้')).toBeInTheDocument()
+    expect(screen.getAllByText('เสี่ยงสูง').length).toBeGreaterThan(0)
+    expect(screen.getByText('มีข้อบังคับ 1 ข้อที่ยังไม่รองรับ ควรคุยขอบเขตกับลูกค้าก่อนตัดสินใจยื่น')).toBeInTheDocument()
+    expect(screen.getByText('1/2')).toBeInTheDocument() // mandatory supported, of those that could be judged
+  })
+})
+
+describe('verdict rules', () => {
+  it('ยื่นได้ when every mandatory one is supported and 85% or more; เสี่ยงสูง from 3 mandatory gaps or under 60%', async () => {
+    const { scoreCounts } = await import('@/lib/verdict')
+    expect(scoreCounts({ full: 17, none: 3, 'o:none': 3 })).toMatchObject({ cov: 85, mandNo: 0, verdict: 'GO' })
+    expect(scoreCounts({ full: 17, none: 3, 'o:none': 2 })).toMatchObject({ mandNo: 1, verdict: 'COND' })
+    expect(scoreCounts({ full: 97, none: 3 })).toMatchObject({ cov: 97, mandNo: 3, verdict: 'HIGH' })
+    expect(scoreCounts({ full: 5, config: 0, none: 4, 'o:none': 4 })).toMatchObject({ cov: 56, verdict: 'HIGH' })
+    expect(scoreCounts({ full: 8, custom: 1, verify: 10 })).toMatchObject({ evaluable: 9, cov: 100, ready: 89, verdict: 'GO' }) // "ต้องตรวจสอบ" is left out of the share
+    expect(scoreCounts({})).toMatchObject({ total: 0, cov: 0 })
+  })
+})
+
+describe('a TOR is saved to the list from its review on', () => {
+  const json = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body }) as Response
+  const calls: { url: string; method: string; body?: any }[] = [] // eslint-disable-line @typescript-eslint/no-explicit-any
+  afterEach(() => { vi.unstubAllGlobals(); useAssessmentStore.setState({ mode: 'unknown', user: null, owner: null, historyId: null, files: [], review: null, result: null, terms: [], scope: '' }) })
+
+  it('posts the review, puts each edit, then puts the judged result to the same entry with the contract terms apart', async () => {
+    calls.length = 0
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
+      const method = init.method ?? 'GET'
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : undefined
+      calls.push({ url, method, body })
+      if (url === '/api/extract') return json({ scope: 'ระบบสมาชิก', requirements: [{ id: 'R-001', module: 'Mission', text: 'ภารกิจ', pri: 'O', ref: 'ข้อ 2.9' }, { id: 'R-002', module: 'เงื่อนไขสัญญาและผู้ยื่น', text: 'ส่งมอบ 120 วัน', pri: 'M', ref: 'ข้อ 6.2' }] })
+      if (url === '/api/classify') return json({ results: body.requirements.map((r: { id: string; module: string; text: string }) => ({ id: r.id, module: r.module, text: r.text, targets: [{ solution: 'crm-plus', service: 'point' }], wantsApi: false })) })
+      if (url === '/api/judge') return json({ results: body.requirements.map((r: { id: string }) => ({ ...req(r.id, 'full'), module: 'Mission' })) })
+      if (url === '/api/history' && method === 'POST') return json({ id: 'h-9' })
+      if (url.startsWith('/api/history')) return json({ ok: true })
+      return json({ topics: [] })
+    }))
+    useAssessmentStore.setState({ mode: 'account', user: 'ann', owner: 'ann', apiKey: 'k-123456789', files: [new File(['x'], 'tor.txt')], customer: 'ACME' })
+    await useAssessmentStore.getState().runReal()
+    await waitFor(() => expect(useAssessmentStore.getState().historyId).toBe('h-9'))
+    const post = calls.find((c) => c.method === 'POST' && c.url === '/api/history')!
+    expect(post.body.data).toMatchObject({ scope: 'ระบบสมาชิก', review: [{ id: 'R-001', pri: 'O', ref: 'ข้อ 2.9', targets: [{ solution: 'crm-plus', service: 'point' }] }, { id: 'R-002' }], result: [] })
+
+    useAssessmentStore.getState().editReq('R-001', { text: 'ภารกิจสะสมแสตมป์' })
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.body?.data.review?.[0].text === 'ภารกิจสะสมแสตมป์')).toBe(true), { timeout: 3000 })
+
+    await useAssessmentStore.getState().confirmReview()
+    const judgeCalls = calls.filter((c) => c.url === '/api/judge')
+    expect(judgeCalls.flatMap((c) => c.body.requirements.map((r: { id: string }) => r.id))).toEqual(['R-001']) // the contract term is not judged
+    const s = useAssessmentStore.getState()
+    expect(s.result).toEqual([expect.objectContaining({ id: 'R-001', pri: 'O', ref: 'ข้อ 2.9' })]) // priority and clause come back from the review
+    expect(s.terms).toEqual([{ id: 'R-002', text: 'ส่งมอบ 120 วัน', ref: 'ข้อ 6.2', ok: undefined }])
+    expect(s.confirmed?.by).toBe('ann')
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/history?id=h-9' && c.body.data.review === null && c.body.data.result.length === 1)).toBe(true))
+    expect(calls.filter((c) => c.method === 'POST' && c.url === '/api/history')).toHaveLength(1) // one entry, all the way
+  })
+
+  it('clearing a saved review deletes it from the list too', async () => {
+    calls.length = 0
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => { calls.push({ url, method: init.method ?? 'GET' }); return json({ ok: true }) }))
+    useAssessmentStore.setState({ mode: 'account', user: 'ann', historyId: 'h-3', review: [{ id: 'R-001', module: 'Mission', text: 't' }] })
+    useAssessmentStore.getState().clearReview()
+    expect(calls).toContainEqual({ url: '/api/history?id=h-3', method: 'DELETE' })
+    expect(useAssessmentStore.getState()).toMatchObject({ review: null, historyId: null })
+  })
+})
+
+describe('browser state saved before "zone" was renamed "solution"', () => {
+  it('reads old targets with the new name', async () => {
+    localStorage.setItem('tor-scouter', JSON.stringify({ version: 0, state: { result: [{ ...req('R-001', 'full'), targets: [{ zone: 'crm-plus', service: 'point' }] }], review: [{ id: 'R-002', module: 'M', text: 't', targets: [{ zone: 'app-custom', service: 'unknown' }] }] } }))
+    await useAssessmentStore.persist.rehydrate()
+    expect(useAssessmentStore.getState().result?.[0].targets).toEqual([{ solution: 'crm-plus', service: 'point' }])
+    expect(useAssessmentStore.getState().review?.[0].targets).toEqual([{ solution: 'app-custom', service: 'unknown' }])
   })
 })

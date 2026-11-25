@@ -1,0 +1,28 @@
+[
+  {
+    "key": "member/multi-brand-profile.md",
+    "data": {
+      "body": "หนึ่ง Member มีโปรไฟล์ได้หลาย Brand แต่ **ยังไม่มี Flow การ Merge บัญชี** ที่มีอยู่แล้วจากหลาย Brand และไม่มี Duplicate detection\n\nข้อจำกัด: ต้องพัฒนา Merge rule เพิ่ม",
+      "title": "Multi-brand profile",
+      "zones": [],
+      "module": "UserManagement",
+      "service": "user-management",
+      "support": "custom"
+    },
+    "updatedBy": "cli: rename module",
+    "updatedAt": "2026-11-24T11:11:35.246456Z"
+  },
+  {
+    "key": "member/registration-channels.md",
+    "data": {
+      "body": "สมัครสมาชิกได้ผ่าน LINE OA และ Mobile App เป็นช่องทางมาตรฐาน รองรับ OTP ยืนยันเบอร์โทร\n\nเกี่ยวข้อง: [[member/multi-brand-profile]]",
+      "title": "Registration channels",
+      "zones": [],
+      "module": "UserManagement",
+      "service": "user-management",
+      "support": "full"
+    },
+    "updatedBy": "cli: rename module",
+    "updatedAt": "2026-11-24T11:11:37.055076Z"
+  }
+]

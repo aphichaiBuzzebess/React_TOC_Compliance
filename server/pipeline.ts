@@ -3,8 +3,9 @@ import mammoth from 'mammoth'
 import type { RawReq, Req, StatusKey, Verdict } from '../src/lib/types.js'
 import type { Block, Llm } from './llm.js'
 import { retrieveForTargets, searchKb, type Note } from './kb.js'
-import { CUSTOM_BUILD, DEFAULT_TAXONOMY, UNKNOWN, activeServices, activeZones, cleanTargets, serviceLabel, zoneLabel, type Target, type Taxonomy } from '../src/data/taxonomy.js'
+import { CUSTOM_BUILD, DEFAULT_TAXONOMY, UNKNOWN, activeServices, activeSolutions, cleanTargets, serviceLabel, solutionLabel, type Target, type Taxonomy } from '../src/data/taxonomy.js'
 import { DEFAULT_PROMPTS, buildSystem, type PromptKey } from './prompts.js'
+import { ALL_CATEGORIES, COMMERCIAL } from '../src/data/categories.js'
 
 const STATUSES: StatusKey[] = ['full', 'config', 'custom', 'integ', 'none', 'verify']
 
@@ -23,41 +24,68 @@ export async function toBlocks(name: string, bytes: Buffer): Promise<Block[]> {
     const rows = (await readSheet(bytes)) as unknown[][]
     return [{ type: 'text', text: rows.map((r) => r.map((c) => c ?? '').join(' | ')).join('\n') }]
   }
+  if (ext === 'txt' || ext === 'csv') return [{ type: 'text', text: bytes.toString('utf8').replace(/^﻿/, '') }] // a BOM from Excel's CSV export is dropped
   const image = IMAGES[ext ?? '']
   if (image) return [{ type: 'image', source: { type: 'base64', media_type: image, data: bytes.toString('base64') } }]
-  throw new Error('Unsupported file type: use PDF, DOCX, XLSX or an image (PNG, JPG, WEBP, GIF)')
+  throw new Error('Unsupported file type: use PDF, DOCX, XLSX, CSV, TXT or an image (PNG, JPG, WEBP, GIF)')
 }
 
 const EXTRACT_TOOL = {
   name: 'report_requirements',
-  description: 'Report every distinct requirement found in the customer TOR.',
+  description: 'Report every distinct requirement found in the customer TOR, and what the TOR as a whole asks for.',
   schema: {
     type: 'object',
     properties: {
+      scope: { type: 'string', description: 'One or two sentences on what the whole TOR asks for, in the TOR language' },
       requirements: {
         type: 'array',
         items: {
           type: 'object',
           properties: {
-            module: { type: 'string', description: 'Functional area, e.g. Member, Point, Campaign, Reward, CRM, Reporting, Integration, Security' },
+            module: { type: 'string', enum: ALL_CATEGORIES, description: `The category. Contract and bidder terms (past work, delivery time, warranty, payment, penalties, bidder qualifications) go in "${COMMERCIAL}"` },
             text: { type: 'string', description: 'One requirement, one sentence, in the TOR language' },
+            pri: { type: 'string', enum: ['M', 'O'], description: 'M when the TOR says it must (ต้อง, must, shall); O when it says should or may (ควร, อาจ, should, may)' },
+            priStated: { type: 'boolean', description: 'false when the TOR does not say must or should and pri is your guess' },
+            ref: { type: 'string', description: 'The clause number as the TOR writes it, e.g. "ข้อ 3.5.1"; empty when there is none' },
+            orig: { type: 'string', description: 'The TOR wording, quoted exactly, at most 200 characters; empty when text already is the TOR wording' },
+            amb: { type: 'string', description: 'What is unclear or not measurable, e.g. "ไม่ได้กำหนดว่า Real-time หน่วงได้กี่นาที"; empty when it is clear' },
           },
-          required: ['module', 'text'],
+          required: ['module', 'text', 'pri', 'priStated', 'ref', 'orig', 'amb'],
         },
       },
     },
-    required: ['requirements'],
+    required: ['scope', 'requirements'],
   },
 }
 
-export async function extractRequirements(llm: Llm, blocks: Block[], k?: Ctx): Promise<RawReq[]> {
-  const out = await llm<{ requirements: { module: string; text: string }[] }>({
+type Extracted = { module: string; text: string; pri?: string; priStated?: boolean; ref?: string; orig?: string; amb?: string }
+const clip = (v: unknown, n: number) => (typeof v === 'string' ? v.trim().slice(0, n) : '')
+
+/** The requirements of one TOR file, and one or two sentences on what it asks for. Fields the model leaves out are left out, never an error. */
+export async function extractRequirements(llm: Llm, blocks: Block[], k?: Ctx): Promise<{ scope: string; requirements: RawReq[] }> {
+  const out = await llm<{ scope?: string; requirements: Extracted[] }>({
     system: sys('extract', k),
     content: [...blocks, { type: 'text', text: 'List every requirement. If this is an image, read the requirements shown in it.' }],
     tool: EXTRACT_TOOL,
     maxTokens: 16000,
   })
-  return out.requirements.map((r, i) => ({ id: `R-${String(i + 1).padStart(3, '0')}`, module: r.module, text: r.text }))
+  const requirements = out.requirements.map((r, i): RawReq => {
+    const text = clip(r.text, 2000)
+    const ref = clip(r.ref, 40)
+    const orig = clip(r.orig, 600)
+    const amb = clip(r.amb, 300)
+    return {
+      id: `R-${String(i + 1).padStart(3, '0')}`,
+      module: ALL_CATEGORIES.includes(r.module) ? r.module : clip(r.module, 80) || 'อื่น ๆ',
+      text,
+      pri: r.pri === 'O' ? 'O' : 'M',
+      ...(r.priStated === false && { inf: true }),
+      ...(ref && { ref }),
+      ...(orig && orig !== text && { orig }),
+      ...(amb && { amb }),
+    }
+  })
+  return { scope: clip(out.scope, 600), requirements }
 }
 
 const JUDGE_TOOL = {
@@ -76,9 +104,11 @@ const JUDGE_TOOL = {
             confidence: { type: 'number', description: '0 to 1' },
             reason: { type: 'string' },
             sources: { type: 'array', items: { type: 'string' }, description: 'KB note paths that support the verdict' },
-            rec: { type: 'string', description: 'Recommended feature or solution' },
+            rec: { type: 'string', description: 'What the BD should do or offer: the feature, the setup or the solution' },
+            gap: { type: 'string', description: 'What the product lacks for this requirement; empty when it is fully supported' },
+            q: { type: 'string', description: 'One question for the customer whose answer would change the verdict; empty when there is none' },
           },
-          required: ['id', 's', 'confidence', 'reason', 'sources', 'rec'],
+          required: ['id', 's', 'confidence', 'reason', 'sources', 'rec', 'gap', 'q'],
         },
       },
     },
@@ -88,7 +118,7 @@ const JUDGE_TOOL = {
 
 const classifyTool = (tx: Taxonomy) => ({
   name: 'report_targets',
-  description: 'For every requirement, say which Buzzebees zone and service it belongs to.',
+  description: 'For every requirement, say which Buzzebees solution and service it belongs to.',
   schema: {
     type: 'object',
     properties: {
@@ -104,10 +134,10 @@ const classifyTool = (tx: Taxonomy) => ({
               items: {
                 type: 'object',
                 properties: {
-                  zone: { type: 'string', enum: [...activeZones(tx).map((z) => z.id), UNKNOWN] },
+                  solution: { type: 'string', enum: [...activeSolutions(tx).map((z) => z.id), UNKNOWN] },
                   service: { type: 'string', enum: [...activeServices(tx).map((s) => s.id), UNKNOWN] },
                 },
-                required: ['zone', 'service'],
+                required: ['solution', 'service'],
               },
             },
             wantsApi: { type: 'boolean', description: 'true only when the customer builds their own system INSTEAD of using the Buzzebees tool and asks for an API for it' },
@@ -120,7 +150,7 @@ const classifyTool = (tx: Taxonomy) => ({
   },
 })
 
-/** Add zone/service targets and the "own system + API" flag to each requirement. Anything the model gets wrong becomes unknown / false, never an error. */
+/** Add solution/service targets and the "own system + API" flag to each requirement. Anything the model gets wrong becomes unknown / false, never an error. */
 export async function classify(llm: Llm, reqs: RawReq[], k?: Ctx): Promise<RawReq[]> {
   const tx = k?.taxonomy ?? DEFAULT_TAXONOMY
   const out = await llm<{ items: { id: string; targets: unknown; wantsApi: unknown }[] }>({
@@ -136,7 +166,7 @@ export async function classify(llm: Llm, reqs: RawReq[], k?: Ctx): Promise<RawRe
 }
 
 const API_REASON = 'ลูกค้าขอ API เพื่อสร้างระบบของตัวเอง ต้องถาม Tech ว่ารับได้ไหม หรือรอ KB อัปเดต'
-const targetNameIn = (tx: Taxonomy) => (t: Target) => (t.service === UNKNOWN ? zoneLabel(t.zone, tx) : `${zoneLabel(t.zone, tx)} › ${serviceLabel(t.service, tx)}`)
+const targetNameIn = (tx: Taxonomy) => (t: Target) => (t.service === UNKNOWN ? solutionLabel(t.solution, tx) : `${solutionLabel(t.solution, tx)} › ${serviceLabel(t.service, tx)}`)
 
 /** Judge a batch of requirements against the KB notes retrieved for each. Requirements with targets only see the notes of their service(s). */
 export async function judge(llm: Llm, reqs: RawReq[], kb: Note[], k?: Ctx): Promise<Req[]> {
@@ -195,6 +225,8 @@ export async function judge(llm: Llm, reqs: RawReq[], kb: Note[], k?: Ctx): Prom
       reason: noNote ? `ไม่มี note ใน KB สำหรับ ${uncovered.map(targetName).join(', ')} — ${v.reason}` : hasBuild ? `${v.reason} (มีส่วนที่ต้องพัฒนาใหม่)` : v.reason,
       evidence,
       rec: v.rec,
+      ...(clip(v.gap, 1000) && v.s !== 'full' && { gap: clip(v.gap, 1000) }),
+      ...(clip(v.q, 500) && { q: clip(v.q, 500) }),
     }
   })
 }

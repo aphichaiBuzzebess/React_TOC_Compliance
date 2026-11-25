@@ -1,11 +1,25 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
-import { Alert, Button, Card, PageHeader } from '@/components/ui'
+import { SEVERITY, scoreCounts, why } from '@/lib/verdict'
+import type { StatusKey } from '@/lib/types'
+import { Alert, Button, PageHeader } from '@/components/ui'
+import { StaticBars, Verdict } from '@/components/tor'
 
-interface Entry { id: string; customer: string; files: string[]; counts: Record<string, number>; createdAt: string }
+interface Entry { id: string; customer: string; title?: string; due?: string; files: string[]; counts: Record<string, number>; createdAt: string }
 
+const LEAD = 'อัปโหลด TOR ของลูกค้า แล้วดูว่า product เราตอบได้กี่ข้อ ข้อไหนขาด'
+const COLS = 'md:grid-cols-[minmax(0,1fr)_200px_96px_260px_44px]'
+const fmtDate = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('th-TH', { dateStyle: 'medium' })
 const when = (iso: string) => new Date(iso).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })
+
+/** One bar per requirement from the counts: lightest status first, mandatory before optional. */
+const barsOf = (c: Record<string, number>) =>
+  SEVERITY.flatMap((k: StatusKey) => {
+    const o = c[`o:${k}`] ?? 0
+    return [...Array.from({ length: (c[k] ?? 0) - o }, () => ({ s: k, o: false })), ...Array.from({ length: o }, () => ({ s: k, o: true }))]
+  })
 
 export default function History() {
   const nav = useNavigate()
@@ -28,7 +42,7 @@ export default function History() {
 
   async function open(id: string) {
     setError(null)
-    if (await openHistory(id)) nav('/matrix')
+    if (await openHistory(id)) nav(useAssessmentStore.getState().review ? '/review' : '/summary')
     else setError(useAssessmentStore.getState().error ?? 'เปิดรายการนี้ไม่ได้')
   }
 
@@ -43,51 +57,86 @@ export default function History() {
   if (mode !== 'account') {
     return (
       <>
-        <PageHeader title="Review history" lead="ประวัติการประเมินที่บันทึกไว้ เปิดดูย้อนหลังได้" />
-        <Alert tone="info" title="ประวัติใช้ได้เมื่อเปิดระบบบัญชี">ผู้ดูแลระบบต้องตั้งค่า database ก่อน แล้วล็อกอินเพื่อให้ผลประเมินถูกบันทึกอัตโนมัติ</Alert>
+        <PageHeader title="TOR ทั้งหมด" lead={LEAD} />
+        <Alert tone="info" title="ประวัติใช้ได้เมื่อเปิดระบบบัญชี">ผู้ดูแลระบบต้องตั้งค่า database ก่อน แล้วล็อกอินเพื่อให้ TOR ถูกบันทึกอัตโนมัติ</Alert>
       </>
     )
   }
 
   return (
     <>
-      <PageHeader title="Review history" lead="ผลประเมินที่บันทึกอัตโนมัติ 50 รายการล่าสุด เปิดดูซ้ำหรือลบได้ เห็นได้เฉพาะคุณ" />
+      <PageHeader title="TOR ทั้งหมด" lead={LEAD} />
       {error && <p role="alert" className="m-0 text-danger">{error}</p>}
       {entries === null && !error && <p role="status" className="m-0 text-muted">กำลังโหลด…</p>}
       {entries?.length === 0 && (
-        <div className="flex flex-col items-center gap-4 rounded-[10px] border border-line bg-surface px-6 py-20 text-center">
-          <p className="m-0 text-3xl tracking-[-0.03em] text-ink">ยังไม่มีประวัติ</p>
-          <p className="m-0 max-w-sm text-muted">ผลประเมินที่เสร็จแล้วจะถูกบันทึกไว้ที่นี่โดยอัตโนมัติ</p>
-          <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-amber bg-amber px-5 text-sm font-semibold text-on-amber no-underline hover:bg-amber-hover">New assessment <span aria-hidden>→</span></Link>
+        <div className="flex flex-col items-center gap-4 rounded-card border border-line bg-surface px-6 py-20 text-center">
+          <p className="m-0 text-3xl tracking-[-0.03em] text-ink">ยังไม่มี TOR</p>
+          <p className="m-0 max-w-sm text-muted">TOR ที่แยก requirement แล้วจะอยู่ที่นี่ ทั้งที่รอตรวจและที่เทียบกับ KB เสร็จแล้ว</p>
+          <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-amber bg-amber px-5 text-sm font-semibold text-on-amber no-underline hover:bg-amber-hover">อัปโหลด TOR <span aria-hidden>→</span></Link>
         </div>
       )}
-      <div className="flex flex-col gap-3">
-        {entries?.map((e) => (
-          <Card key={e.id}>
-            <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
-              <div className="flex min-w-0 flex-col gap-1">
-                <h2 className="m-0 text-xl font-medium text-ink wrap-anywhere">{e.customer || 'ไม่ระบุลูกค้า'}</h2>
-                <span className="text-xs text-muted">{when(e.createdAt)}{e.files.length > 0 ? ` · ${e.files.join(', ')}` : ''}</span>
-                <span className="text-xs text-muted">{Object.values(e.counts).reduce((a, b) => a + b, 0)} ข้อ · ทำได้เลย {e.counts.full ?? 0} · ตั้งค่า {e.counts.config ?? 0} · ต้องพัฒนา/เชื่อมระบบ {(e.counts.custom ?? 0) + (e.counts.integ ?? 0)} · ต้องตรวจสอบ {e.counts.verify ?? 0}</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
+      {entries && entries.length > 0 && (
+        <div role="table" aria-label="TOR ทั้งหมด" className="flex flex-col">
+          <div role="row" className={`hidden gap-6 border-b border-line pb-3 text-[13px] text-muted md:grid ${COLS}`}>
+            <span role="columnheader">โครงการ</span>
+            <span role="columnheader">Requirement</span>
+            <span role="columnheader">รองรับได้</span>
+            <span role="columnheader">ผลและเหตุผล</span>
+            <span role="columnheader"><span className="sr-only">ลบ</span></span>
+          </div>
+          {entries.map((e) => {
+            const waiting = (e.counts.review ?? 0) > 0
+            const s = scoreCounts(e.counts)
+            const w = why(s)
+            const name = e.title || e.customer || 'ไม่ระบุชื่อโครงการ'
+            const sub = [e.title ? e.customer : '', e.due ? `ยื่น ${fmtDate(e.due)}` : ''].filter(Boolean).join(', ') || when(e.createdAt)
+            return (
+              <div key={e.id} role="row" className="group relative border-b border-line last:border-b-0">
                 {asking === e.id ? (
-                  <span role="alert" className="flex flex-wrap items-center gap-2 text-sm">
-                    ลบรายการนี้? กู้คืนไม่ได้
+                  <div role="alert" className="flex flex-wrap items-center gap-3 px-3.5 py-5 text-sm">
+                    ลบ {name}? กู้คืนไม่ได้
                     <Button variant="danger" onClick={() => remove(e.id)}>ลบเลย</Button>
                     <Button variant="ghost" onClick={() => setAsking(null)}>ยกเลิก</Button>
-                  </span>
+                  </div>
                 ) : (
-                  <>
-                    <Button variant="primary" arrow onClick={() => open(e.id)} aria-label={`เปิด ${e.customer || 'ไม่ระบุลูกค้า'} ${when(e.createdAt)}`}>เปิด</Button>
-                    <Button variant="ghost" onClick={() => setAsking(e.id)} aria-label={`ลบ ${e.customer || 'ไม่ระบุลูกค้า'} ${when(e.createdAt)}`}>ลบ</Button>
-                  </>
+                  <div className={`grid grid-cols-1 items-center gap-x-6 gap-y-3 rounded-2xl px-3.5 py-4 transition-colors hover:bg-tint ${COLS}`}>
+                    <div role="cell" className="flex min-w-0 flex-col">
+                      {/* The name is the link to the TOR; the whole row is its hit area. */}
+                      <button type="button" onClick={() => open(e.id)} aria-label={`เปิด ${name}`} className="w-fit border-0 bg-transparent p-0 text-left text-lg font-semibold tracking-[-0.02em] text-ink wrap-anywhere after:absolute after:inset-0 after:content-['']">{name}</button>
+                      <span className="text-sm text-muted wrap-anywhere">{sub}</span>
+                    </div>
+                    <div role="cell" className="min-w-0">
+                      {waiting ? <span className="text-sm text-muted">ยังไม่ได้เทียบกับ KB</span> : <StaticBars bars={barsOf(e.counts)} className="h-[34px]" />}
+                    </div>
+                    <div role="cell" className={waiting ? 'text-4xl font-semibold leading-none text-muted' : 'text-4xl font-semibold leading-none tracking-[-0.05em] text-ink tabular-nums'}>
+                      {waiting ? '–' : <>{s.cov}<small className="ml-0.5 text-lg text-muted">%</small></>}
+                    </div>
+                    <div role="cell" className="flex flex-col gap-1 text-sm">
+                      {waiting ? (
+                        <>
+                          <span className="inline-flex items-center gap-2.5 font-semibold text-ink"><i aria-hidden className="inline-block size-2 rounded-full bg-line-strong" />รอตรวจ requirement</span>
+                          <span className="text-[13.5px] text-ink">{e.counts.review} ข้อ กดเพื่อตรวจแล้วเริ่มเทียบ</span>
+                        </>
+                      ) : (
+                        <>
+                          <Verdict v={s.verdict} className="text-sm" />
+                          <span className="text-[13.5px] text-ink">{w.why}</span>
+                          <span className="text-[13px] text-muted">{w.act}</span>
+                        </>
+                      )}
+                    </div>
+                    <div role="cell" className="relative z-10 md:justify-self-end">
+                      <button type="button" onClick={() => setAsking(e.id)} aria-label={`ลบ ${name}`} className="inline-flex size-11 items-center justify-center rounded-full border-0 bg-transparent text-muted transition-colors hover:bg-surface hover:text-danger">
+                        <Trash2 size={17} aria-hidden />
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </>
   )
 }

@@ -34,7 +34,7 @@ afterEach(() => { setDb(null); delete process.env.ACCESS_CODE; clearKnowledgeCac
 
 const get = (part: string, cookie = admin) => call(kbApi.GET, 'GET', `/api/knowledge?part=${part}`, { cookie })
 const seed = () => call(kbApi.POST, 'POST', '/api/knowledge?part=import', { cookie: admin, body: {} })
-const note = (extra: object = {}) => ({ title: 'AD login', module: '', service: 'ad-b2c', zones: ['crm-plus'], support: 'config', body: 'รองรับ AD login ผ่าน AD B2C', ...extra })
+const note = (extra: object = {}) => ({ title: 'AD login', module: '', service: 'ad-b2c', solutions: ['crm-plus'], support: 'config', body: 'รองรับ AD login ผ่าน AD B2C', ...extra })
 
 describe('who may do what', () => {
   it('lets any signed-in person read, and nobody else write', async () => {
@@ -110,11 +110,11 @@ describe('notes', () => {
     expect(notes.find((n) => n.path === made.path)).toMatchObject({ body: 'v2', module: 'AD B2C Wrapper' }) // module defaults to the service label
   })
 
-  it('validates service, zones, support and size', async () => {
-    for (const bad of [note({ service: 'nope' }), note({ zones: ['mars'] }), note({ support: 'maybe' }), note({ title: '' }), note({ body: 'x'.repeat(20_001) }), note({ title: 'x'.repeat(121) })]) {
+  it('validates service, solutions, support and size', async () => {
+    for (const bad of [note({ service: 'nope' }), note({ solutions: ['mars'] }), note({ support: 'maybe' }), note({ title: '' }), note({ body: 'x'.repeat(20_001) }), note({ title: 'x'.repeat(121) })]) {
       expect((await call(kbApi.POST, 'POST', '/api/knowledge?part=notes', { cookie: admin, body: bad })).status).toBe(400)
     }
-    expect((await call(kbApi.POST, 'POST', '/api/knowledge?part=notes', { cookie: admin, body: note({ service: null, zones: [] }) })).status).toBe(200) // service is optional
+    expect((await call(kbApi.POST, 'POST', '/api/knowledge?part=notes', { cookie: admin, body: note({ service: null, solutions: [] }) })).status).toBe(200) // service is optional
   })
 
   it('gives every note its own path, even for Thai titles and repeats', async () => {
@@ -122,7 +122,7 @@ describe('notes', () => {
     const b = await json(await call(kbApi.POST, 'POST', '/api/knowledge?part=notes', { cookie: admin, body: note({ title: 'การล็อกอิน' }) }))
     expect(a.path).toMatch(/^ad-b2c\/note-[0-9a-f]{8}\.md$/)
     expect(b.path).not.toBe(a.path)
-    expect(makePath({ ...note(), title: 'Same', module: 'M', service: null, zones: [], support: 'full' } as never, new Set(['m/same.md']))).toBe('m/same-2.md')
+    expect(makePath({ ...note(), title: 'Same', module: 'M', service: null, solutions: [], support: 'full' } as never, new Set(['m/same.md']))).toBe('m/same-2.md')
   })
 
   it('delete keeps the text; it can be listed and restored, but only by an admin', async () => {
@@ -145,7 +145,7 @@ describe('taxonomy', () => {
 
   it('adds a service, archives one, and shows both in the next load', async () => {
     const { tx, at } = await loaded()
-    const next = { zones: tx.zones, services: [...tx.services.map((s) => (s.id === 'apim' ? { ...s, archived: true } : s)), { id: 'billing', label: 'Billing', hint: 'invoices', examples: ['ออกใบแจ้งหนี้'], confirmed: false }] }
+    const next = { solutions: tx.solutions, services: [...tx.services.map((s) => (s.id === 'apim' ? { ...s, archived: true } : s)), { id: 'billing', label: 'Billing', hint: 'invoices', examples: ['ออกใบแจ้งหนี้'], confirmed: false }] }
     expect((await put(next, at)).status).toBe(200)
     const after = (await loaded()).tx
     expect(after.services.find((s) => s.id === 'billing')?.examples).toEqual(['ออกใบแจ้งหนี้'])
@@ -156,32 +156,32 @@ describe('taxonomy', () => {
 
   it('never lets an id disappear, and keeps "unknown" and bad ids out', async () => {
     const { tx, at } = await loaded()
-    const noApim = { zones: tx.zones, services: tx.services.filter((s) => s.id !== 'apim') }
+    const noApim = { solutions: tx.solutions, services: tx.services.filter((s) => s.id !== 'apim') }
     const r = await put(noApim, at)
     expect(r.status).toBe(400)
     expect((await json(r)).error).toContain('archive')
     for (const id of ['unknown', 'A', 'x', 'has space']) {
-      expect((await put({ zones: tx.zones, services: [...tx.services, { id, label: 'L', hint: '', confirmed: true }] }, at)).status).toBe(400)
+      expect((await put({ solutions: tx.solutions, services: [...tx.services, { id, label: 'L', hint: '', confirmed: true }] }, at)).status).toBe(400)
     }
-    expect((await put({ zones: tx.zones, services: [...tx.services, { ...tx.services[0] }] }, at)).status).toBe(400) // duplicate id
+    expect((await put({ solutions: tx.solutions, services: [...tx.services, { ...tx.services[0] }] }, at)).status).toBe(400) // duplicate id
   })
 
   it('enforces the limits', async () => {
     const { tx, at } = await loaded()
     const extra = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `svc-${i}`, label: 'L', hint: '', confirmed: true }))
-    expect((await put({ zones: tx.zones, services: [...tx.services, ...extra(60)] }, at)).status).toBe(400)
-    expect((await put({ zones: tx.zones, services: [...tx.services, { id: 'big', label: 'L', hint: 'h'.repeat(401), confirmed: true }] }, at)).status).toBe(400)
-    expect((await put({ zones: tx.zones, services: [...tx.services, { id: 'ex', label: 'L', hint: '', examples: Array(11).fill('e'), confirmed: true }] }, at)).status).toBe(400)
-    expect(() => validateTaxonomy({ zones: Array.from({ length: 13 }, (_, i) => ({ id: `z-${i}`, label: 'L' })), services: [] }, DEFAULT_TAXONOMY)).toThrow()
+    expect((await put({ solutions: tx.solutions, services: [...tx.services, ...extra(60)] }, at)).status).toBe(400)
+    expect((await put({ solutions: tx.solutions, services: [...tx.services, { id: 'big', label: 'L', hint: 'h'.repeat(401), confirmed: true }] }, at)).status).toBe(400)
+    expect((await put({ solutions: tx.solutions, services: [...tx.services, { id: 'ex', label: 'L', hint: '', examples: Array(11).fill('e'), confirmed: true }] }, at)).status).toBe(400)
+    expect(() => validateTaxonomy({ solutions: Array.from({ length: 13 }, (_, i) => ({ id: `z-${i}`, label: 'L' })), services: [] }, DEFAULT_TAXONOMY)).toThrow()
   })
 
   it('answers 409 to a stale save, and a restore brings back ids that are newer than the version', async () => {
     const first = await loaded()
-    const added = { zones: first.tx.zones, services: [...first.tx.services, { id: 'billing', label: 'Billing', hint: '', confirmed: true }] }
+    const added = { solutions: first.tx.solutions, services: [...first.tx.services, { id: 'billing', label: 'Billing', hint: '', confirmed: true }] }
     expect((await put(added, first.at)).status).toBe(200)
     expect((await put(added, first.at)).status).toBe(409) // second admin still holds the first token
     const now = await loaded()
-    expect((await put({ zones: now.tx.zones, services: now.tx.services.map((s) => ({ ...s, hint: 'edited' })) }, now.at)).status).toBe(200)
+    expect((await put({ solutions: now.tx.solutions, services: now.tx.services.map((s) => ({ ...s, hint: 'edited' })) }, now.at)).status).toBe(200)
     const versions = (await json(await call(kbApi.GET, 'GET', '/api/knowledge?part=versions&kind=taxonomy&key=taxonomy', { cookie: admin }))).versions as { id: number; data: { services: { id: string }[] } }[]
     const oldest = versions[versions.length - 1] // the first save: it still has no "billing"... the oldest stored one is the one before it
     const cur = await loaded()
@@ -224,5 +224,26 @@ describe('prompts', () => {
     await db.kbPut('prompt', 'extract', { body: 'second' }, 'other', (await db.kbGet('prompt', 'extract'))!.updatedAt)
     expect((await loadKnowledge()).prompts.extract).toBe('first') // cached
     expect((await json(await get('prompts'))).prompts.extract.body).toBe('second') // the editor sees the truth
+  })
+})
+
+describe('data saved before "zone" was renamed "solution"', () => {
+  it('reads an old taxonomy, an old note and an old classify prompt with the new names', async () => {
+    await seed()
+    const tok = (await db.kbGet('taxonomy', 'taxonomy'))?.updatedAt ?? null
+    const { solutions, services } = DEFAULT_TAXONOMY
+    await db.kbPut('taxonomy', 'taxonomy', { zones: solutions, services }, 'old', tok) // the old key
+    await db.kbPut('note', 'old/ad-login.md', { title: 'AD login', module: '', service: 'ad-b2c', zones: ['crm-plus'], support: 'config', body: 'x' }, 'old', null)
+    await db.kbPut('prompt', 'classify', { body: 'Pick one.\n{{zones}}\n{{services}}' }, 'old', (await db.kbGet('prompt', 'classify'))?.updatedAt ?? null)
+    clearKnowledgeCache()
+    const k = await loadKnowledge()
+    expect(k.taxonomy.solutions.map((s) => s.id)).toEqual(solutions.map((s) => s.id))
+    expect(k.notes.find((n) => n.path === 'old/ad-login.md')?.solution).toEqual(['crm-plus'])
+    const view = await json(await get('notes'))
+    expect(view.notes.find((n: { path: string }) => n.path === 'old/ad-login.md').solutions).toEqual(['crm-plus'])
+    const { buildSystem } = await import('../../server/prompts')
+    const sys = buildSystem('classify', k.prompts.classify, k.taxonomy)
+    expect(sys).not.toContain('{{zones}}')
+    expect(sys).toContain('crm-plus: CRM+ module') // the list went where {{zones}} was
   })
 })

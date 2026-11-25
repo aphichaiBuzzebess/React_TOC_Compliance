@@ -1,0 +1,80 @@
+[
+  {
+    "key": "member/multi-brand-profile.md",
+    "data": {
+      "body": "หนึ่ง Member มีโปรไฟล์ได้หลาย Brand แต่ **ยังไม่มี Flow การ Merge บัญชี** ที่มีอยู่แล้วจากหลาย Brand และไม่มี Duplicate detection\n\nข้อจำกัด: ต้องพัฒนา Merge rule เพิ่ม",
+      "title": "Multi-brand profile",
+      "zones": [],
+      "module": "Member",
+      "service": "user-management",
+      "support": "custom"
+    },
+    "updatedBy": "import",
+    "updatedAt": "2026-11-20T08:37:06.142847Z"
+  },
+  {
+    "key": "member/registration-channels.md",
+    "data": {
+      "body": "สมัครสมาชิกได้ผ่าน LINE OA และ Mobile App เป็นช่องทางมาตรฐาน รองรับ OTP ยืนยันเบอร์โทร\n\nเกี่ยวข้อง: [[member/multi-brand-profile]]",
+      "title": "Registration channels",
+      "zones": [],
+      "module": "Member",
+      "service": "user-management",
+      "support": "full"
+    },
+    "updatedBy": "import",
+    "updatedAt": "2026-11-20T08:37:06.408511Z"
+  },
+  {
+    "key": "point/earn-rules.md",
+    "data": {
+      "body": "Earn rule ตั้งค่าตาม Brand และ Product category ได้ผ่าน Back-Office ไม่ต้องพัฒนาเพิ่ม ต้องตั้งค่าต่อ Brand ระหว่าง Implementation",
+      "title": "Earn rules",
+      "zones": [],
+      "module": "Point",
+      "service": "point",
+      "support": "config"
+    },
+    "updatedBy": "import",
+    "updatedAt": "2026-11-20T08:37:06.668352Z"
+  },
+  {
+    "key": "point/expiry-policy.md",
+    "data": {
+      "body": "รองรับคะแนนหมดอายุหลายแบบ รวมถึง Rolling period (นับจากวันที่ได้รับ) ตั้งจำนวนเดือนได้",
+      "title": "Point expiry policy",
+      "zones": [],
+      "module": "Point",
+      "service": "point",
+      "support": "full"
+    },
+    "updatedBy": "import",
+    "updatedAt": "2026-11-20T08:37:06.934485Z"
+  },
+  {
+    "key": "reporting/point-report.md",
+    "data": {
+      "body": "Report มาตรฐานแสดงคะแนนสะสมและการแลก ต้องตั้งค่า Filter และ Report template ต่อ Brand",
+      "title": "Point report",
+      "zones": [],
+      "module": "Reporting",
+      "service": "report-analytic",
+      "support": "config"
+    },
+    "updatedBy": "import",
+    "updatedAt": "2026-11-20T08:37:07.202892Z"
+  },
+  {
+    "key": "reward/e-coupon.md",
+    "data": {
+      "body": "มี E-Coupon สำหรับแลกด้วยคะแนน การ Redeem ที่หน้าร้านต้องเชื่อม **POS ของลูกค้า** ผ่าน Coupon API\n\nIntegration: [[integration/burn-api]]",
+      "title": "E-Coupon",
+      "zones": [],
+      "module": "Reward",
+      "service": "campaign-management",
+      "support": "integ"
+    },
+    "updatedBy": "import",
+    "updatedAt": "2026-11-20T08:37:07.462433Z"
+  }
+]

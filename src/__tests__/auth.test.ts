@@ -203,7 +203,7 @@ describe('stored key', () => {
 })
 
 describe('history', () => {
-  const result = (s = 'full') => ({ id: 'R-001', module: 'Member', text: 't', s, conf: '90%', reason: 'r', evidence: 'e', rec: 'c', targets: [{ zone: 'crm-plus', service: 'point' }], wantsApi: true })
+  const result = (s = 'full') => ({ id: 'R-001', module: 'Member', text: 't', s, conf: '90%', reason: 'r', evidence: 'e', rec: 'c', targets: [{ solution: 'crm-plus', service: 'point' }], wantsApi: true })
   const entry = (extra: object = {}) => ({ customer: 'ACME', files: ['tor.pdf'], data: { result: [result(), { ...result('none'), id: 'R-002' }], coverage: null, valid: { 'R-001': 'ok' } }, ...extra })
   const create = async (cookie: string, body: unknown = entry()) => (await (await call(historyApi.POST, 'POST', '/api/history', { cookie, body })).json()) as { id: string }
 
@@ -222,6 +222,52 @@ describe('history', () => {
     expect((await (await call(historyApi.GET, 'GET', `/api/history?id=${id}`, { cookie })).json()).entry.data.valid).toEqual({ 'R-001': 'flag', 'R-002': 'ok' })
     expect((await call(historyApi.DELETE, 'DELETE', `/api/history?id=${id}`, { cookie })).status).toBe(200)
     expect((await call(historyApi.GET, 'GET', `/api/history?id=${id}`, { cookie })).status).toBe(404)
+  })
+
+  it('keeps the project details, lists their title and due date, and refuses a bad date', async () => {
+    const { cookie } = await signUp('ann')
+    const meta = { title: 'TOR ระบบสมาชิก', industry: 'Retail Business', sub: 'Department Store', leaf: 'Department Store', due: '2026-12-15', value: 1800000 }
+    const { id } = await create(cookie, entry({ data: { ...entry().data, meta } }))
+    await create(cookie) // an entry without details still lists, with empty title and due
+    const list = (await (await call(historyApi.GET, 'GET', '/api/history', { cookie })).json()).entries
+    expect(list.find((e: { id: string }) => e.id === id)).toMatchObject({ title: 'TOR ระบบสมาชิก', due: '2026-12-15' })
+    expect(list.find((e: { id: string }) => e.id !== id)).toMatchObject({ title: '', due: '' })
+    expect((await (await call(historyApi.GET, 'GET', `/api/history?id=${id}`, { cookie })).json()).entry.data.meta).toEqual(meta)
+    expect((await call(historyApi.POST, 'POST', '/api/history', { cookie, body: entry({ data: { ...entry().data, meta: { ...meta, due: '15/12/2026' } } }) })).status).toBe(400)
+  })
+
+  it('saves a TOR while it waits for its review, lists it as waiting, then takes the judged result in its place', async () => {
+    const { cookie } = await signUp('ann')
+    const review = [
+      { id: 'R-001', module: 'Mission', text: 'ภารกิจ', pri: 'M', ref: 'ข้อ 2.9', amb: 'ไม่ชัด', inf: true, targets: [{ solution: 'crm-plus', service: 'point' }] },
+      { id: 'R-002', module: 'เงื่อนไขสัญญาและผู้ยื่น', text: 'ส่งมอบ 120 วัน', pri: 'M' },
+    ]
+    const { id } = await create(cookie, { customer: 'ACME', files: [], data: { scope: 'ระบบสมาชิก', review } })
+    const listed = (await (await call(historyApi.GET, 'GET', '/api/history', { cookie })).json()).entries[0]
+    expect(listed.counts).toEqual({ review: 2 })
+    const opened = (await (await call(historyApi.GET, 'GET', `/api/history?id=${id}`, { cookie })).json()).entry.data
+    expect(opened).toMatchObject({ scope: 'ระบบสมาชิก', review: [{ pri: 'M', ref: 'ข้อ 2.9', amb: 'ไม่ชัด', inf: true }, { text: 'ส่งมอบ 120 วัน' }], result: [], terms: [], confirmed: null })
+    // judged: the review goes, the result and the contract terms come in
+    const judged = { scope: 'ระบบสมาชิก', review: null, terms: [{ id: 'R-002', text: 'ส่งมอบ 120 วัน', ok: true }], confirmed: { by: 'ann', at: '2026-11-20T09:05:00.000Z' }, result: [{ ...result(), pri: 'O', gap: 'g', q: 'q?', override: { from: 'verify', note: 'PM' } }, { ...result('none'), id: 'R-003' }], coverage: null, valid: {} }
+    expect((await call(historyApi.PUT, 'PUT', `/api/history?id=${id}`, { cookie, body: { data: judged } })).status).toBe(200)
+    const after = (await (await call(historyApi.GET, 'GET', '/api/history', { cookie })).json()).entries[0]
+    expect(after.counts).toMatchObject({ full: 1, 'o:full': 1, none: 1, 'o:none': 0 })
+    expect(after.counts.review).toBeUndefined()
+    const back = (await (await call(historyApi.GET, 'GET', `/api/history?id=${id}`, { cookie })).json()).entry.data
+    expect(back.result[0]).toMatchObject({ pri: 'O', gap: 'g', q: 'q?', override: { from: 'verify', note: 'PM' } })
+    expect(back.terms).toEqual([{ id: 'R-002', text: 'ส่งมอบ 120 วัน', ok: true }])
+    expect(back.confirmed).toEqual({ by: 'ann', at: '2026-11-20T09:05:00.000Z' })
+    // an entry with neither a review nor a result is refused
+    expect((await call(historyApi.POST, 'POST', '/api/history', { cookie, body: { customer: 'x', files: [], data: {} } })).status).toBe(400)
+  })
+
+  it('opens an entry saved before "zone" was renamed "solution", with the new name', async () => {
+    const { cookie } = await signUp('ann')
+    const uid = (await db.userByName('ann'))!.id
+    const old = { ...result(), targets: [{ zone: 'crm-plus', service: 'point' }] }
+    const id = await db.insertAssessment(uid, { customer: '', files: [], counts: {}, schema: 1, data: { result: [old], coverage: null, valid: {} } })
+    const opened = (await (await call(historyApi.GET, 'GET', `/api/history?id=${id}`, { cookie })).json()).entry.data
+    expect(opened.result[0].targets).toEqual([{ solution: 'crm-plus', service: 'point' }])
   })
 
   it('keeps each user to their own entries, even by id', async () => {

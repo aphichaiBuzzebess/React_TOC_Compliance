@@ -5,6 +5,10 @@ export interface User { id: string; username: string; passwordHash: string; disa
 export interface KeyRow { provider: string; model: string; ciphertext: Buffer; iv: Buffer; tag: Buffer; last4: string }
 export interface AssessmentInput { customer: string; files: string[]; counts: Record<string, number>; schema: number; data: unknown }
 export interface AssessmentRow extends AssessmentInput { id: string; createdAt: string; updatedAt: string }
+/** A row of the list: everything but the data, plus the project title and due date read out of it ('' when absent). */
+export type AssessmentListRow = Omit<AssessmentRow, 'data'> & { title: string; due: string }
+type MetaBits = { meta?: { title?: unknown; due?: unknown } } | null | undefined
+const metaBits = (data: unknown) => { const m = (data as MetaBits)?.meta; return { title: typeof m?.title === 'string' ? m.title : '', due: typeof m?.due === 'string' ? m.due : '' } }
 
 export const KEEP_ASSESSMENTS = 50
 export const KEEP_VERSIONS = 20
@@ -33,7 +37,7 @@ export interface Db {
   getKey(userId: string): Promise<KeyRow | undefined>
   deleteKey(userId: string): Promise<void>
   insertAssessment(userId: string, a: AssessmentInput): Promise<string> // prunes to KEEP_ASSESSMENTS newest
-  listAssessments(userId: string): Promise<Omit<AssessmentRow, 'data'>[]>
+  listAssessments(userId: string): Promise<AssessmentListRow[]>
   getAssessment(userId: string, id: string): Promise<AssessmentRow | undefined>
   updateAssessment(userId: string, id: string, patch: { counts: Record<string, number>; data: unknown }): Promise<boolean>
   deleteAssessment(userId: string, id: string): Promise<boolean>
@@ -121,7 +125,7 @@ export function memoryDb(): Db {
       return id
     },
     async listAssessments(userId) {
-      return [...rows.values()].filter((r) => r.userId === userId).sort((x, y) => (x.createdAt < y.createdAt ? 1 : -1)).map(({ data: _d, userId: _u, ...r }) => r)
+      return [...rows.values()].filter((r) => r.userId === userId).sort((x, y) => (x.createdAt < y.createdAt ? 1 : -1)).map(({ data, userId: _u, ...r }) => ({ ...r, ...metaBits(data) }))
     },
     async getAssessment(userId, id) {
       const r = rows.get(id)
@@ -270,8 +274,8 @@ export function pgDb(pool: Pool): Db {
       }
     },
     async listAssessments(userId) {
-      const r = await pool.query('select id, customer, files, counts, schema, created_at, updated_at from assessments where user_id=$1 order by created_at desc', [userId])
-      return r.rows.map((x) => ({ id: x.id, customer: x.customer, files: x.files, counts: x.counts, schema: x.schema, createdAt: new Date(x.created_at).toISOString(), updatedAt: new Date(x.updated_at).toISOString() }))
+      const r = await pool.query("select id, customer, files, counts, schema, created_at, updated_at, data->'meta' as meta from assessments where user_id=$1 order by created_at desc", [userId])
+      return r.rows.map((x) => ({ id: x.id, customer: x.customer, files: x.files, counts: x.counts, schema: x.schema, createdAt: new Date(x.created_at).toISOString(), updatedAt: new Date(x.updated_at).toISOString(), ...metaBits({ meta: x.meta }) }))
     },
     async getAssessment(userId, id) {
       const r = await pool.query('select * from assessments where user_id=$1 and id=$2', [userId, id])

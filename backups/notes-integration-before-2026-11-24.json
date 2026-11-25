@@ -1,0 +1,28 @@
+[
+  {
+    "key": "integration/accounting-export.md",
+    "data": {
+      "body": "มี Export ข้อมูลบัญชีคะแนน (Point Liability) เป็นไฟล์ การส่งเข้า SAP ของลูกค้าต้องกำหนด Interface ร่วมกับทีมบัญชี",
+      "title": "Accounting export",
+      "zones": [],
+      "module": "Integration",
+      "service": "point",
+      "support": "integ"
+    },
+    "updatedBy": "import",
+    "updatedAt": "2026-11-20T08:37:05.610542Z"
+  },
+  {
+    "key": "integration/burn-api.md",
+    "data": {
+      "body": "Burn API ให้ระบบภายนอก เช่น Checkout ของ e-Commerce หักคะแนนของสมาชิกได้ ต้องเชื่อมต่อกับ Checkout ของเว็บไซต์ลูกค้า",
+      "title": "Burn API",
+      "zones": [],
+      "module": "Integration",
+      "service": "point",
+      "support": "integ"
+    },
+    "updatedBy": "import",
+    "updatedAt": "2026-11-20T08:37:05.877767Z"
+  }
+]

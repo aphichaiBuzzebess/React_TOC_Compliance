@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { loadKb, parseNote, retrieveForTargets, searchKb } from '../../server/kb'
-import { classify, judge, toBlocks } from '../../server/pipeline'
-import { activeZones, cleanTargets, DEFAULT_TAXONOMY } from '../../src/data/taxonomy'
+import { classify, extractRequirements, judge, toBlocks } from '../../server/pipeline'
+import { activeSolutions, cleanTargets, DEFAULT_TAXONOMY } from '../../src/data/taxonomy'
 import { DEFAULT_PROMPTS, PROMPT_KEYS, UNTRUSTED, buildSystem } from '../../server/prompts'
 import { openaiLlm } from '../../server/llm-openai'
 import { deepseekLlm } from '../../server/llm-deepseek'
@@ -59,11 +59,62 @@ describe('judge', () => {
   })
 })
 
+describe('the old name "zone"', () => {
+  it('a note header `zone:` still limits the note, and a target { zone } is still read', async () => {
+    const { parseNote } = await import('../../server/kb')
+    expect(parseNote('x/y.md', '---\ntitle: T\nmodule: M\nsupport: full\nservice: point\nzone: CRM+ module\n---\nbody')?.solution).toEqual(['crm-plus'])
+    expect(cleanTargets([{ zone: 'crm-plus', service: 'point' }])).toEqual([{ solution: 'crm-plus', service: 'point' }])
+  })
+})
+
+describe('extract', () => {
+  it('keeps the category, priority, clause, TOR wording and what is unclear, and says what the TOR asks for', async () => {
+    const llm: Llm = async () =>
+      ({
+        scope: '  ระบบสมาชิกผ่าน LINE  ',
+        requirements: [
+          { module: 'Dashboard & Report', text: 'Dashboard Real-time', pri: 'M', priStated: true, ref: 'ข้อ 3.5.2', orig: 'Dashboard ต้องแสดงยอดแบบ Real-time', amb: 'ไม่บอกว่าหน่วงได้กี่นาที' },
+          { module: 'เงื่อนไขสัญญาและผู้ยื่น', text: 'ส่งมอบ 120 วัน', pri: 'M', priStated: false, ref: '', orig: 'ส่งมอบ 120 วัน', amb: '' },
+          { module: 'Something else', text: 'x', pri: 'O', priStated: true, ref: '', orig: '', amb: '' },
+          { module: 'Survey', text: 'y' }, // a model that leaves fields out
+        ],
+      }) as never
+    const out = await extractRequirements(llm, [])
+    expect(out.scope).toBe('ระบบสมาชิกผ่าน LINE')
+    expect(out.requirements[0]).toEqual({ id: 'R-001', module: 'Dashboard & Report', text: 'Dashboard Real-time', pri: 'M', ref: 'ข้อ 3.5.2', orig: 'Dashboard ต้องแสดงยอดแบบ Real-time', amb: 'ไม่บอกว่าหน่วงได้กี่นาที' })
+    expect(out.requirements[1]).toEqual({ id: 'R-002', module: 'เงื่อนไขสัญญาและผู้ยื่น', text: 'ส่งมอบ 120 วัน', pri: 'M', inf: true }) // wording same as text: not kept twice
+    expect(out.requirements[2]).toMatchObject({ module: 'Something else', pri: 'O' })
+    expect(out.requirements[3]).toEqual({ id: 'R-004', module: 'Survey', text: 'y', pri: 'M' })
+  })
+})
+
+describe('judge: gap and question', () => {
+  it('passes on what is missing and what to ask, but no gap for a fully supported one', async () => {
+    const kb = loadKb('kb')
+    const reqs = [{ id: 'R-001', module: 'Member', text: 'สมัครสมาชิกผ่าน LINE OA' }, { id: 'R-002', module: 'Member', text: 'สมัครสมาชิกผ่าน LINE OA' }]
+    const llm: Llm = async () =>
+      ({
+        verdicts: [
+          { id: 'R-001', s: 'full', confidence: 0.9, reason: 'ok', sources: ['member/registration-channels.md'], rec: 'use', gap: 'nothing', q: '' },
+          { id: 'R-002', s: 'custom', confidence: 0.9, reason: 'dev', sources: ['member/registration-channels.md'], rec: 'build', gap: 'ไม่มีตัวกรองสาขา', q: 'กี่สาขา?' },
+        ],
+      }) as never
+    const [a, b] = await judge(llm, reqs, kb)
+    expect(a.gap).toBeUndefined()
+    expect(a.q).toBeUndefined()
+    expect(b).toMatchObject({ gap: 'ไม่มีตัวกรองสาขา', q: 'กี่สาขา?' })
+  })
+})
+
 describe('toBlocks', () => {
   it('sends an image as an image block with the right media type', async () => {
     const png = await toBlocks('Table.PNG', Buffer.from('abc'))
     expect(png).toEqual([{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: Buffer.from('abc').toString('base64') } }])
     expect((await toBlocks('a.jpeg', Buffer.from('x')))[0]).toMatchObject({ source: { media_type: 'image/jpeg' } })
+  })
+  it('reads TXT and CSV as plain text, without a BOM', async () => {
+    expect(await toBlocks('tor.txt', Buffer.from('ระบบต้องมี OTP'))).toEqual([{ type: 'text', text: 'ระบบต้องมี OTP' }])
+    expect(await toBlocks('Req.CSV', Buffer.from('﻿no,text\n1,Login'))).toEqual([{ type: 'text', text: 'no,text\n1,Login' }])
   })
   it('still rejects unknown types', async () => {
     await expect(toBlocks('a.exe', Buffer.from('x'))).rejects.toThrow('Unsupported')
@@ -275,42 +326,42 @@ describe('gemini output handling', () => {
 
 describe('taxonomy targets', () => {
   it('cleans anything the model or a client sends', () => {
-    expect(cleanTargets(undefined)).toEqual([{ zone: 'unknown', service: 'unknown' }])
-    expect(cleanTargets([{ zone: 'mars', service: 'point' }])).toEqual([{ zone: 'unknown', service: 'point' }])
-    expect(cleanTargets([null, 5, 'x', {}])).toEqual([{ zone: 'unknown', service: 'unknown' }])
-    expect(cleanTargets([{ zone: 'crm-plus', service: 'point' }, { zone: 'crm-plus', service: 'point' }])).toHaveLength(1)
-    expect(cleanTargets([{ zone: 'x', service: 'y' }, { zone: 'app-custom', service: 'unknown' }])).toEqual([{ zone: 'app-custom', service: 'unknown' }])
-    const four = ['internal', 'crm-plus', 'app-standard', 'app-custom'].map((zone) => ({ zone, service: 'point' }))
+    expect(cleanTargets(undefined)).toEqual([{ solution: 'unknown', service: 'unknown' }])
+    expect(cleanTargets([{ solution: 'mars', service: 'point' }])).toEqual([{ solution: 'unknown', service: 'point' }])
+    expect(cleanTargets([null, 5, 'x', {}])).toEqual([{ solution: 'unknown', service: 'unknown' }])
+    expect(cleanTargets([{ solution: 'crm-plus', service: 'point' }, { solution: 'crm-plus', service: 'point' }])).toHaveLength(1)
+    expect(cleanTargets([{ solution: 'x', service: 'y' }, { solution: 'app-custom', service: 'unknown' }])).toEqual([{ solution: 'app-custom', service: 'unknown' }])
+    const four = ['internal', 'crm-plus', 'app-standard', 'app-custom'].map((solution) => ({ solution, service: 'point' }))
     expect(cleanTargets(four)).toHaveLength(3)
   })
 })
 
-describe('kb service and zone', () => {
+describe('kb service and solution', () => {
   const kb = loadKb('kb')
   const fm = (extra: string) => `---\ntitle: a\nmodule: b\nsupport: full\n${extra}\n---\nbody`
-  it('reads service and zone, and drops ids it does not know', () => {
-    expect(parseNote('x.md', fm('service: point\nzone: crm-plus, app-custom'))).toMatchObject({ service: 'point', zone: ['crm-plus', 'app-custom'] })
-    const bad = parseNote('x.md', fm('service: nope\nzone: mars'))!
+  it('reads service and solution, and drops ids it does not know', () => {
+    expect(parseNote('x.md', fm('service: point\nsolution: crm-plus, app-custom'))).toMatchObject({ service: 'point', solution: ['crm-plus', 'app-custom'] })
+    const bad = parseNote('x.md', fm('service: nope\nsolution: mars'))!
     expect(bad.service).toBeUndefined()
-    expect(bad.zone).toBeUndefined()
+    expect(bad.solution).toBeUndefined()
   })
   it('tags every shipped note with a service', () => {
     expect(kb.every((n) => n.service)).toBe(true)
   })
   it('only offers the notes of the requirement\'s service', () => {
-    const { notes } = retrieveForTargets(kb, 'คะแนนหมดอายุ', [{ zone: 'app-custom', service: 'point' }])
+    const { notes } = retrieveForTargets(kb, 'คะแนนหมดอายุ', [{ solution: 'app-custom', service: 'point' }])
     expect(notes.length).toBeGreaterThan(0)
     expect(notes.every((n) => n.service === 'point')).toBe(true)
   })
-  it('keeps a zone-limited note out of other zones, and returns nothing when no note fits', () => {
-    const only = [{ ...kb[0], service: 'point', zone: ['crm-plus'] }]
-    expect(retrieveForTargets(only, kb[0].body, [{ zone: 'app-custom', service: 'point' }]).notes).toEqual([])
-    expect(retrieveForTargets(only, kb[0].body, [{ zone: 'crm-plus', service: 'point' }]).notes).toHaveLength(1)
-    expect(retrieveForTargets(kb, 'anything', [{ zone: 'unknown', service: 'unknown' }]).notes).toEqual([])
-    expect(retrieveForTargets(kb, 'anything', [{ zone: 'app-custom', service: 'unknown' }]).notes).toEqual([])
+  it('keeps a solution-limited note out of other solutions, and returns nothing when no note fits', () => {
+    const only = [{ ...kb[0], service: 'point', solution: ['crm-plus'] }]
+    expect(retrieveForTargets(only, kb[0].body, [{ solution: 'app-custom', service: 'point' }]).notes).toEqual([])
+    expect(retrieveForTargets(only, kb[0].body, [{ solution: 'crm-plus', service: 'point' }]).notes).toHaveLength(1)
+    expect(retrieveForTargets(kb, 'anything', [{ solution: 'unknown', service: 'unknown' }]).notes).toEqual([])
+    expect(retrieveForTargets(kb, 'anything', [{ solution: 'app-custom', service: 'unknown' }]).notes).toEqual([])
   })
   it('falls back to the whole service pool when the text matches nothing', () => {
-    expect(retrieveForTargets(kb, 'zzzz qqqq', [{ zone: 'app-custom', service: 'point' }]).notes.length).toBeGreaterThan(0)
+    expect(retrieveForTargets(kb, 'zzzz qqqq', [{ solution: 'app-custom', service: 'point' }]).notes.length).toBeGreaterThan(0)
   })
 })
 
@@ -323,15 +374,15 @@ describe('classify', () => {
   const llm: Llm = async () =>
     ({
       items: [
-        { id: 'R-001', targets: [{ zone: 'crm-plus', service: 'campaign-management' }], wantsApi: true },
-        { id: 'R-002', targets: [{ zone: 'mars', service: 'moon' }], wantsApi: 'yes' },
+        { id: 'R-001', targets: [{ solution: 'crm-plus', service: 'campaign-management' }], wantsApi: true },
+        { id: 'R-002', targets: [{ solution: 'mars', service: 'moon' }], wantsApi: 'yes' },
       ],
     }) as never
   it('keeps valid output, turns bad ids into unknown, and defaults a missing item', async () => {
     const out = await classify(llm, reqs)
-    expect(out[0]).toMatchObject({ targets: [{ zone: 'crm-plus', service: 'campaign-management' }], wantsApi: true })
-    expect(out[1]).toMatchObject({ targets: [{ zone: 'unknown', service: 'unknown' }], wantsApi: false }) // 'yes' is not a boolean
-    expect(out[2]).toMatchObject({ targets: [{ zone: 'unknown', service: 'unknown' }], wantsApi: false })
+    expect(out[0]).toMatchObject({ targets: [{ solution: 'crm-plus', service: 'campaign-management' }], wantsApi: true })
+    expect(out[1]).toMatchObject({ targets: [{ solution: 'unknown', service: 'unknown' }], wantsApi: false }) // 'yes' is not a boolean
+    expect(out[2]).toMatchObject({ targets: [{ solution: 'unknown', service: 'unknown' }], wantsApi: false })
   })
   it('survives a model that returns nothing usable', async () => {
     const out = await classify((async () => ({})) as never, reqs)
@@ -345,31 +396,31 @@ describe('judge with targets', () => {
   const say = (verdicts: unknown[]): Llm => (async () => ({ verdicts })) as never
   it('shows evidence per target', async () => {
     const llm = say([{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'ok', sources: ['point/expiry-policy.md'], rec: 'use' }])
-    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'คะแนนหมดอายุ rolling', targets: [{ zone: 'app-custom', service: 'point' }] }], kb)
-    expect(r).toMatchObject({ s: 'full', evidence: 'App project — Custom › Point Service: KB › Point › Point expiry policy', targets: [{ zone: 'app-custom', service: 'point' }] })
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'คะแนนหมดอายุ rolling', targets: [{ solution: 'app-custom', service: 'point' }] }], kb)
+    expect(r).toMatchObject({ s: 'full', evidence: 'App project — Custom › Point Service: KB › Point › Point expiry policy', targets: [{ solution: 'app-custom', service: 'point' }] })
   })
   it('never lets the model judge an own-system API request, even when a note matches', async () => {
     const llm = say([{ id: 'R-1', s: 'integ', confidence: 0.95, reason: 'burn api', sources: ['integration/burn-api.md'], rec: 'x' }])
-    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'ขอ API หักคะแนน', targets: [{ zone: 'app-custom', service: 'point' }], wantsApi: true }], kb)
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'ขอ API หักคะแนน', targets: [{ solution: 'app-custom', service: 'point' }], wantsApi: true }], kb)
     expect(r).toMatchObject({ s: 'verify', conf: '0%', wantsApi: true })
     expect(r.reason).toContain('ถาม Tech')
     expect(r.evidence).toContain('Burn API')
   })
   it('leaves a checkout-via-API requirement to the KB (integ)', async () => {
     const llm = say([{ id: 'R-1', s: 'integ', confidence: 0.9, reason: 'burn api', sources: ['integration/burn-api.md'], rec: 'connect' }])
-    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'checkout ของเว็บหักคะแนนผ่าน API', targets: [{ zone: 'app-custom', service: 'point' }], wantsApi: false }], kb)
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'checkout ของเว็บหักคะแนนผ่าน API', targets: [{ solution: 'app-custom', service: 'point' }], wantsApi: false }], kb)
     expect(r.s).toBe('integ')
   })
   it('is verify when one target has no note at all, and names it', async () => {
     const llm = say([{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'ok', sources: ['point/expiry-policy.md'], rec: 'use' }])
-    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'คะแนนหมดอายุ และส่ง notification', targets: [{ zone: 'app-custom', service: 'point' }, { zone: 'app-custom', service: 'notification' }] }], kb)
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'คะแนนหมดอายุ และส่ง notification', targets: [{ solution: 'app-custom', service: 'point' }, { solution: 'app-custom', service: 'notification' }] }], kb)
     expect(r.s).toBe('verify')
     expect(r.reason).toContain('Notification')
     expect(r.evidence).toContain('Notification: ไม่พบหลักฐานที่ตรงกัน')
   })
-  it('judges a zone-only target as verify', async () => {
+  it('judges a solution-only target as verify', async () => {
     const llm = say([{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'ok', sources: [], rec: 'x' }])
-    const [r] = await judge(llm, [{ id: 'R-1', module: 'App', text: 'ทำแอปและเว็บ', targets: [{ zone: 'app-custom', service: 'unknown' }] }], kb)
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'App', text: 'ทำแอปและเว็บ', targets: [{ solution: 'app-custom', service: 'unknown' }] }], kb)
     expect(r.s).toBe('verify')
   })
 })
@@ -380,8 +431,8 @@ describe('adding knowledge', () => {
     const n = parseNote('x.md', note('title: a\nservice: point service\nsupport: full'))!
     expect(n).toMatchObject({ service: 'point', module: 'Point Service', updated: '' })
   })
-  it('accepts zone written as its label', () => {
-    expect(parseNote('x.md', note('title: a\nservice: Point Service\nsupport: full\nzone: CRM+ module, mars'))!.zone).toEqual(['crm-plus'])
+  it('accepts solution written as its label', () => {
+    expect(parseNote('x.md', note('title: a\nservice: Point Service\nsupport: full\nsolution: CRM+ module, mars'))!.solution).toEqual(['crm-plus'])
   })
   it('does not treat the template or other _ files as notes', () => {
     expect(loadKb('kb').some((n) => n.path.includes('_template'))).toBe(false)
@@ -393,7 +444,7 @@ describe('adding knowledge', () => {
     expect(typo.join('|')).toContain('ใกล้เคียง "Point Service"')
     expect(checkNote(note('title: a\nsupport: full'))[0]).toContain('ไม่มี service')
     expect(checkNote(note('title: a\nservice: point\nsupport: full', ''))).toEqual(['เนื้อหาว่าง'])
-    expect(checkNote(note('title: a\nservice: point\nsupport: full\nzone: mars'))[0]).toContain('zone "mars"')
+    expect(checkNote(note('title: a\nservice: point\nsupport: full\nsolution: mars'))[0]).toContain('solution "mars"')
   })
   it('the shipped knowledge base has no problems', () => {
     expect(checkKb('kb')).toEqual([])
@@ -406,12 +457,12 @@ describe('prompts as data', () => {
     for (const k of PROMPT_KEYS) expect(buildSystem(k, 'just my own words').endsWith(UNTRUSTED)).toBe(true)
     expect(buildSystem('judge', '  hello  ')).toBe(`hello ${UNTRUSTED}`)
   })
-  it('puts the zone and service lists in place, or appends them when the editor removed the placeholders', () => {
-    const inPlace = buildSystem('classify', 'A\nZones:\n{{zones}}\nmiddle\n{{services}}\nend', tx)
-    expect(inPlace).toMatch(/A\nZones:\n- crm-plus: CRM\+ module/)
+  it('puts the solution and service lists in place, or appends them when the editor removed the placeholders', () => {
+    const inPlace = buildSystem('classify', 'A\nSolutions:\n{{solutions}}\nmiddle\n{{services}}\nend', tx)
+    expect(inPlace).toMatch(/A\nSolutions:\n- crm-plus: CRM\+ module/)
     expect(inPlace.indexOf('middle')).toBeGreaterThan(inPlace.indexOf('crm-plus'))
     const lost = buildSystem('classify', 'only my instructions', tx)
-    expect(lost).toContain('Zones:\n- crm-plus')
+    expect(lost).toContain('Solutions:\n- crm-plus')
     expect(lost).toContain('Services:\n- user-management')
     expect(lost).not.toContain('{{')
   })
@@ -488,7 +539,7 @@ describe('ChatGPT (OpenAI) provider', () => {
 describe('new development (custom-build)', () => {
   const kb = loadKb('kb')
   const say = (verdicts: unknown[]): Llm => (async () => ({ verdicts })) as never
-  const build = { zone: 'app-custom', service: 'custom-build' }
+  const build = { solution: 'app-custom', service: 'custom-build' }
 
   it('is judged as development, not as need-verification, when every target is new work', async () => {
     const [r] = await judge(say([{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'x', sources: [], rec: 'my rec' }]), [{ id: 'R-1', module: 'AI', text: 'สรุปงานวิจัยด้วย AI', targets: [build] }], kb)
@@ -503,42 +554,42 @@ describe('new development (custom-build)', () => {
   })
   it('a part built new makes a fully supported requirement development, and needs no note for that part', async () => {
     const llm = say([{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'covered', sources: ['point/expiry-policy.md'], rec: 'use' }])
-    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'คะแนนหมดอายุ และหน้า AI ใหม่', targets: [{ zone: 'app-custom', service: 'point' }, build] }], kb)
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'คะแนนหมดอายุ และหน้า AI ใหม่', targets: [{ solution: 'app-custom', service: 'point' }, build] }], kb)
     expect(r.s).toBe('custom')
     expect(r.reason).toContain('มีส่วนที่ต้องพัฒนาใหม่')
   })
   it('does not rescue a requirement the model could not support, and the bucket is a real taxonomy service', async () => {
     const llm = say([{ id: 'R-1', s: 'verify', confidence: 0.2, reason: 'no idea', sources: [], rec: 'ask' }])
-    const [r] = await judge(llm, [{ id: 'R-1', module: 'X', text: 't', targets: [{ zone: 'app-custom', service: 'notification' }, build] }], kb)
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'X', text: 't', targets: [{ solution: 'app-custom', service: 'notification' }, build] }], kb)
     expect(r.s).toBe('verify') // the Notification part has no note
     expect(DEFAULT_TAXONOMY.services.some((s) => s.id === 'custom-build' && s.confirmed)).toBe(true)
     expect(cleanTargets([build])).toEqual([build])
   })
 })
 
-describe('what the TOR needs (roll-up by zone and tool)', () => {
-  const r = (id: string, s: Req['s'], targets?: { zone: string; service: string }[], extra: Partial<Req> = {}): Req => ({ id, module: 'M', s, conf: '1%', text: id, reason: '', evidence: '', rec: '', targets, ...extra })
+describe('what the TOR needs (roll-up by solution and tool)', () => {
+  const r = (id: string, s: Req['s'], targets?: { solution: string; service: string }[], extra: Partial<Req> = {}): Req => ({ id, module: 'M', s, conf: '1%', text: id, reason: '', evidence: '', rec: '', targets, ...extra })
   const reqs = [
-    r('1', 'full', [{ zone: 'app-custom', service: 'user-management' }]),
-    r('2', 'config', [{ zone: 'app-custom', service: 'user-management' }, { zone: 'crm-plus', service: 'campaign-management' }]),
-    r('3', 'custom', [{ zone: 'app-custom', service: 'custom-build' }]),
-    r('4', 'custom', [{ zone: 'app-custom', service: 'custom-build' }, { zone: 'app-custom', service: 'point' }]),
-    r('5', 'verify', [{ zone: 'app-custom', service: 'unknown' }], { wantsApi: true }),
-    r('6', 'verify', [{ zone: 'unknown', service: 'unknown' }]),
-    r('7', 'full'), // saved before zones existed
+    r('1', 'full', [{ solution: 'app-custom', service: 'user-management' }]),
+    r('2', 'config', [{ solution: 'app-custom', service: 'user-management' }, { solution: 'crm-plus', service: 'campaign-management' }]),
+    r('3', 'custom', [{ solution: 'app-custom', service: 'custom-build' }]),
+    r('4', 'custom', [{ solution: 'app-custom', service: 'custom-build' }, { solution: 'app-custom', service: 'point' }]),
+    r('5', 'verify', [{ solution: 'app-custom', service: 'unknown' }], { wantsApi: true }),
+    r('6', 'verify', [{ solution: 'unknown', service: 'unknown' }]),
+    r('7', 'full'), // saved before solutions existed
   ]
   const sol = buildSolution(reqs, DEFAULT_TAXONOMY)
 
-  it('counts each requirement once per zone and once per tool, with the status of the requirement', () => {
-    const app = sol.zones.find((z) => z.zone === 'app-custom')!
+  it('counts each requirement once per solution and once per tool, with the status of the requirement', () => {
+    const app = sol.solutions.find((z) => z.solution === 'app-custom')!
     expect(app.total).toBe(5) // requirements 1, 2, 3, 4, 5, not counted twice for two targets
     expect(app.byStatus).toMatchObject({ full: 1, config: 1, custom: 2, verify: 1 })
     expect(app.lines.find((l) => l.service === 'user-management')).toMatchObject({ total: 2, byStatus: { full: 1, config: 1 } })
-    expect(sol.zones.find((z) => z.zone === 'crm-plus')!.lines.map((l) => l.service)).toEqual(['campaign-management'])
+    expect(sol.solutions.find((z) => z.solution === 'crm-plus')!.lines.map((l) => l.service)).toEqual(['campaign-management'])
   })
 
   it('lists real tools first, then new development, then what is not placed', () => {
-    const lines = sol.zones.find((z) => z.zone === 'app-custom')!.lines
+    const lines = sol.solutions.find((z) => z.solution === 'app-custom')!.lines
     expect(lines.map((l) => l.kind)).toEqual(['tool', 'tool', 'build', 'unknown'])
     expect(lines.find((l) => l.kind === 'build')).toMatchObject({ label: 'พัฒนาใหม่ (ไม่ใช่ tool ของ Buzzebees)', total: 2 })
     expect(lines.find((l) => l.kind === 'unknown')!.label).toBe('ยังไม่ระบุ tool')
@@ -548,17 +599,17 @@ describe('what the TOR needs (roll-up by zone and tool)', () => {
     expect(sol.tools.map((t) => [t.service, t.total])).toEqual([['user-management', 2], ['campaign-management', 1], ['point', 1]])
   })
 
-  it('counts new development, API requests and results from before zones, and puts the unknown zone last', () => {
+  it('counts new development, API requests and results from before solutions, and puts the unknown solution last', () => {
     expect(sol.build).toBe(2)
     expect(sol.api).toBe(1)
     expect(sol.untagged).toBe(1)
     expect(sol.total).toBe(7)
-    expect(sol.zones[sol.zones.length - 1]).toMatchObject({ zone: 'unknown', label: 'ยังไม่ระบุ solution' })
+    expect(sol.solutions[sol.solutions.length - 1]).toMatchObject({ solution: 'unknown', label: 'ยังไม่ระบุ solution' })
   })
 
-  it('has nothing to show for results that never had zones', () => {
+  it('has nothing to show for results that never had solutions', () => {
     const s = buildSolution([r('a', 'full'), r('b', 'none')], DEFAULT_TAXONOMY)
-    expect(s.zones).toEqual([])
+    expect(s.solutions).toEqual([])
     expect(s.untagged).toBe(2)
   })
 })
@@ -642,9 +693,19 @@ describe('BytePlus ModelArk provider', () => {
     expect(seen!.body).toMatchObject({ model: 'glm-5.3-flash', max_tokens: 8000, tool_choice: { type: 'function', function: { name: 'report' } } })
   })
 
+  it('sends an image as an image_url data URL', async () => {
+    let body: Record<string, any> | undefined // eslint-disable-line @typescript-eslint/no-explicit-any
+    const fetcher = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(init.body as string)
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { tool_calls: [{ function: { arguments: '{"ok":true}' } }] } }] }) } as Response
+    }) as unknown as typeof fetch
+    await byteplusLlm(cfg, fetcher)({ system: 's', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } }, { type: 'text', text: 'read it' }], tool })
+    expect(body!.messages[1].content).toEqual([{ type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }, { type: 'text', text: 'read it' }])
+  })
+
   it('refuses a PDF before sending, naming the provider; is chosen by header; and names itself in errors', async () => {
     const fetcher = vi.fn()
-    await expect(byteplusLlm(cfg, fetcher as unknown as typeof fetch)({ system: 's', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'x' } }], tool })).rejects.toThrow('BytePlus ModelArk อ่านได้เฉพาะข้อความ')
+    await expect(byteplusLlm(cfg, fetcher as unknown as typeof fetch)({ system: 's', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'x' } }], tool })).rejects.toThrow('BytePlus ModelArk อ่าน PDF ไม่ได้')
     expect(fetcher).not.toHaveBeenCalled()
     const r = new Request('http://localhost/api/extract', { method: 'POST', headers: { 'x-llm-provider': 'byteplus', 'x-llm-model': 'glm-5.3-flash', 'x-llm-key': 'bp-key-123456789' } })
     await expect(llmFromRequest(r)).resolves.toEqual(cfg)
@@ -655,7 +716,7 @@ describe('BytePlus ModelArk provider', () => {
 
 describe('Internal product is archived by default', () => {
   it('is hidden from the lists but still a valid id, so old results and notes keep working', () => {
-    expect(activeZones().map((z) => z.id)).toEqual(['crm-plus', 'app-standard', 'app-custom'])
-    expect(cleanTargets([{ zone: 'internal', service: 'point' }])).toEqual([{ zone: 'internal', service: 'point' }])
+    expect(activeSolutions().map((z) => z.id)).toEqual(['crm-plus', 'app-standard', 'app-custom'])
+    expect(cleanTargets([{ solution: 'internal', service: 'point' }])).toEqual([{ solution: 'internal', service: 'point' }])
   })
 })

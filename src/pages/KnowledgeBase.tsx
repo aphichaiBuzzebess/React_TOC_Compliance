@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { Alert, Button, PageHeader } from '@/components/ui'
-import type { Taxonomy } from '@/data/taxonomy'
+import { activeServices, type Taxonomy } from '@/data/taxonomy'
+import { cn } from '@/lib/utils'
 import type { NoteView } from '../../server/knowledge'
 import type { PromptKey } from '../../server/prompts'
 import { kb, KbError } from './knowledge/kbFetch'
@@ -27,9 +28,12 @@ export default function KnowledgeBase() {
   const [importMsg, setImportMsg] = useState<string | null>(null)
   const [selNote, setSelNote] = useState<string | undefined>() // survives a reload of the data
   const canEdit = mode === 'account' && admin
-  // How many notes use each service (and zone): shown next to it in the Taxonomy list.
+  // How many notes use each service (and solution): shown next to it in the Taxonomy list.
   const noteCounts: Record<string, number> = {}
-  for (const n of data?.notes ?? []) for (const id of [n.service, ...n.zones]) if (id) noteCounts[id] = (noteCounts[id] ?? 0) + 1
+  for (const n of data?.notes ?? []) for (const id of [n.service, ...n.solutions]) if (id) noteCounts[id] = (noteCounts[id] ?? 0) + 1
+
+  const services = data ? activeServices(data.taxonomy) : []
+  const bare = services.filter((sv) => !noteCounts[sv.id]) // services no note speaks for: their requirements end up "Need Verification"
 
   const load = useCallback(async () => {
     setError(null)
@@ -60,8 +64,8 @@ export default function KnowledgeBase() {
 
   return (
     <>
-      <PageHeader title="Product knowledge base" lead="ระบบประเมิน TOR ทีละขั้น: จัดหมวด requirement ด้วย Solution และ Service แล้วตัดสินแต่ละข้อด้วยสิ่งที่ Product ทำได้ (note) ส่วน prompt คือคำสั่งที่ส่งให้ AI ในแต่ละขั้น" />
-      {/* The shell puts 40px between siblings; the banners, tabs and panel belong together, so they get one tighter column. */}
+      <PageHeader title="Knowledge base" lead="ข้อมูล product ที่ระบบใช้ประเมิน TOR: จัดหมวด requirement ด้วย Solution และ Service แล้วตัดสินแต่ละข้อด้วยสิ่งที่ Product ทำได้ (note) ส่วน prompt คือคำสั่งที่ส่งให้ AI ในแต่ละขั้น" />
+      {/* The shell puts 40px between siblings; everything below belongs together, so it gets one tighter column. */}
       <div className="flex flex-col gap-5">
       {error && <p role="alert" className="m-0 text-danger">{error} <Button variant="ghost" onClick={() => void load()}>ลองใหม่</Button></p>}
       {data && (
@@ -74,26 +78,27 @@ export default function KnowledgeBase() {
               {canEdit && <span className="mt-2 flex flex-wrap items-center gap-3"><Button variant="primary" onClick={importFiles}>นำเข้าจากไฟล์</Button>{importMsg && <span role="status" className="text-sm">{importMsg}</span>}</span>}
             </Alert>
           )}
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-            <div role="tablist" aria-label="หมวดความรู้" className="flex flex-wrap gap-2">
+
+          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 border-b border-line">
+            <div role="tablist" aria-label="หมวดความรู้" className="flex gap-6 overflow-x-auto">
               {TABS.map(({ id, label }) => (
-                <button key={id} type="button" role="tab" id={`tab-${id}`} aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)} className={`min-h-11 rounded-full border px-5 text-sm transition-colors ${tab === id ? 'border-ink bg-ink font-medium text-inverse' : 'border-line-strong bg-surface hover:border-ink'}`}>
+                <button key={id} type="button" role="tab" id={`tab-${id}`} aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)} className={cn('-mb-px min-h-11 whitespace-nowrap border-0 border-b-2 bg-transparent px-0 text-[15px] font-medium transition-colors', tab === id ? 'border-ink text-ink' : 'border-transparent text-muted hover:text-ink')}>
                   {label}
                 </button>
               ))}
             </div>
             {canEdit && data.status === 'database' && (
-              <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
+              <div className="flex flex-wrap items-center gap-3 pb-2 text-sm text-muted">
                 {importMsg && <span role="status">{importMsg}</span>}
                 <Button onClick={importFiles}>นำเข้า note ใหม่จากไฟล์</Button>
               </div>
             )}
           </div>
-          <p className="m-0 max-w-3xl text-sm leading-6 text-muted">{TABS.find((t) => t.id === tab)?.about}</p>
+          <p className="-mt-2 m-0 max-w-3xl text-sm leading-6 text-muted">{TABS.find((t) => t.id === tab)?.about}</p>
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex flex-col gap-4">
             {/* All three stay mounted (hidden), so a draft is not lost when you look at another tab. */}
             <div hidden={tab !== 'taxonomy'} role="region" aria-label="หมวด Taxonomy"><TaxonomyTab key={version} taxonomy={data.taxonomy} updatedAt={data.taxonomyUpdatedAt} admin={canEdit} reload={() => void load()} noteCounts={noteCounts} /></div>
-            <div hidden={tab !== 'notes'} role="region" aria-label="หมวด Notes"><NotesTab key={version} notes={data.notes} taxonomy={data.taxonomy} admin={canEdit} reload={() => void load()} initial={selNote} onSelect={setSelNote} /></div>
+            <div hidden={tab !== 'notes'} role="region" aria-label="หมวด Notes"><NotesTab key={version} notes={data.notes} taxonomy={data.taxonomy} admin={canEdit} reload={() => void load()} initial={selNote} onSelect={setSelNote} bare={bare.map((sv) => ({ id: sv.id, label: sv.label }))} /></div>
             <div hidden={tab !== 'prompts'} role="region" aria-label="หมวด Prompts"><PromptsTab key={version} prompts={data.prompts} admin={canEdit} reload={() => void load()} /></div>
           </div>
         </>
