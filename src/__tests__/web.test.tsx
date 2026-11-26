@@ -983,6 +983,7 @@ describe('accounts in the app', () => {
     })
     await useAssessmentStore.getState().confirmReview()
     await waitFor(() => expect(useAssessmentStore.getState().historyId).toBe('h-1'))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url === '/api/scouter?action=group')).toBe(true)) // its gaps get grouped in the Feature Scouter
     const post = calls.find((c) => c.method === 'POST' && c.url === '/api/history')!
     expect(post.body).toMatchObject({ customer: 'ACME', files: ['tor.pdf'], data: { meta: { title: 'TOR CRM', due: '2026-12-15' }, result: [{ id: 'R-001' }] } })
     useAssessmentStore.setState({ selId: 'R-001' })

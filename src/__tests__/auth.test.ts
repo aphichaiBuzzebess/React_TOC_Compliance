@@ -7,6 +7,9 @@ import * as authApi from '../../api/auth'
 import * as keyApi from '../../api/key'
 import * as historyApi from '../../api/history'
 import * as statusApi from '../../api/status'
+import * as scouterApi from '../../api/scouter'
+import { groupGaps, runGrouping, type Evidence } from '../../server/scout'
+import type { Llm } from '../../server/llm'
 
 const CSRF = { 'x-requested-with': 'tor-scouter' }
 const call = (fn: (r: Request) => Promise<Response>, method: string, path: string, o: { body?: unknown; cookie?: string; headers?: Record<string, string>; csrf?: boolean } = {}) =>
@@ -368,6 +371,81 @@ describe('feature scouter: the gaps of every saved TOR', () => {
     expect(err).toHaveBeenCalledWith('feature scouter: not updated', 'relation "scout_evidence" does not exist')
     db.scoutSync = real
     err.mockRestore()
+  })
+})
+
+describe('feature scouter: grouping gaps into needs', () => {
+  const gap = (reqId: string, extra: Partial<Evidence> = {}): Evidence => ({
+    assessmentId: '00000000-0000-4000-8000-000000000001', reqId, module: 'Dashboard & Report', text: `text ${reqId}`, gap: `gap ${reqId}`, s: 'none', mandatory: true, confirmed: true,
+    tor: 'TOR', customer: 'ACME', industry: '', deal: null, due: '', ownerId: null, itemId: null, dealResult: 'open', lostBecause: false, createdAt: '2026-11-20T00:00:00.000Z', updatedAt: '', ...extra,
+  })
+  const says = (answer: unknown): Llm => (async () => answer) as never
+  const seed = async (rows: Evidence[]) => {
+    for (const r of rows) await db.scoutSync(r.assessmentId, 'u', [r])
+  }
+
+  it('puts each gap into a need we have or a new one, and leaves what the model got wrong ungrouped', async () => {
+    const items = [{ id: 'SC-0001', title: 'Branch filter', need: 'ดูแยกสาขา', type: 'ENHANCEMENT' as const, module: 'Dashboard & Report' }]
+    const g = await groupGaps(says({
+      assignments: [{ gap: 'g1', need: 'SC-0001' }, { gap: 'g2', need: 'N1' }, { gap: 'g3', need: 'N1' }, { gap: 'g4', need: 'SC-9999' }, { gap: 'g9', need: 'N1' }, { gap: 'g1', need: 'N1' }],
+      newNeeds: [{ ref: 'N1', title: 'Family account', need: 'ครอบครัวใช้คะแนนร่วมกัน', type: 'BOGUS', module: '' }],
+    }), items, [gap('R-1'), gap('R-2', { s: 'custom', module: 'Membership & Tier' }), gap('R-3'), gap('R-4')])
+    expect([...g.join]).toEqual([['SC-0001', [{ assessmentId: '00000000-0000-4000-8000-000000000001', reqId: 'R-1' }]]]) // the second answer for g1 is ignored
+    expect(g.create).toHaveLength(1)
+    expect(g.create[0].gaps.map((k) => k.reqId)).toEqual(['R-2', 'R-3']) // two gaps, one new need
+    expect(g.create[0].fields).toEqual({ title: 'Family account', need: 'ครอบครัวใช้คะแนนร่วมกัน', type: 'ENHANCEMENT', module: 'Membership & Tier' }) // no valid type or category: from the first gap
+  })
+
+  it('groups the ungrouped gaps into new SC- ids, and a need made by one batch is offered to the next', async () => {
+    await seed([gap('R-1', { assessmentId: '00000000-0000-4000-8000-00000000000a' }), gap('R-2', { assessmentId: '00000000-0000-4000-8000-00000000000b' })])
+    const seen: string[] = []
+    let n = 0
+    const llm: Llm = (async (o: { content: { text: string }[] }) => {
+      seen.push(o.content[0].text)
+      n++
+      return n === 1 ? { assignments: [{ gap: 'g1', need: 'N1' }, { gap: 'g2', need: 'N1' }], newNeeds: [{ ref: 'N1', title: 'Branch filter', need: 'ดูแยกสาขา', type: 'ENHANCEMENT', module: 'Dashboard & Report' }] } : { assignments: [], newNeeds: [] }
+    }) as never
+    expect(await runGrouping(db, llm)).toEqual({ grouped: 2, created: 1, left: 0 })
+    expect((await db.scoutItems()).map((x) => [x.id, x.title, x.status, x.editedBy])).toEqual([['SC-0001', 'Branch filter', 'new', 'AI']])
+    expect((await db.scoutEvidence()).every((e) => e.itemId === 'SC-0001')).toBe(true)
+    await seed([gap('R-3', { assessmentId: '00000000-0000-4000-8000-00000000000c' })])
+    await runGrouping(db, llm)
+    expect(seen[1]).toContain('SC-0001 [ENHANCEMENT, Dashboard & Report] Branch filter: ดูแยกสาขา') // the need we have, offered for the new gap
+  })
+
+  it('anyone signed in reads the Scouter and starts grouping; only an admin edits, moves, merges or makes a need', async () => {
+    const { cookie: bob } = await signUp('bob')
+    const { cookie: ann } = await signUp('ann')
+    await db.setAdmin((await db.userByName('ann'))!.id, true)
+    await seed([gap('R-1')])
+    const read = await (await call(scouterApi.GET, 'GET', '/api/scouter', { cookie: bob })).json()
+    expect(read.gaps[0]).toMatchObject({ reqId: 'R-1', customer: 'ACME' })
+    expect(read.gaps[0].ownerId).toBeUndefined() // who saved the TOR is not shared
+    expect(read.admin).toBe(false)
+    expect((await call(scouterApi.POST, 'POST', '/api/scouter?action=group', { cookie: bob })).status).toBe(409) // no server AI configured in tests
+    for (const [fn, m, a, b] of [[scouterApi.POST, 'POST', 'new', { title: 'X', type: 'NEW_FEATURE' }], [scouterApi.POST, 'POST', 'merge', { from: 'SC-0001', into: 'SC-0002' }], [scouterApi.PATCH, 'PATCH', '', { id: 'SC-0001', status: 'planned' }]] as const)
+      expect((await call(fn, m, `/api/scouter?action=${a}`, { cookie: bob, body: b })).status).toBe(403)
+    const made = await (await call(scouterApi.POST, 'POST', '/api/scouter?action=new', { cookie: ann, body: { title: 'Branch filter', type: 'ENHANCEMENT', gaps: [{ assessmentId: '00000000-0000-4000-8000-000000000001', reqId: 'R-1' }] } })).json()
+    expect(made.item).toMatchObject({ id: 'SC-0001', title: 'Branch filter', status: 'new', editedBy: 'ann' })
+    const second = (await db.scoutCreateItem({ title: 'Branch report', need: '', type: 'ENHANCEMENT', module: '' }, 'ann', [])).id
+    expect((await call(scouterApi.PATCH, 'PATCH', '/api/scouter', { cookie: ann, body: { id: second, status: 'planned', title: 'Branch report (dashboard)' } })).status).toBe(200)
+    expect((await db.scoutItems()).find((x) => x.id === second)).toMatchObject({ status: 'planned', title: 'Branch report (dashboard)' })
+    expect((await call(scouterApi.PATCH, 'PATCH', '/api/scouter', { cookie: ann, body: { id: second, status: 'someday' } })).status).toBe(400)
+    expect((await call(scouterApi.POST, 'POST', '/api/scouter?action=merge', { cookie: ann, body: { from: 'SC-0001', into: second } })).status).toBe(200)
+    expect((await db.scoutItems()).map((x) => x.id)).toEqual([second])
+    expect((await db.scoutEvidence())[0].itemId).toBe(second) // the gap moved with the merge
+    expect((await call(scouterApi.POST, 'POST', '/api/scouter?action=move', { cookie: ann, body: { gaps: [{ assessmentId: '00000000-0000-4000-8000-000000000001', reqId: 'R-1' }], itemId: null } })).status).toBe(200)
+    expect((await db.scoutEvidence())[0].itemId).toBeNull() // back to "not grouped"
+  })
+
+  it('grouping a saved TOR keeps its need across later edits', async () => {
+    const { cookie } = await signUp('ann')
+    const r = (id: string, st: string) => ({ id, module: 'M', text: `t ${id}`, s: st, conf: '90%', reason: 'x', evidence: 'e', rec: 'c' })
+    const data = { result: [r('R-1', 'none')], coverage: null, valid: {} }
+    const { id } = await (await call(historyApi.POST, 'POST', '/api/history', { cookie, body: { customer: 'ACME', files: [], data } })).json()
+    const item = await db.scoutCreateItem({ title: 'X', need: '', type: 'NEW_FEATURE', module: 'M' }, 'ann', [{ assessmentId: id, reqId: 'R-1' }])
+    await call(historyApi.PUT, 'PUT', `/api/history?id=${id}`, { cookie, body: { data: { ...data, valid: { 'R-1': 'ok' } } } })
+    expect((await db.scoutEvidence())[0]).toMatchObject({ itemId: item.id, confirmed: true })
   })
 })
 

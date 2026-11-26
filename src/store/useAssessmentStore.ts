@@ -465,7 +465,8 @@ export const useAssessmentStore = create<AssessmentState>()(
           const result = judged.map((j) => { const { pri, ref, orig, amb } = raw.get(j.id) ?? {}; return { ...j, ...(pri && { pri }), ...(ref && { ref }), ...(orig && { orig }), ...(amb && { amb }) } })
           const coverage = await coverageP
           set({ result, review: null, terms, confirmed, coverage: Array.isArray(coverage) ? coverage : null, error: Array.isArray(coverage) ? null : `ประเมินสำเร็จ แต่สร้างคำถามค้างไม่ได้: ${coverage.message}`, selId: result[0]?.id ?? null, valid: {}, filter: 'all', query: '', step: STEPS.length, running: false, startedAt: null, detail: '' })
-          void get().saveHistory()
+          // Saved, its gaps are in the Feature Scouter: have the server's AI group them now. Failing here is not the run failing.
+          void get().saveHistory().then(() => { if (get().mode === 'account' && get().historyId) void send('/api/scouter?action=group', 'POST', {}).catch(() => undefined) })
         } catch (e) {
           set({ running: false, startedAt: null, detail: '', step: 2, error: e instanceof Error ? e.message : 'Assessment failed' }) // the review is kept: confirm again to retry
         }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
-import type { Evidence, EvidenceInput, ScoutItem } from './scout.js'
+import { scoutId, scoutNo, type Evidence, type EvidenceInput, type GapKey, type ScoutItem, type ScoutItemFields, type ScoutStatus } from './scout.js'
 
 export interface User { id: string; username: string; passwordHash: string; disabled: boolean; isAdmin: boolean }
 export interface KeyRow { provider: string; model: string; ciphertext: Buffer; iv: Buffer; tag: Buffer; last4: string }
@@ -58,6 +58,13 @@ export interface Db {
   scoutDropAssessment(assessmentId: string): Promise<void>
   scoutEvidence(): Promise<Evidence[]>
   scoutItems(): Promise<ScoutItem[]>
+  /** A new need with the next SC-0000 id; the given gaps are grouped into it. */
+  scoutCreateItem(fields: ScoutItemFields, by: string, gaps: GapKey[]): Promise<ScoutItem>
+  scoutUpdateItem(id: string, patch: Partial<ScoutItemFields & { status: ScoutStatus }>, by: string): Promise<ScoutItem | undefined>
+  /** Group gaps into a need, or (null) back into "not grouped". Gaps that do not exist are skipped. */
+  scoutAssign(gaps: GapKey[], itemId: string | null): Promise<number>
+  /** Every gap of `from` goes to `into`; `from` is removed. */
+  scoutMerge(from: string, into: string, by: string): Promise<boolean>
   getMeta(key: string): Promise<string | undefined>
   setMeta(key: string, value: string): Promise<void>
 }
@@ -202,6 +209,33 @@ export function memoryDb(): Db {
     },
     async scoutEvidence() { return [...evidence.values()].map((e) => ({ ...e })) },
     async scoutItems() { return [...scoutItems.values()].map((x) => ({ ...x })) },
+    async scoutCreateItem(fields, by, gaps) {
+      const now = new Date().toISOString()
+      const id = scoutId(Math.max(0, ...[...scoutItems.keys()].map(scoutNo)) + 1)
+      const item: ScoutItem = { id, ...fields, status: 'new', editedBy: by, createdAt: now, updatedAt: now }
+      scoutItems.set(id, item)
+      for (const g of gaps) { const e = evidence.get(`${g.assessmentId}\u0000${g.reqId}`); if (e) e.itemId = id }
+      return { ...item }
+    },
+    async scoutUpdateItem(id, patch, by) {
+      const cur = scoutItems.get(id)
+      if (!cur) return undefined
+      Object.assign(cur, patch, { editedBy: by, updatedAt: new Date().toISOString() })
+      return { ...cur }
+    },
+    async scoutAssign(gaps, itemId) {
+      if (itemId !== null && !scoutItems.has(itemId)) return 0
+      let n = 0
+      for (const g of gaps) { const e = evidence.get(`${g.assessmentId}\u0000${g.reqId}`); if (e) { e.itemId = itemId; n++ } }
+      return n
+    },
+    async scoutMerge(from, into, by) {
+      if (from === into || !scoutItems.has(from) || !scoutItems.has(into)) return false
+      for (const e of evidence.values()) if (e.itemId === from) e.itemId = into
+      scoutItems.delete(from)
+      Object.assign(scoutItems.get(into)!, { editedBy: by, updatedAt: new Date().toISOString() })
+      return true
+    },
     async getMeta(key) { return meta.get(key) },
     async setMeta(key, value) { meta.set(key, value) },
   }
@@ -404,6 +438,60 @@ export function pgDb(pool: Pool): Db {
     async scoutItems() {
       const r = await pool.query('select id, title, need, type, module, status, edited_by, created_at, updated_at from scout_items order by id')
       return r.rows.map((x) => ({ id: x.id, title: x.title, need: x.need, type: x.type, module: x.module, status: x.status, editedBy: x.edited_by, createdAt: new Date(x.created_at).toISOString(), updatedAt: new Date(x.updated_at).toISOString() }))
+    },
+    async scoutCreateItem(fields, by, gaps) {
+      const c = await pool.connect()
+      try {
+        await c.query('begin')
+        await c.query('lock table scout_items in share row exclusive mode') // two groupings at once must not take the same id
+        const max = (await c.query("select coalesce(max(substring(id from 4)::int), 0) as n from scout_items")).rows[0].n as number
+        const x = (await c.query(
+          'insert into scout_items(id, title, need, type, module, edited_by) values($1,$2,$3,$4,$5,$6) returning id, title, need, type, module, status, edited_by, created_at, updated_at',
+          [scoutId(Number(max) + 1), fields.title, fields.need, fields.type, fields.module, by],
+        )).rows[0]
+        for (const g of gaps) await c.query('update scout_evidence set item_id=$1 where assessment_id=$2 and req_id=$3', [x.id, g.assessmentId, g.reqId])
+        await c.query('commit')
+        return { id: x.id, title: x.title, need: x.need, type: x.type, module: x.module, status: x.status, editedBy: x.edited_by, createdAt: new Date(x.created_at).toISOString(), updatedAt: new Date(x.updated_at).toISOString() }
+      } catch (e) {
+        await c.query('rollback')
+        throw e
+      } finally {
+        c.release()
+      }
+    },
+    async scoutUpdateItem(id, patch, by) {
+      const cols = (['title', 'need', 'type', 'module', 'status'] as const).filter((k) => patch[k] !== undefined)
+      const r = await pool.query(
+        `update scout_items set ${cols.map((k, i) => `${k}=$${i + 3}`).join(', ')}${cols.length ? ', ' : ''}edited_by=$2, updated_at=now() where id=$1 returning id, title, need, type, module, status, edited_by, created_at, updated_at`,
+        [id, by, ...cols.map((k) => patch[k])],
+      )
+      const x = r.rows[0]
+      return x && { id: x.id, title: x.title, need: x.need, type: x.type, module: x.module, status: x.status, editedBy: x.edited_by, createdAt: new Date(x.created_at).toISOString(), updatedAt: new Date(x.updated_at).toISOString() }
+    },
+    async scoutAssign(gaps, itemId) {
+      if (itemId !== null && !(await pool.query('select 1 from scout_items where id=$1', [itemId])).rowCount) return 0
+      let n = 0
+      for (const g of gaps) n += (await pool.query('update scout_evidence set item_id=$1 where assessment_id=$2 and req_id=$3', [itemId, g.assessmentId, g.reqId])).rowCount ?? 0
+      return n
+    },
+    async scoutMerge(from, into, by) {
+      if (from === into) return false
+      const c = await pool.connect()
+      try {
+        await c.query('begin')
+        const both = (await c.query('select id from scout_items where id = any($1::text[])', [[from, into]])).rowCount
+        if (both !== 2) { await c.query('rollback'); return false }
+        await c.query('update scout_evidence set item_id=$2 where item_id=$1', [from, into])
+        await c.query('delete from scout_items where id=$1', [from])
+        await c.query('update scout_items set edited_by=$2, updated_at=now() where id=$1', [into, by])
+        await c.query('commit')
+        return true
+      } catch (e) {
+        await c.query('rollback')
+        throw e
+      } finally {
+        c.release()
+      }
     },
     async getMeta(key) { return (await pool.query('select value from kb_meta where key=$1', [key])).rows[0]?.value },
     async setMeta(key, value) { await pool.query('insert into kb_meta(key, value) values($1,$2) on conflict (key) do update set value=$2', [key, value]) },
