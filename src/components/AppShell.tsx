@@ -1,12 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Moon, Sun } from 'lucide-react'
 import { motion } from 'motion/react'
 import { ease } from '@/components/motion'
 import { Logo } from '@/components/Logo'
 import ProfileMenu from '@/components/ProfileMenu'
 import { Elapsed } from '@/components/ui'
-import { NAV, navIndex } from '@/data/nav'
+import { MENU, NAV, inTorGroup, navIndex } from '@/data/nav'
 import { STEPS } from '@/data/tor'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { useResolvedTheme } from '@/lib/theme'
@@ -35,13 +35,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <Link to="/" onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)} onFocus={() => setHot(true)} onBlur={() => setHot(false)} className="flex min-h-11 items-center gap-3 text-ink no-underline">
             <Logo size={40} intro active={hot} />
             <span className="flex flex-col leading-none">
-              <span className="text-[24px] font-semibold tracking-[-0.03em]">TOR Scouter</span>
-              <span className="mt-1 text-xs font-medium uppercase tracking-[0.1em] text-muted">Compliance workspace</span>
+              <span className="text-[18px] font-semibold tracking-[-0.02em]">TOR Scouter</span>
+              <span className="mt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted">Compliance workspace</span>
             </span>
           </Link>
 
           {/* Signed in: the avatar holds the theme switch and sign-out. Otherwise there is no profile, so the theme switch stands alone. */}
-          <div className="order-2 ml-auto flex items-center gap-2">
+          <div className="order-2 ml-auto flex items-center gap-2 md:order-3">
             {mode === 'account' && user ? (
               <ProfileMenu user={user} admin={admin} theme={theme} onToggleTheme={toggleTheme} onSignOut={() => void signOut()} />
             ) : (
@@ -58,33 +58,35 @@ export default function AppShell({ children }: { children: ReactNode }) {
             )}
           </div>
 
-          <nav aria-label="Main" className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto">
-            {NAV.map((n) => (
-              <NavLink
-                key={n.to}
-                to={n.to}
-                end
-                className={({ isActive }) =>
-                  `flex min-h-11 items-center whitespace-nowrap px-2 text-[14px] no-underline decoration-2 underline-offset-[10px] transition-colors duration-150 ${isActive ? 'font-semibold text-ink underline' : 'text-muted hover:text-ink'}`
-                }
-              >
-                {n.short}
-              </NavLink>
-            ))}
+          <nav aria-label="Main" className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto md:order-2 md:mx-0 md:w-auto md:flex-1">
+            {MENU.map((n) => {
+              // "TOR ทั้งหมด" stays lit on every page of a TOR, not only on its list.
+              const lit = n.to === '/history' ? inTorGroup(pathname) : pathname === n.to
+              return (
+                <Link
+                  key={n.to}
+                  to={n.to}
+                  aria-current={lit ? 'page' : undefined}
+                  className={`flex min-h-11 items-center whitespace-nowrap px-2 text-[14px] no-underline decoration-2 underline-offset-[10px] transition-colors duration-150 ${lit ? 'font-semibold text-ink underline' : 'text-muted hover:text-ink'}`}
+                >
+                  {n.label}
+                </Link>
+              )
+            })}
           </nav>
         </div>
       </header>
 
-      <main id="main" tabIndex={-1} className="relative mx-auto flex w-full max-w-[1240px] flex-1 flex-col gap-10 px-5 py-8 focus:outline-none sm:px-10 lg:py-10">
+      <main id="main" tabIndex={-1} className="relative mx-auto flex w-full max-w-[1240px] flex-1 flex-col gap-6 px-5 py-6 focus:outline-none sm:px-10">
         {/* Only while a run is going: a way back to its progress from any page. Nothing is shown otherwise. */}
         {running && startedAt && (
-          <Link to="/" className="print:hidden -mb-6 -mt-3 flex w-fit items-center gap-2 rounded-full border border-line-strong bg-surface px-3 py-1 text-xs font-medium text-ink no-underline">
+          <Link to="/" className="print:hidden -mb-4 -mt-2 flex w-fit items-center gap-2 rounded-full border border-line-strong bg-surface px-3 py-1 text-xs font-medium text-ink no-underline">
             <Logo size={18} progress={Math.max(step, 0) / STEPS.length} />
             กำลังประเมิน… <Elapsed since={startedAt} />
           </Link>
         )}
         {/* Opacity only: a transform here would trap the Matrix bottom sheet (position: fixed) inside this box. */}
-        <motion.div key={pathname} className="flex flex-col gap-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease }}>
+        <motion.div key={pathname} className="flex flex-col gap-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease }}>
           {children}
         </motion.div>
       </main>

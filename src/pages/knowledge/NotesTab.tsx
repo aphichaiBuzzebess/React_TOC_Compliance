@@ -1,15 +1,16 @@
 import { Fragment, useMemo, useState } from 'react'
+import { FileText } from 'lucide-react'
 import { Button, Card, StatusBadge } from '@/components/ui'
-import { activeServices, activeZones, serviceLabel, type Taxonomy } from '@/data/taxonomy'
+import { activeServices, activeSolutions, serviceLabel, type Taxonomy } from '@/data/taxonomy'
 import type { NoteView } from '../../../server/knowledge'
 import { kb, when, INPUT, KbError } from './kbFetch'
 import Versions from './Versions'
 
-type Form = { title: string; module: string; service: string; zones: string[]; support: NoteView['support']; body: string }
+type Form = { title: string; module: string; service: string; solutions: string[]; support: NoteView['support']; body: string }
 const SUPPORTS: NoteView['support'][] = ['full', 'config', 'custom', 'integ', 'none']
 const SUPPORT_HINT: Record<NoteView['support'], string> = { full: 'ทำได้เลย', config: 'ตั้งค่าอย่างเดียว', custom: 'ต้องพัฒนาเพิ่ม', integ: 'ต้องเชื่อมระบบลูกค้า', none: 'ไม่รองรับ' }
-const blank: Form = { title: '', module: '', service: '', zones: [], support: 'full', body: '' }
-const toForm = (n: NoteView): Form => ({ title: n.title, module: n.module, service: n.service ?? '', zones: n.zones, support: n.support, body: n.body })
+const blank: Form = { title: '', module: '', service: '', solutions: [], support: 'full', body: '' }
+const toForm = (n: NoteView): Form => ({ title: n.title, module: n.module, service: n.service ?? '', solutions: n.solutions, support: n.support, body: n.body })
 
 /** Just enough markdown for the vault: **bold** and [[note links]]. */
 function Body({ text, open }: { text: string; open: (path: string) => void }) {
@@ -24,7 +25,8 @@ function Body({ text, open }: { text: string; open: (path: string) => void }) {
   )
 }
 
-export default function NotesTab({ notes, taxonomy, admin, reload, initial, onSelect }: { notes: NoteView[]; taxonomy: Taxonomy; admin: boolean; reload: () => void; initial?: string; onSelect?: (path: string | undefined) => void }) {
+/** `bare`: the services no note speaks for yet; listed under "ต้องเขียน note เพิ่ม", and an admin starts a note for one from there. */
+export default function NotesTab({ notes, taxonomy, admin, reload, initial, onSelect, bare = [] }: { notes: NoteView[]; taxonomy: Taxonomy; admin: boolean; reload: () => void; initial?: string; onSelect?: (path: string | undefined) => void; bare?: { id: string; label: string }[] }) {
   const start = notes.find((n) => n.path === initial) ?? notes[0]
   const [sel, setSelState] = useState<string | 'new' | null>(start?.path ?? null)
   const setSel = (p: string | 'new' | null) => { setSelState(p); onSelect?.(p && p !== 'new' ? p : undefined) }
@@ -49,17 +51,19 @@ export default function NotesTab({ notes, taxonomy, admin, reload, initial, onSe
     return [...by]
   }, [notes, query, svc])
 
-  function go(target: string | 'new') {
+  const [preset, setPreset] = useState('') // the service a new note starts with
+  function go(target: string | 'new', service = '') {
+    setPreset(service)
     if (dirty && target !== sel) return setPending(target)
-    open(target)
+    open(target, service)
   }
-  function open(target: string | 'new') {
+  function open(target: string | 'new', service = preset) {
     setPending(null)
     setMsg(null)
     setAsking(false)
     setVersions(false)
     setSel(target)
-    setForm(target === 'new' ? blank : toForm(notes.find((n) => n.path === target) ?? ({ ...blank } as NoteView)))
+    setForm(target === 'new' ? { ...blank, service } : toForm(notes.find((n) => n.path === target) ?? ({ ...blank } as NoteView)))
   }
 
   async function save() {
@@ -105,42 +109,75 @@ export default function NotesTab({ notes, taxonomy, admin, reload, initial, onSe
 
   const noService = admin && form.service === '' && sel !== null
   return (
-    <div className="flex flex-wrap items-start gap-6">
-      <Card className="flex-[1_1_280px]">
-        <div className="flex max-h-96 flex-col gap-3 overflow-y-auto p-4 lg:max-h-[70vh] [&>*]:shrink-0">
-          {admin && <Button variant="primary" onClick={() => go('new')}>+ Note ใหม่</Button>}
+    <div className="flex flex-wrap items-start gap-5">
+      <div className="flex flex-[1_1_300px] flex-col gap-5">
+        <section aria-labelledby="notes-h" className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+            <h2 id="notes-h" className="m-0 text-base font-semibold text-ink">Note ทั้งหมด <span className="font-normal text-muted">{notes.length}</span></h2>
+            {admin && <Button variant="primary" onClick={() => go('new')}>+ Note ใหม่</Button>}
+          </div>
           <label htmlFor="kbq" className="sr-only">Search notes</label>
-          <input id="kbq" type="search" placeholder={`ค้นหา ${notes.length} note`} value={query} onChange={(e) => setQuery(e.target.value)} className={`${INPUT} h-11`} />
+          <input id="kbq" type="search" placeholder={`ค้นหา ${notes.length} note`} value={query} onChange={(e) => setQuery(e.target.value)} className={`${INPUT} h-10 rounded-full px-4`} />
           <label htmlFor="kbsvc" className="sr-only">กรองตาม service</label>
-          <select id="kbsvc" value={svc} onChange={(e) => setSvc(e.target.value)} className={`${INPUT} h-11 bg-surface`}>
+          <select id="kbsvc" value={svc} onChange={(e) => setSvc(e.target.value)} className={`${INPUT} h-10 rounded-full bg-surface`}>
             <option value="all">ทุก service</option>
             {taxonomy.services.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             <option value="none">ไม่มี service</option>
           </select>
-          {groups.length === 0 && <p className="m-0 py-4 text-center text-muted">ไม่พบ note</p>}
-          {groups.map(([module, items]) => (
-            <div key={module} className="flex flex-col gap-1">
-              <span className="px-1 text-xs font-bold uppercase tracking-[0.08em] text-muted">{module}</span>
-              {items.map((n) => (
-                <button key={n.path} type="button" onClick={() => go(n.path)} aria-current={n.path === sel} className={`flex min-h-10 items-center justify-between gap-2 rounded-md border-0 px-3 text-left text-sm ${n.path === sel ? 'bg-brand-soft font-medium text-brand-text' : 'bg-transparent hover:bg-tint'}`}>
-                  <span className="min-w-0 truncate">{n.title}</span>
-                  <span className="size-2 flex-none rounded-full" style={{ background: `var(--st-${n.support}-dot)` }} />
-                </button>
-              ))}
-            </div>
-          ))}
+          <div className="flex max-h-[28rem] flex-col gap-4 overflow-y-auto lg:max-h-[60vh] [&>*]:shrink-0">
+            {groups.length === 0 && <p className="m-0 py-8 text-center text-muted"><b className="block text-ink">ไม่พบ note</b>ลองค้นด้วยคำอื่น</p>}
+            {groups.map(([module, items]) => (
+              <div key={module} className="flex flex-col">
+                <h3 className="m-0 mb-1 flex items-baseline gap-2 px-1 text-[13px] font-semibold text-ink">{module}<span className="font-normal text-muted">{items.length}</span></h3>
+                {items.map((n) => (
+                  <button key={n.path} type="button" onClick={() => go(n.path)} aria-current={n.path === sel} className={`flex min-h-11 items-center gap-2.5 rounded-xl border-0 px-2.5 py-2 text-left text-sm transition-colors ${n.path === sel ? 'bg-amber-soft font-medium text-ink' : 'bg-transparent text-ink hover:bg-tint'}`}>
+                    <FileText aria-hidden size={15} className="flex-none text-muted" />
+                    <span className="min-w-0 flex-1 truncate">{n.title}</span>
+                    <span className="flex flex-none items-center gap-2 text-xs text-muted">
+                      {!n.service ? <span className="text-amber-text">ไม่มี service</span> : serviceLabel(n.service, taxonomy) !== module && <span className="max-w-[9rem] truncate">{serviceLabel(n.service, taxonomy)}</span>}
+                      <span className="size-2 rounded-full" style={{ background: `var(--st-${n.support}-dot)` }} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
           {admin && <Button variant="ghost" onClick={showDeleted}>ดู note ที่ลบแล้ว</Button>}
           {deleted && (
-            <div className="flex flex-col gap-2 rounded-lg border border-line p-3 text-sm">
+            <div className="flex flex-col gap-2 rounded-inner border border-line p-3 text-sm">
               <span className="font-medium">ลบแล้ว {deleted.length} รายการ</span>
               {deleted.map((d) => <div key={d.key} className="flex items-center justify-between gap-2"><span className="min-w-0 truncate">{d.data.title ?? d.key}</span><Button variant="ghost" onClick={() => bringBack(d.key)} aria-label={`กู้ ${d.data.title ?? d.key} กลับมา`}>กู้คืน</Button></div>)}
               <Button variant="ghost" onClick={() => setDeleted(null)}>ปิด</Button>
             </div>
           )}
-        </div>
-      </Card>
+        </section>
 
-      <Card className="min-w-0 flex-[999_1_480px]">
+        <section aria-labelledby="bare-h" className="flex flex-col gap-2 px-1">
+          <div className="flex flex-col gap-0.5">
+            <h2 id="bare-h" className="m-0 text-base font-semibold text-ink">ต้องเขียน note เพิ่ม</h2>
+            <p className="m-0 text-sm text-muted">service ที่ยังไม่มี note: requirement ที่ตกที่ service เหล่านี้จะขึ้น "ต้องตรวจสอบ"</p>
+          </div>
+          {bare.length === 0 ? (
+            <p className="m-0 py-2 text-sm text-muted">ไม่มีรายการค้าง ทุก service มี note แล้ว</p>
+          ) : (
+            <ul className="m-0 list-none p-0">
+              {bare.map((sv) => (
+                <li key={sv.id}>
+                  {admin ? (
+                    <button type="button" onClick={() => go('new', sv.id)} aria-label={`เขียน note ของ ${sv.label}`} className="-mx-2.5 flex w-[calc(100%+20px)] items-center justify-between gap-3 rounded-xl border-0 bg-transparent px-2.5 py-2 text-left text-sm text-ink transition-colors hover:bg-tint">
+                      {sv.label}<span className="text-xs text-amber-text">+ เขียน note</span>
+                    </button>
+                  ) : (
+                    <span className="block py-2 text-sm text-ink">{sv.label}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <Card className="min-w-0 flex-[999_1_480px] rounded-card">
         {pending !== null && (
           <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-line bg-amber-soft px-6 py-3 text-sm">
             ยังไม่ได้บันทึกการแก้ไข
@@ -151,16 +188,16 @@ export default function NotesTab({ notes, taxonomy, admin, reload, initial, onSe
         {sel === null || (sel !== 'new' && !current) ? (
           <div className="px-6 py-12 text-center text-muted">เลือก note{admin ? ' หรือสร้างใหม่' : ''}</div>
         ) : !admin && current ? (
-          <div className="flex flex-col gap-4 p-6">
+          <div className="flex flex-col gap-4 p-5">
             <div className="flex flex-col gap-2">
               <span className="font-mono text-[13px] text-brand-text">{current.path}</span>
               <h2 className="m-0 text-2xl font-medium text-ink">{current.title}</h2>
-              <div className="flex flex-wrap items-center gap-2"><StatusBadge s={current.support} /><span className="text-xs text-muted">{current.module}{current.service ? ` · ${serviceLabel(current.service, taxonomy)}` : ''}{current.zones.length ? ` · ${current.zones.join(', ')}` : ''} · อัปเดต {current.updatedAt ? when(current.updatedAt) : 'จากไฟล์'}</span></div>
+              <div className="flex flex-wrap items-center gap-2"><StatusBadge s={current.support} /><span className="text-xs text-muted">{current.module}{current.service ? ` · ${serviceLabel(current.service, taxonomy)}` : ''}{current.solutions.length ? ` · ${current.solutions.join(', ')}` : ''} · อัปเดต {current.updatedAt ? when(current.updatedAt) : 'จากไฟล์'}</span></div>
             </div>
             <p className="m-0 whitespace-pre-wrap leading-[1.7]"><Body text={current.body} open={(p) => notes.some((n) => n.path === p) && setSel(p)} /></p>
           </div>
         ) : (
-          <form className="flex flex-col gap-4 p-6" onSubmit={(e) => { e.preventDefault(); void save() }}>
+          <form className="flex flex-col gap-4 p-5" onSubmit={(e) => { e.preventDefault(); void save() }}>
             <span className="font-mono text-[13px] text-brand-text">{sel === 'new' ? 'note ใหม่ ระบบจะตั้ง path ให้ตอนบันทึก และเปลี่ยนทีหลังไม่ได้' : current?.path}</span>
             <label className="flex flex-col gap-1 text-sm"><span className="font-medium">ชื่อ</span>
               <input value={form.title} maxLength={120} onChange={(e) => setForm({ ...form, title: e.target.value })} className={`${INPUT} h-11`} />
@@ -182,10 +219,10 @@ export default function NotesTab({ notes, taxonomy, admin, reload, initial, onSe
               </label>
             </div>
             <fieldset className="m-0 flex flex-wrap gap-x-5 border-0 p-0">
-              <legend className="mb-1 p-0 text-sm font-medium">ใช้เฉพาะ zone <span className="font-normal text-muted">(ไม่เลือกเลย = ใช้ได้ทุก zone)</span></legend>
-              {[...activeZones(taxonomy), ...taxonomy.zones.filter((z) => z.archived && form.zones.includes(z.id))].map((z) => (
+              <legend className="mb-1 p-0 text-sm font-medium">ใช้เฉพาะ solution <span className="font-normal text-muted">(ไม่เลือกเลย = ใช้ได้ทุก solution)</span></legend>
+              {[...activeSolutions(taxonomy), ...taxonomy.solutions.filter((z) => z.archived && form.solutions.includes(z.id))].map((z) => (
                 <label key={z.id} className="flex min-h-11 items-center gap-2 text-sm">
-                  <input type="checkbox" checked={form.zones.includes(z.id)} onChange={(e) => setForm({ ...form, zones: e.target.checked ? [...form.zones, z.id] : form.zones.filter((x) => x !== z.id) })} className="size-5" />{z.label}
+                  <input type="checkbox" checked={form.solutions.includes(z.id)} onChange={(e) => setForm({ ...form, solutions: e.target.checked ? [...form.solutions, z.id] : form.solutions.filter((x) => x !== z.id) })} className="size-5" />{z.label}
                 </label>
               ))}
             </fieldset>

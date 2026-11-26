@@ -36,7 +36,7 @@ export default function AiSettings() {
     <>
       <PageHeader title="AI settings" lead={account ? 'เลือก AI และโมเดล แล้วบันทึก API key ของคุณ key ถูกเข้ารหัสบน server และไม่แสดงอีก ค่าใช้จ่ายเป็นของบัญชีคุณ' : 'เลือก AI และโมเดล แล้วใส่ API key ของคุณเอง key ไม่ถูกเก็บ ค่าใช้จ่ายเป็นของบัญชีคุณ'} />
       <Card title="Provider and model">
-        <div className="flex flex-col gap-5 p-6">
+        <div className="flex flex-col gap-5 p-5">
           {s.serverDefault && (
             <Alert tone="info" title="เซิร์ฟเวอร์มี AI ตั้งไว้ให้แล้ว">
               {AI_PROVIDERS.find((p) => p.id === s.serverDefault?.provider)?.label} · {s.serverDefault.model} ไม่ต้องใส่ key ก็รันได้ ถ้าใส่ key ของตัวเองด้านล่าง ระบบจะใช้ key และ model ที่คุณเลือกแทน
@@ -58,7 +58,9 @@ export default function AiSettings() {
               {prov.models.map((m) => <option key={m} value={m}>{m}</option>)}
               <option value={CUSTOM}>Custom…</option>
             </select>
-            {prov.textOnly && <p className="m-0 text-sm text-muted">{prov.label} อ่านได้เฉพาะข้อความ: ใช้กับไฟล์ DOCX และ XLSX ได้ แต่ PDF และรูปภาพต้องใช้ Claude, Gemini หรือ ChatGPT</p>}
+            {prov.textOnly && (prov.images
+              ? <p className="m-0 text-sm text-muted">{prov.label} อ่านข้อความและรูปภาพได้: ใช้กับไฟล์ DOCX, XLSX และรูป PNG/JPG ได้ แต่ PDF ต้องใช้ Claude, Gemini หรือ ChatGPT</p>
+              : <p className="m-0 text-sm text-muted">{prov.label} อ่านได้เฉพาะข้อความ: ใช้กับไฟล์ DOCX และ XLSX ได้ แต่ PDF และรูปภาพต้องใช้ Claude, Gemini หรือ ChatGPT</p>)}
             {custom && <input aria-label="Custom model id" type="text" placeholder="model id" value={s.model} onChange={(e) => s.setModel(e.target.value.trim())} className={INPUT} />}
           </div>
 

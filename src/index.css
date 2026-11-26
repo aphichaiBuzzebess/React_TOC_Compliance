@@ -70,10 +70,18 @@
 }
 
 @theme {
+  /* Spacing on a true 4px grid. The root font is 106.25% so Thai reads larger; without this every margin, gap and
+     padding grew by the same 6%. 4px / 17px = 0.2353rem, so min-h-11 is still exactly 44px. */
+  --spacing: 0.2353rem;
+  /* One corner for every card, panel, alert, drawer and drop zone; a smaller one for a box inside a card. */
+  --radius-card: 22px;
+  --radius-inner: 14px;
   /* the run band is dark in both themes, so its greys are fixed */
   --color-dark-muted: #b8b8b0;
   --color-dark-edge: #4a4a4a;
   --color-dark-raised: #262624;
+  --color-dark-ink: #f7f5ef; /* text and the light button on the dark band */
+  --color-dark-danger: #ff9c99;
 
   --font-sans: Inter, 'Noto Sans Thai', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
@@ -156,6 +164,10 @@
   body { background: #fff; }
   main { padding: 0; }
 }
+
+/* Shown only in the PDF capture (exportPdf puts .force-light on the captured element). */
+.pdf-only { display: none; }
+.force-light .pdf-only { display: block; }
 
 /* The honeycomb behind the top of each page: faint, and gone by the fold. */
 .hive {

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
-import { DEFAULT_TAXONOMY, UNKNOWN, isService, isZone, type Taxonomy } from '../src/data/taxonomy.js'
+import { DEFAULT_TAXONOMY, UNKNOWN, renamedKey, isService, isSolution, type Taxonomy } from '../src/data/taxonomy.js'
 import type { StatusKey } from '../src/lib/types.js'
 import { HttpError } from './auth.js'
 import { accountMode, getDb, type Db, type KbItem, type KbKind } from './db.js'
@@ -10,7 +10,7 @@ import { DEFAULT_PROMPTS, PROMPT_KEYS, type PromptKey } from './prompts.js'
 /** What the pipeline needs to run: notes, taxonomy and prompt texts, and where they came from. */
 export interface Knowledge { notes: Note[]; taxonomy: Taxonomy; prompts: Record<PromptKey, string>; status: 'database' | 'defaults' }
 
-export interface NoteData { title: string; module: string; service: string | null; zones: string[]; support: Exclude<StatusKey, 'verify'>; body: string }
+export interface NoteData { title: string; module: string; service: string | null; solutions: string[]; support: Exclude<StatusKey, 'verify'>; body: string }
 export interface NoteView extends NoteData { path: string; updatedAt: string | null; updatedBy: string }
 
 const SUPPORT = ['full', 'config', 'custom', 'integ', 'none'] as const
@@ -23,19 +23,19 @@ const MAX_PROMPT = 20_000
 function fileNotes(): Note[] {
   try { return loadKb() } catch { return [] } // no kb/ folder: nothing to show, never a crash
 }
-const toData = (n: Note): NoteData => ({ title: n.title, module: n.module, service: n.service ?? null, zones: n.zone ?? [], support: n.support as NoteData['support'], body: n.body })
+const toData = (n: Note): NoteData => ({ title: n.title, module: n.module, service: n.service ?? null, solutions: n.solution ?? [], support: n.support as NoteData['support'], body: n.body })
 const defaults = (): Knowledge => ({ notes: fileNotes(), taxonomy: DEFAULT_TAXONOMY, prompts: { ...DEFAULT_PROMPTS }, status: 'defaults' })
 
 // ---- validation ---------------------------------------------------------------------------------
 
-const noteSchema = z.object({
+const noteSchema = z.preprocess((raw) => renamedKey(raw, 'zones', 'solutions'), z.object({
   title: z.string().trim().min(1, 'ต้องมีชื่อ').max(120, 'ชื่อยาวเกิน 120 ตัวอักษร'),
   module: z.string().trim().max(60, 'module ยาวเกิน 60 ตัวอักษร').default(''),
   service: z.string().trim().nullable().optional().transform((v) => v || null),
-  zones: z.array(z.string()).max(8).default([]),
+  solutions: z.array(z.string()).max(8).default([]),
   support: z.enum(SUPPORT),
   body: z.string().max(20_000, 'เนื้อหายาวเกิน 20,000 ตัวอักษร'),
-})
+}))
 
 const ID = /^[a-z0-9-]{2,40}$/
 const text = (n: number) => z.string().trim().max(n)
@@ -46,10 +46,10 @@ const entry = {
   examples: z.array(text(200).min(1)).max(10).default([]),
   archived: z.boolean().default(false),
 }
-const taxonomySchema = z.object({
-  zones: z.array(z.object(entry)).max(12, 'zone ได้ไม่เกิน 12'),
+const taxonomySchema = z.preprocess((raw) => renamedKey(raw, 'zones', 'solutions'), z.object({
+  solutions: z.array(z.object(entry)).max(12, 'solution ได้ไม่เกิน 12'),
   services: z.array(z.object({ ...entry, confirmed: z.boolean().default(true) })).max(60, 'service ได้ไม่เกิน 60'),
-})
+}))
 
 const fail = (msg: string): never => { throw new HttpError(400, msg) }
 const first = (e: z.ZodError) => e.issues[0]?.message ?? 'ข้อมูลไม่ถูกต้อง'
@@ -60,7 +60,7 @@ export function validateTaxonomy(raw: unknown, current: Taxonomy): Taxonomy {
   if (!r.success) return fail(first(r.error))
   const tx = r.data as Taxonomy
   if (JSON.stringify(tx).length > 100_000) fail('taxonomy ใหญ่เกิน 100 KB')
-  for (const [name, list, was] of [['zone', tx.zones, current.zones], ['service', tx.services, current.services]] as const) {
+  for (const [name, list, was] of [['solution', tx.solutions, current.solutions], ['service', tx.services, current.services]] as const) {
     const ids = list.map((x) => x.id)
     if (new Set(ids).size !== ids.length) fail(`${name} มี id ซ้ำ`)
     for (const old of was) if (!ids.includes(old.id)) fail(`ลบ ${name} "${old.id}" ไม่ได้ ให้ใช้ archive (เก็บเข้าคลัง) แทน`)
@@ -73,9 +73,9 @@ export function validateNote(raw: unknown, tx: Taxonomy): NoteData {
   if (!r.success) return fail(first(r.error))
   const n = r.data
   if (n.service && !isService(n.service, tx)) fail(`ไม่รู้จัก service "${n.service}"`)
-  for (const z of n.zones) if (!isZone(z, tx)) fail(`ไม่รู้จัก zone "${z}"`)
+  for (const z of n.solutions) if (!isSolution(z, tx)) fail(`ไม่รู้จัก solution "${z}"`)
   const serviceLabel = tx.services.find((s) => s.id === n.service)?.label
-  return { ...n, module: n.module || serviceLabel || '', service: n.service ?? null, zones: [...new Set(n.zones)] }
+  return { ...n, module: n.module || serviceLabel || '', service: n.service ?? null, solutions: [...new Set(n.solutions)] }
 }
 
 function validatePrompt(key: unknown, body: unknown): { key: PromptKey; body: string } {
@@ -100,7 +100,7 @@ export function makePath(n: NoteData, taken: Set<string>): string {
 
 const day = (iso: string) => iso.slice(0, 10)
 function toNote(path: string, d: NoteData, updatedAt: string): Note {
-  return { path, title: d.title, module: d.module, support: d.support as StatusKey, updated: day(updatedAt), body: d.body, ...(d.service && { service: d.service }), ...(d.zones.length && { zone: d.zones }) }
+  return { path, title: d.title, module: d.module, support: d.support as StatusKey, updated: day(updatedAt), body: d.body, ...(d.service && { service: d.service }), ...(d.solutions.length && { solution: d.solutions }) }
 }
 const parseNote = (it: KbItem): NoteData | undefined => {
   const r = noteSchema.safeParse(it.data)
@@ -270,9 +270,9 @@ export const restoreVersion = (by: string, versionId: number, updatedAt: string 
     const now = await currentTaxonomy(db)
     const old = parseTaxonomy(v.data)
     if (!old) return fail('เวอร์ชันนี้เปิดไม่ได้')
-    const keepZones = now.zones.filter((z) => !old!.zones.some((o) => o.id === z.id)).map((z) => ({ ...z, archived: true }))
+    const keepSolutions = now.solutions.filter((z) => !old!.solutions.some((o) => o.id === z.id)).map((z) => ({ ...z, archived: true }))
     const keepServices = now.services.filter((s) => !old!.services.some((o) => o.id === s.id)).map((s) => ({ ...s, archived: true }))
-    const merged = validateTaxonomy({ zones: [...old.zones, ...keepZones], services: [...old.services, ...keepServices] }, now)
+    const merged = validateTaxonomy({ solutions: [...old.solutions, ...keepSolutions], services: [...old.services, ...keepServices] }, now)
     return { kind, key: 'taxonomy', updatedAt: ok(await db.kbPut('taxonomy', 'taxonomy', merged, by, updatedAt)).updatedAt }
   })
 

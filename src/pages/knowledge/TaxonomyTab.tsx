@@ -5,28 +5,28 @@ import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { kb, INPUT, KbError } from './kbFetch'
 import Versions from './Versions'
 
-type Kind = 'zone' | 'service'
+type Kind = 'solution' | 'service'
 interface Row { id: string; label: string; hint: string; examples?: string[]; archived?: boolean; confirmed?: boolean }
 interface Sel { kind: Kind; index: number }
 const clone = (t: Taxonomy): Taxonomy => JSON.parse(JSON.stringify(t))
 const blank = { label: '', hint: '', examples: [] as string[], archived: false }
 
-/** Where a row sits in the list: zones are one group; services are split by how settled they are. */
-const group = (kind: Kind, r: Row) => (r.archived ? 'เก็บแล้ว' : kind === 'zone' ? 'ใช้งาน' : r.confirmed === false ? 'ยังไม่ยืนยัน' : 'ยืนยันแล้ว')
-const GROUPS: Record<Kind, string[]> = { zone: ['ใช้งาน', 'เก็บแล้ว'], service: ['ยืนยันแล้ว', 'ยังไม่ยืนยัน', 'เก็บแล้ว'] }
+/** Where a row sits in the list: solutions are one group; services are split by how settled they are. */
+const group = (kind: Kind, r: Row) => (r.archived ? 'เก็บแล้ว' : kind === 'solution' ? 'ใช้งาน' : r.confirmed === false ? 'ยังไม่ยืนยัน' : 'ยืนยันแล้ว')
+const GROUPS: Record<Kind, string[]> = { solution: ['ใช้งาน', 'เก็บแล้ว'], service: ['ยืนยันแล้ว', 'ยังไม่ยืนยัน', 'เก็บแล้ว'] }
 
 export default function TaxonomyTab({ taxonomy, updatedAt, admin, reload, noteCounts = {} }: { taxonomy: Taxonomy; updatedAt: string | null; admin: boolean; reload: () => void; noteCounts?: Record<string, number> }) {
   const [draft, setDraft] = useState<Taxonomy>(() => clone(taxonomy))
-  const [sel, setSel] = useState<Sel | null>(taxonomy.zones[0] ? { kind: 'zone', index: 0 } : null)
+  const [sel, setSel] = useState<Sel | null>(taxonomy.solutions[0] ? { kind: 'solution', index: 0 } : null)
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null)
   const [versions, setVersions] = useState(false)
   const dirty = JSON.stringify(draft) !== JSON.stringify(taxonomy)
-  const listOf = (k: Kind): Row[] => (k === 'zone' ? draft.zones : draft.services)
-  const known = (k: Kind) => new Set((k === 'zone' ? taxonomy.zones : taxonomy.services).map((x) => x.id))
+  const listOf = (k: Kind): Row[] => (k === 'solution' ? draft.solutions : draft.services)
+  const known = (k: Kind) => new Set((k === 'solution' ? taxonomy.solutions : taxonomy.services).map((x) => x.id))
   const current = sel ? listOf(sel.kind)[sel.index] : undefined
   const isNew = !!sel && !!current && !known(sel.kind).has(current.id)
 
-  const setList = (k: Kind, rows: Row[]) => setDraft(k === 'zone' ? { ...draft, zones: rows } : { ...draft, services: rows as Taxonomy['services'] })
+  const setList = (k: Kind, rows: Row[]) => setDraft(k === 'solution' ? { ...draft, solutions: rows } : { ...draft, services: rows as Taxonomy['services'] })
   const patch = (p: Partial<Row>) => sel && setList(sel.kind, listOf(sel.kind).map((r, i) => (i === sel.index ? { ...r, ...p } : r)))
   const add = (k: Kind) => {
     const rows = [...listOf(k), k === 'service' ? { id: '', ...blank, confirmed: true } : { id: '', ...blank }]
@@ -42,7 +42,7 @@ export default function TaxonomyTab({ taxonomy, updatedAt, admin, reload, noteCo
   async function save() {
     setMsg(null)
     const tidy = (rows: Row[]) => rows.map((r) => ({ ...r, examples: (r.examples ?? []).map((e) => e.trim()).filter(Boolean) }))
-    const clean = { zones: tidy(draft.zones), services: tidy(draft.services) } as Taxonomy
+    const clean = { solutions: tidy(draft.solutions), services: tidy(draft.services) } as Taxonomy
     try {
       await kb('taxonomy', { method: 'PUT', body: { taxonomy: clean, updatedAt } })
       useAssessmentStore.setState({ taxonomy: clean }) // the pickers on Review and Matrix use it at once
@@ -60,7 +60,7 @@ export default function TaxonomyTab({ taxonomy, updatedAt, admin, reload, noteCo
           <h3 className="m-0 text-sm font-semibold text-ink">{title}</h3>
           <span className="text-xs text-muted">{rows.filter((r) => !r.archived).length} ใช้งาน</span>
         </div>
-        <p className="m-0 px-1 pb-1 text-xs leading-5 text-muted">{k === 'zone' ? 'ประเภทของ Product เช่น CRM+ หรือ App project' : 'บริการหรือฟีเจอร์ที่ requirement ใช้ เช่น Point หรือ User Management'}</p>
+        <p className="m-0 px-1 pb-1 text-xs leading-5 text-muted">{k === 'solution' ? 'ประเภทของ Product เช่น CRM+ หรือ App project' : 'บริการหรือฟีเจอร์ที่ requirement ใช้ เช่น Point หรือ User Management'}</p>
         {GROUPS[k].map((g) => {
           const items = rows.map((r, index) => ({ r, index })).filter(({ r }) => group(k, r) === g)
           if (items.length === 0) return null
@@ -97,21 +97,21 @@ export default function TaxonomyTab({ taxonomy, updatedAt, admin, reload, noteCo
         </div>
       )}
       {admin && versions && <Versions kind="taxonomy" itemKey="taxonomy" token={updatedAt} onRestored={() => { setVersions(false); reload() }} onClose={() => setVersions(false)} />}
-      <div className="flex flex-wrap items-start gap-6">
+      <div className="flex flex-wrap items-start gap-5">
         <Card className="flex-[1_1_280px]">
           <div className="flex max-h-96 flex-col gap-4 overflow-y-auto p-4 lg:max-h-[70vh] [&>*]:shrink-0">
-            {renderList('zone', 'Zone')}
+            {renderList('solution', 'Solution')}
             {renderList('service', 'Service')}
           </div>
         </Card>
 
         <Card className="min-w-0 flex-[999_1_480px]">
           {!sel || !current ? (
-            <div className="px-6 py-12 text-center text-muted">เลือก zone หรือ service จากรายการ{admin ? ' หรือเพิ่มใหม่' : ''}</div>
+            <div className="px-6 py-12 text-center text-muted">เลือก solution หรือ service จากรายการ{admin ? ' หรือเพิ่มใหม่' : ''}</div>
           ) : (
-            <div className="flex flex-col gap-4 p-6">
+            <div className="flex flex-col gap-4 p-5">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="rounded-full border border-line-strong px-2.5 py-0.5 text-xs text-muted">{sel.kind === 'zone' ? 'Zone' : 'Service'}</span>
+                <span className="rounded-full border border-line-strong px-2.5 py-0.5 text-xs text-muted">{sel.kind === 'solution' ? 'Solution' : 'Service'}</span>
                 {admin && isNew ? (
                   <>
                     <label className="sr-only" htmlFor="tx-id">id ของ {sel.kind} ใหม่</label>

@@ -40,7 +40,7 @@ export default function ProfileMenu({ user, admin, theme, onToggleTheme, onSignO
         <ChevronDown aria-hidden size={16} className={`text-muted transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div id="profile-panel" role="group" aria-label="บัญชี" className="absolute inset-x-5 top-full z-40 mt-1 flex flex-col gap-3 sm:inset-x-auto sm:right-0 sm:mt-2 sm:w-72 rounded-[10px] border border-line bg-surface p-4 shadow-[0_12px_32px_-12px_rgba(8,9,9,0.3)]">
+        <div id="profile-panel" role="group" aria-label="บัญชี" className="absolute inset-x-5 top-full z-40 mt-1 flex flex-col gap-3 sm:inset-x-auto sm:right-0 sm:mt-2 sm:w-72 rounded-card border border-line bg-surface p-4 shadow-[0_12px_32px_-12px_rgba(8,9,9,0.3)]">
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted">เข้าสู่ระบบในชื่อ</span>
             {name !== user && <span className="break-all text-base font-semibold leading-6 text-ink">{name}</span>}

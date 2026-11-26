@@ -6,11 +6,8 @@ import { useResolvedTheme } from './lib/theme'
 import AppShell from './components/AppShell'
 import NewAssessment from './pages/NewAssessment'
 import Review from './pages/Review'
-import Dashboard from './pages/Dashboard'
 import Matrix from './pages/Matrix'
-import Gaps from './pages/Gaps'
 import Summary from './pages/Summary'
-import Questions from './pages/Questions'
 import KnowledgeBase from './pages/KnowledgeBase'
 import AiSettings from './pages/AiSettings'
 import History from './pages/History'
@@ -40,10 +37,10 @@ export default function App() {
       <Routes>
         <Route path="/" element={<NewAssessment />} />
         <Route path="/review" element={<Review />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Navigate to="/summary" replace />} />
         <Route path="/matrix" element={<Matrix />} />
-        <Route path="/gaps" element={<Gaps />} />
-        <Route path="/questions" element={<Questions />} />
+        <Route path="/gaps" element={<Navigate to="/summary" replace />} />
+        <Route path="/questions" element={<Navigate to="/summary" replace />} />
         <Route path="/knowledge-base" element={<KnowledgeBase />} />
         <Route path="/ai-settings" element={<AiSettings />} />
         <Route path="/history" element={<History />} />

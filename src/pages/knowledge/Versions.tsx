@@ -4,9 +4,9 @@ import { kb, when, KbError } from './kbFetch'
 
 interface Version { id: number; at: string; by: string; data: unknown }
 const preview = (d: unknown) => {
-  const o = (d ?? {}) as { body?: string; title?: string; zones?: unknown[]; services?: unknown[] }
+  const o = (d ?? {}) as { body?: string; title?: string; solutions?: unknown[]; zones?: unknown[]; services?: unknown[] }
   if (typeof o.body === 'string') return `${o.title ? `${o.title}: ` : ''}${o.body}`.slice(0, 160)
-  if (o.services) return `zone ${o.zones?.length ?? 0} · service ${o.services.length}`
+  if (o.services) return `solution ${(o.solutions ?? o.zones)?.length ?? 0} · service ${o.services.length}` // zones: saved before the rename
   return ''
 }
 
@@ -29,7 +29,7 @@ export default function Versions({ kind, itemKey, token, onRestored, onClose }: 
   }
 
   return (
-    <section aria-label="เวอร์ชันก่อนหน้า" className="flex flex-col gap-2 rounded-lg border border-line bg-canvas p-4">
+    <section aria-label="เวอร์ชันก่อนหน้า" className="flex flex-col gap-2 rounded-inner border border-line bg-canvas p-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="m-0 text-base font-medium">เวอร์ชันก่อนหน้า (เก็บ 20 รุ่นล่าสุด)</h3>
         <Button variant="ghost" onClick={onClose}>ปิด</Button>

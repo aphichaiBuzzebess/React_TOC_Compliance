@@ -28,6 +28,12 @@ export const textOnly = (name: string) => (blocks: Block[]) =>
     return { type: 'text', text: b.text }
   })
 
+/** Content for providers that read text and images but not a PDF: the PDF is refused before anything is sent. */
+export const noPdf = (name: string) => (blocks: Block[]) => {
+  if (blocks.some((b) => b.type === 'document')) throw new Error(`${name} อ่าน PDF ไม่ได้: ใช้ไฟล์ DOCX, XLSX, CSV, TXT หรือรูปภาพ หรือเปลี่ยนไปใช้ Claude, Gemini หรือ ChatGPT สำหรับ PDF`)
+  return toContent(blocks)
+}
+
 const OPENAI: Flavor = { name: 'OpenAI', url: 'https://api.openai.com/v1/chat/completions', limit: (_m, n) => ({ max_completion_tokens: Math.max(n, FLOOR) }), content: toContent }
 
 /** The answer is forced through one function call, like the other providers. `fetcher` is injectable for tests. */
