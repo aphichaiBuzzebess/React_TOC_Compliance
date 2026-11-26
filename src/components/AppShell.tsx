@@ -59,7 +59,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <nav aria-label="Main" className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto md:order-2 md:mx-0 md:w-auto md:flex-1">
-            {MENU.map((n) => {
+            {MENU.filter((n) => !n.account || mode === 'account').map((n) => {
               // "TOR ทั้งหมด" stays lit on every page of a TOR, not only on its list.
               const lit = n.to === '/history' ? inTorGroup(pathname) : pathname === n.to
               return (

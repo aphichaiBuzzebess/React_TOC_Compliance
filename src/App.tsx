@@ -11,6 +11,7 @@ import Summary from './pages/Summary'
 import KnowledgeBase from './pages/KnowledgeBase'
 import AiSettings from './pages/AiSettings'
 import History from './pages/History'
+import Scouter from './pages/Scouter'
 import Login from './pages/Login'
 
 export default function App() {
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/knowledge-base" element={<KnowledgeBase />} />
         <Route path="/ai-settings" element={<AiSettings />} />
         <Route path="/history" element={<History />} />
+        <Route path="/scouter" element={<Scouter />} />
         <Route path="/summary" element={<Summary />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

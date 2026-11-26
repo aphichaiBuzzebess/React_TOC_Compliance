@@ -1887,3 +1887,93 @@ describe('motion on the TOR pages, as in the mockup', () => {
     useAssessmentStore.setState({ running: false, step: -1, detail: '', review: null })
   })
 })
+
+describe('Feature Scouter page', () => {
+  const g = (reqId: string, tor: string, extra: object = {}) => ({ assessmentId: tor, reqId, module: 'Dashboard & Report', text: `text ${reqId}`, gap: `gap ${reqId}`, s: 'custom', mandatory: true, confirmed: true, tor: `TOR ${tor}`, customer: `C-${tor}`, industry: 'Retail', deal: 1_000_000, due: '2026-12-01', itemId: 'SC-0001', dealResult: 'open', lostBecause: false, createdAt: '2026-11-20T00:00:00.000Z', updatedAt: '', ...extra })
+  const item = (id: string, title: string, extra: object = {}) => ({ id, title, need: `need ${id}`, type: 'ENHANCEMENT', module: 'Dashboard & Report', status: 'new', editedBy: 'AI', createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '', ...extra })
+  const calls: { url: string; method: string; body?: unknown }[] = []
+  const serve = (data: object) => {
+    calls.length = 0
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
+      const method = init.method ?? 'GET'
+      calls.push({ url, method, body: typeof init.body === 'string' ? JSON.parse(init.body) : undefined })
+      const ok = (b: unknown) => ({ ok: true, status: 200, json: async () => b }) as Response
+      if (url === '/api/auth') return ok({ mode: 'account', user: { username: 'ann' } })
+      if (url === '/api/scouter' && method === 'GET') return ok(data)
+      return ok({ grouped: 0, created: 0, left: 0 })
+    }))
+    useAssessmentStore.setState({ mode: 'account', user: 'ann', owner: 'ann' })
+  }
+  afterEach(() => { vi.unstubAllGlobals(); useAssessmentStore.setState({ mode: 'unknown', user: null, owner: null }) })
+
+  it('counts only confirmed gaps, each TOR once for its deal', async () => {
+    const { needStats } = await import('@/lib/scouter')
+    const s = needStats([g('R-1', 'a'), g('R-2', 'a', { mandatory: false }), g('R-1', 'b', { mandatory: false, lostBecause: true, deal: 500_000 }), g('R-3', 'c', { confirmed: false })] as never)
+    expect(s).toMatchObject({ tors: 2, customers: 2, mand: 1, deal: 1_500_000, lost: 500_000, pending: 1 })
+  })
+
+  it('is in the menu only with accounts', () => {
+    const { unmount } = open('/')
+    expect(within(screen.getByRole('navigation', { name: 'Main' })).queryByRole('link', { name: 'Feature Scouter' })).not.toBeInTheDocument()
+    unmount()
+    useAssessmentStore.setState({ mode: 'account', user: 'ann', owner: 'ann' })
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ mode: 'account', user: { username: 'ann' } }) }) as Response))
+    open('/')
+    expect(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('link', { name: 'Feature Scouter' })).toHaveAttribute('href', '/scouter')
+  })
+
+  it('ranks needs by TORs that asked, from confirmed gaps; shows what waits; a need opens with every TOR that asked', async () => {
+    const user = userEvent.setup()
+    serve({
+      items: [item('SC-0001', 'Branch filter'), item('SC-0002', 'Family account', { type: 'NEW_FEATURE', status: 'planned' }), item('SC-0003', 'Only pending')],
+      gaps: [g('R-1', 'a'), g('R-1', 'b', { itemId: 'SC-0002' }), g('R-2', 'c', { itemId: 'SC-0002' }), g('R-9', 'd', { itemId: 'SC-0003', confirmed: false })],
+      admin: false,
+    })
+    open('/scouter')
+    const table = within(await screen.findByRole('table', { name: 'ความต้องการ' }))
+    const rows = table.getAllByRole('row').slice(1)
+    expect(rows.map((r) => within(r).getAllByRole('cell')[1].querySelector('span')!.textContent)).toEqual(['Family account', 'Branch filter']) // 2 TORs before 1; nothing confirmed: not listed
+    expect(rows[0]).toHaveTextContent('อยู่ใน roadmap')
+    expect(table.queryByRole('combobox')).not.toBeInTheDocument() // not an admin: the status is text
+    expect(screen.getByText(/รอ PM ยืนยันอีก 1 ข้อ/)).toBeInTheDocument()
+    const summary = within(document.querySelector('dl[aria-label="ภาพรวม"]') as HTMLElement)
+    const stats = (label: string) => summary.getByText(label).parentElement!.querySelector('dd')!.textContent
+    expect([stats('ความต้องการ'), stats('ครั้งที่ถูกขอใน TOR'), stats('ลูกค้าที่ขอ')]).toEqual(['2', '3', '3'])
+    await user.click(screen.getByRole('button', { name: /^Family account/ }))
+    const drawer = within(screen.getByRole('dialog', { name: 'Family account' }))
+    expect(drawer.getByText('C-b')).toBeInTheDocument()
+    expect(drawer.getByText('C-c')).toBeInTheDocument()
+    expect(drawer.queryByRole('button', { name: 'แก้ไข' })).not.toBeInTheDocument()
+  })
+
+  it('groups the gaps that are not grouped yet when it opens, once', async () => {
+    serve({ items: [], gaps: [g('R-1', 'a', { itemId: null })], admin: false })
+    open('/scouter')
+    await waitFor(() => expect(calls.filter((c) => c.url === '/api/scouter?action=group')).toHaveLength(1))
+    await waitFor(() => expect(calls.filter((c) => c.url === '/api/scouter' && c.method === 'GET').length).toBeGreaterThanOrEqual(2)) // reloaded after grouping
+    expect(calls.filter((c) => c.url === '/api/scouter?action=group')).toHaveLength(1)
+  })
+
+  it('an admin sets the product status, edits a need and merges it into another', async () => {
+    const user = userEvent.setup()
+    serve({ items: [item('SC-0001', 'Branch filter'), item('SC-0002', 'Branch report')], gaps: [g('R-1', 'a'), g('R-2', 'b', { itemId: 'SC-0002' })], admin: true })
+    open('/scouter')
+    await user.selectOptions(await screen.findByLabelText('สถานะฝั่ง Product ของ Branch filter'), 'in_dev')
+    expect(calls.find((c) => c.method === 'PATCH')!.body).toEqual({ id: 'SC-0001', status: 'in_dev' })
+    await user.click(screen.getByRole('button', { name: /^Branch filter/ }))
+    const drawer = within(screen.getByRole('dialog', { name: 'Branch filter' }))
+    await user.click(drawer.getByRole('button', { name: 'แก้ไข' }))
+    await user.clear(drawer.getByLabelText('ชื่อ'))
+    await user.type(drawer.getByLabelText('ชื่อ'), 'Dashboard by branch')
+    await user.click(drawer.getByRole('button', { name: 'บันทึก' }))
+    expect(calls.filter((c) => c.method === 'PATCH').at(-1)!.body).toMatchObject({ id: 'SC-0001', title: 'Dashboard by branch' })
+    await user.selectOptions(drawer.getByLabelText('รวมเข้ากับ'), 'SC-0002')
+    await user.click(drawer.getByRole('button', { name: 'รวมเข้าด้วยกัน' }))
+    expect(calls.find((c) => c.url === '/api/scouter?action=merge')!.body).toEqual({ from: 'SC-0001', into: 'SC-0002' })
+  })
+
+  it('without accounts it says the Scouter needs them', () => {
+    open('/scouter')
+    expect(screen.getByText('ใช้ได้เมื่อเปิดระบบบัญชี')).toBeInTheDocument()
+  })
+})

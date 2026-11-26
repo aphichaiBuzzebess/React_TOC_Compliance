@@ -7,6 +7,7 @@ export const NAV: NavItem[] = [
   { to: '/matrix', short: 'Matrix', label: 'Compliance matrix', section: 'ผลประเมิน' },
   { to: '/history', short: 'History', label: 'TOR ทั้งหมด', section: 'ผลประเมิน' },
   { to: '/summary', short: 'Summary', label: 'Executive summary', section: 'ผลประเมิน' },
+  { to: '/scouter', short: 'Scouter', label: 'Feature Scouter', section: 'ผลประเมิน' },
   { to: '/knowledge-base', short: 'Knowledge base', label: 'Knowledge base', section: 'อ้างอิง' },
   { to: '/ai-settings', short: 'AI settings', label: 'AI settings', section: 'อ้างอิง' },
 ]
@@ -22,9 +23,11 @@ export const TOR_TABS: { to: string; label: string; count?: boolean }[] = [
 export const inTorGroup = (path: string) => ['/history', '/review', '/summary', '/matrix'].includes(path)
 
 /** The header menu: the TOR pages are one item, "TOR ทั้งหมด", that opens the list. */
-export const MENU: { to: string; label: string }[] = [
+/** `account`: only with accounts (a shared store needs the database). */
+export const MENU: { to: string; label: string; account?: boolean }[] = [
   { to: '/', label: 'อัปโหลด TOR' },
   { to: '/history', label: 'TOR ทั้งหมด' },
+  { to: '/scouter', label: 'Feature Scouter', account: true },
   { to: '/knowledge-base', label: 'Knowledge base' },
   { to: '/ai-settings', label: 'AI settings' },
 ]
