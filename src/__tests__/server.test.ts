@@ -2,7 +2,7 @@
 import { loadKb, parseNote, retrieveForTargets, searchKb } from '../../server/kb'
 import { classify, extractRequirements, judge, toBlocks } from '../../server/pipeline'
 import { activeSolutions, cleanTargets, DEFAULT_TAXONOMY } from '../../src/data/taxonomy'
-import { DEFAULT_PROMPTS, PROMPT_KEYS, UNTRUSTED, buildSystem } from '../../server/prompts'
+import { DEFAULT_PROMPTS, PROMPT_KEYS, THAI_STYLE, UNTRUSTED, buildSystem } from '../../server/prompts'
 import { openaiLlm } from '../../server/llm-openai'
 import { deepseekLlm } from '../../server/llm-deepseek'
 import { byteplusLlm } from '../../server/llm-byteplus'
@@ -455,7 +455,8 @@ describe('prompts as data', () => {
   const tx = { ...DEFAULT_TAXONOMY, services: [...DEFAULT_TAXONOMY.services, { id: 'old-one', label: 'Old one', hint: 'retired', confirmed: true, archived: true }, { id: 'x-new', label: 'New one', hint: 'fresh', confirmed: true, examples: ['เชื่อมระบบ X'] }] }
   it('always ends with the guard and keeps the output untouched by the editor', () => {
     for (const k of PROMPT_KEYS) expect(buildSystem(k, 'just my own words').endsWith(UNTRUSTED)).toBe(true)
-    expect(buildSystem('judge', '  hello  ')).toBe(`hello ${UNTRUSTED}`)
+    expect(buildSystem('judge', '  hello  ')).toBe(`hello ${THAI_STYLE} ${UNTRUSTED}`)
+    expect(buildSystem('classify', 'hello')).not.toContain(THAI_STYLE) // classify picks ids: nothing to write
   })
   it('puts the solution and service lists in place, or appends them when the editor removed the placeholders', () => {
     const inPlace = buildSystem('classify', 'A\nSolutions:\n{{solutions}}\nmiddle\n{{services}}\nend', tx)
@@ -472,6 +473,11 @@ describe('prompts as data', () => {
     expect(p).toContain('x-new: New one. fresh')
     expect(p).toContain('e.g. "เชื่อมระบบ X"')
   })
+  it('the steps that write text answer in plain Thai, whatever the saved prompt says', () => {
+    for (const k of ['extract', 'judge'] as const) expect(buildSystem(k, 'anything an admin saved')).toContain('Write every free-text field in Thai')
+    expect(THAI_STYLE).toMatch(/Never add a fact/)
+    expect(THAI_STYLE).toMatch(/em or en dashes/)
+  })
   it('the default prompts reproduce today\'s wording', () => {
     expect(buildSystem('extract', DEFAULT_PROMPTS.extract)).toContain('You are a business analyst. Split the customer TOR into atomic')
     expect(buildSystem('judge', DEFAULT_PROMPTS.judge)).toContain('using ONLY the knowledge-base notes given')
@@ -483,7 +489,7 @@ describe('prompts as data', () => {
     expect(seen.startsWith('EDITED - user-management')).toBe(true)
     expect(seen).toContain('x-new')
     await judge(llm, [{ id: 'R-1', module: 'M', text: 't' }], [], { prompts: { judge: 'EDITED JUDGE' } })
-    expect(seen).toBe(`EDITED JUDGE ${UNTRUSTED}`)
+    expect(seen).toBe(`EDITED JUDGE ${THAI_STYLE} ${UNTRUSTED}`) // an edited prompt keeps the Thai style rules
   })
 })
 

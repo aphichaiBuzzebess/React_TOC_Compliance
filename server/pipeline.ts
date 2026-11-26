@@ -36,19 +36,19 @@ const EXTRACT_TOOL = {
   schema: {
     type: 'object',
     properties: {
-      scope: { type: 'string', description: 'One or two sentences on what the whole TOR asks for, in the TOR language' },
+      scope: { type: 'string', description: 'One or two sentences in Thai on what the whole TOR asks for' },
       requirements: {
         type: 'array',
         items: {
           type: 'object',
           properties: {
             module: { type: 'string', enum: ALL_CATEGORIES, description: `The category. Contract and bidder terms (past work, delivery time, warranty, payment, penalties, bidder qualifications) go in "${COMMERCIAL}"` },
-            text: { type: 'string', description: 'One requirement, one sentence, in the TOR language' },
+            text: { type: 'string', description: 'One requirement, one sentence, in Thai (translated when the TOR is in another language)' },
             pri: { type: 'string', enum: ['M', 'O'], description: 'M when the TOR says it must (ต้อง, must, shall); O when it says should or may (ควร, อาจ, should, may)' },
             priStated: { type: 'boolean', description: 'false when the TOR does not say must or should and pri is your guess' },
             ref: { type: 'string', description: 'The clause number as the TOR writes it, e.g. "ข้อ 3.5.1"; empty when there is none' },
-            orig: { type: 'string', description: 'The TOR wording, quoted exactly, at most 200 characters; empty when text already is the TOR wording' },
-            amb: { type: 'string', description: 'What is unclear or not measurable, e.g. "ไม่ได้กำหนดว่า Real-time หน่วงได้กี่นาที"; empty when it is clear' },
+            orig: { type: 'string', description: 'The TOR wording, quoted exactly in its own language, at most 200 characters; empty only when text is word for word the same' },
+            amb: { type: 'string', description: 'What is unclear or not measurable, in Thai, e.g. "ไม่ได้กำหนดว่า Real-time หน่วงได้กี่นาที"; empty when it is clear' },
           },
           required: ['module', 'text', 'pri', 'priStated', 'ref', 'orig', 'amb'],
         },
@@ -102,11 +102,11 @@ const JUDGE_TOOL = {
             id: { type: 'string' },
             s: { type: 'string', enum: STATUSES },
             confidence: { type: 'number', description: '0 to 1' },
-            reason: { type: 'string' },
+            reason: { type: 'string', description: 'Why, in Thai, from the notes' },
             sources: { type: 'array', items: { type: 'string' }, description: 'KB note paths that support the verdict' },
-            rec: { type: 'string', description: 'What the BD should do or offer: the feature, the setup or the solution' },
-            gap: { type: 'string', description: 'What the product lacks for this requirement; empty when it is fully supported' },
-            q: { type: 'string', description: 'One question for the customer whose answer would change the verdict; empty when there is none' },
+            rec: { type: 'string', description: 'What the BD should do or offer, in Thai: the feature, the setup or the solution' },
+            gap: { type: 'string', description: 'What the product lacks for this requirement, in Thai; empty when it is fully supported' },
+            q: { type: 'string', description: 'One question in Thai for the customer whose answer would change the verdict; empty when there is none' },
           },
           required: ['id', 's', 'confidence', 'reason', 'sources', 'rec', 'gap', 'q'],
         },
@@ -209,7 +209,7 @@ export async function judge(llm: Llm, reqs: RawReq[], kb: Note[], k?: Ctx): Prom
       const why = 'ต้องพัฒนาใหม่ ไม่มี tool ของ Buzzebees รองรับข้อนี้'
       return { id: r.id, module: r.module, text: r.text, ...tag, s: 'custom', conf: '100%', reason: why, evidence: `${r.targets.map(targetName).join(' | ')}: งานพัฒนาใหม่ ไม่ได้อยู่ใน KB`, rec: v?.rec || 'ประเมินขอบเขตและแรงงานของงานพัฒนาใหม่นี้' }
     }
-    if (!v || !STATUSES.includes(v.s)) return { id: r.id, module: r.module, text: r.text, ...tag, s: 'verify', conf: '0%', reason: 'Model gave no valid verdict', evidence: 'ไม่พบหลักฐานที่ตรงกัน', rec: 'ตรวจสอบด้วยตนเอง' }
+    if (!v || !STATUSES.includes(v.s)) return { id: r.id, module: r.module, text: r.text, ...tag, s: 'verify', conf: '0%', reason: 'AI ไม่ได้ให้ผลที่ใช้ได้สำหรับข้อนี้', evidence: 'ไม่พบหลักฐานที่ตรงกัน', rec: 'ตรวจสอบด้วยตนเอง' }
 
     const hasBuild = !!r.targets?.some((t) => t.service === CUSTOM_BUILD)
     const uncovered = r.targets ? r.targets.filter((t) => t.service !== CUSTOM_BUILD && !byTarget.get(t)?.length) : [] // new development needs no note
