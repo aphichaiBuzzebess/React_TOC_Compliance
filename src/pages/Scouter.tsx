@@ -38,6 +38,8 @@ export default function Scouter() {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [grouping, setGrouping] = useState(false)
+  const [backfilling, setBackfilling] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
   const [type, setType] = useState<ScoutType | ''>('')
   const [module, setModule] = useState('')
   const [sort, setSort] = useState<SortKey>('tors')
@@ -64,6 +66,21 @@ export default function Scouter() {
     }
   }, [load])
   useEffect(() => { if (mode === 'account') void load() }, [mode, load])
+  /** Admins: bring in the gaps of TORs saved before the Scouter existed, then group them. Safe to run again. */
+  const backfill = useCallback(async () => {
+    setBackfilling(true)
+    setNote(null)
+    try {
+      const r = await api<{ tors: number; gaps: number; skipped: number }>('POST', '/api/scouter?action=backfill')
+      setNote(`ดึงจาก TOR ที่มีอยู่ ${r.tors} ฉบับ ได้ ${r.gaps} ข้อที่ขาด${r.skipped ? ` (ข้าม ${r.skipped} ฉบับที่เปิดไม่ได้)` : ''}`)
+      autoGrouped.current = true // grouping runs here, not again from the reload
+      await group()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ดึงข้อมูลไม่สำเร็จ')
+    } finally {
+      setBackfilling(false)
+    }
+  }, [group])
   // Gaps that came in since the last grouping are grouped when the page opens, once.
   useEffect(() => {
     if (!data || autoGrouped.current || !data.gaps.some((g) => !g.itemId)) return
@@ -121,6 +138,13 @@ export default function Scouter() {
                 </div>
               ))}
             </dl>
+
+            {isAdmin && (
+              <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
+                <Button disabled={backfilling || grouping} onClick={() => void backfill()}>{backfilling ? 'กำลังดึง…' : 'ดึงจาก TOR ที่บันทึกไว้แล้ว'}</Button>
+                <span>{note ?? 'สำหรับ TOR ที่ประเมินก่อนมี Feature Scouter กดซ้ำได้ ไม่เกิดรายการซ้ำ'}</span>
+              </div>
+            )}
 
             {(pending > 0 || ungrouped.length > 0) && (
               <p role="status" className="m-0 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">

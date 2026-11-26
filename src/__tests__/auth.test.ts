@@ -459,6 +459,35 @@ describe('feature scouter: grouping gaps into needs', () => {
   })
 })
 
+describe('feature scouter: bringing in TORs saved before it', () => {
+  const r = (id: string, st: string) => ({ id, module: 'M', text: `t ${id}`, s: st, conf: '90%', reason: 'x', evidence: 'e', rec: 'c' })
+  const old = (gaps: string[]) => ({ result: gaps.map((g, i) => r(`R-${i + 1}`, g)), coverage: null, valid: {} })
+
+  it('copies the gaps of every user\'s saved TORs, skips broken ones, and keeps the grouping when run again; admins only', async () => {
+    const { cookie: ann } = await signUp('ann')
+    const { cookie: bob } = await signUp('bob')
+    await db.setAdmin((await db.userByName('ann'))!.id, true)
+    const annId = (await db.userByName('ann'))!.id
+    const bobId = (await db.userByName('bob'))!.id
+    // Saved straight into the database, as TORs saved before the Scouter existed were: no gaps copied yet.
+    const a = await db.insertAssessment(annId, { customer: 'ACME', files: [], counts: {}, schema: 1, data: old(['none', 'full']) })
+    await db.insertAssessment(bobId, { customer: 'BETA', files: [], counts: {}, schema: 1, data: old(['custom', 'integ']) })
+    await db.insertAssessment(bobId, { customer: 'OLD', files: [], counts: {}, schema: 0, data: { result: 'old format' } })
+    await db.insertAssessment(bobId, { customer: 'WAIT', files: [], counts: {}, schema: 1, data: { review: [{ id: 'R-1', module: 'M', text: 't' }] } })
+    expect(await db.scoutEvidence()).toEqual([])
+
+    expect((await call(scouterApi.POST, 'POST', '/api/scouter?action=backfill', { cookie: bob })).status).toBe(403)
+    const res = await (await call(scouterApi.POST, 'POST', '/api/scouter?action=backfill', { cookie: ann })).json()
+    expect(res).toEqual({ tors: 2, gaps: 3, skipped: 1 }) // the review-stage TOR has no gaps yet; the broken one is skipped
+    expect(new Set((await db.scoutEvidence()).map((e) => e.customer))).toEqual(new Set(['ACME', 'BETA']))
+
+    const item = await db.scoutCreateItem({ title: 'X', need: '', type: 'NEW_FEATURE', module: 'M' }, 'ann', [{ assessmentId: a, reqId: 'R-1' }])
+    await call(scouterApi.POST, 'POST', '/api/scouter?action=backfill', { cookie: ann })
+    expect(await db.scoutEvidence()).toHaveLength(3) // no duplicates
+    expect((await db.scoutEvidence()).find((e) => e.assessmentId === a)!.itemId).toBe(item.id) // grouping kept
+  })
+})
+
 describe('admin role', () => {
   it('is reported to the signed-in admin only', async () => {
     const { cookie: a } = await signUp('ann')

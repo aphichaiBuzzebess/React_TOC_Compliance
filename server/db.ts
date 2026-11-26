@@ -54,6 +54,8 @@ export interface Db {
   kbSeed(kind: KbKind, items: { key: string; data: unknown }[], by: string): Promise<number> // inserts items with no live row and no history
   /** Feature Scouter: replace one TOR's gaps with `rows`, keeping what people set on the ones that stay (grouping, deal result). */
   scoutSync(assessmentId: string, ownerId: string, rows: EvidenceInput[]): Promise<void>
+  /** Every saved TOR of every user, oldest first: only for copying their gaps into the Scouter (the backfill). */
+  allAssessments(): Promise<{ id: string; userId: string; customer: string; data: unknown }[]>
   /** The TOR was deleted by its owner: its gaps leave the Scouter. */
   scoutDropAssessment(assessmentId: string): Promise<void>
   scoutEvidence(): Promise<Evidence[]>
@@ -206,6 +208,9 @@ export function memoryDb(): Db {
     },
     async scoutDropAssessment(assessmentId) {
       for (const [k, e] of evidence) if (e.assessmentId === assessmentId) evidence.delete(k)
+    },
+    async allAssessments() {
+      return [...rows.values()].sort((x, y) => (x.createdAt < y.createdAt ? -1 : 1)).map((r) => ({ id: r.id, userId: r.userId, customer: r.customer, data: r.data }))
     },
     async scoutEvidence() { return [...evidence.values()].map((e) => ({ ...e })) },
     async scoutItems() { return [...scoutItems.values()].map((x) => ({ ...x })) },
@@ -431,6 +436,10 @@ export function pgDb(pool: Pool): Db {
       }
     },
     async scoutDropAssessment(assessmentId) { await pool.query('delete from scout_evidence where assessment_id=$1', [assessmentId]) },
+    async allAssessments() {
+      const r = await pool.query('select id, user_id, customer, data from assessments order by created_at')
+      return r.rows.map((x) => ({ id: x.id, userId: x.user_id, customer: x.customer, data: x.data }))
+    },
     async scoutEvidence() {
       const r = await pool.query('select assessment_id, owner_id, item_id, data, confirmed, deal_result, lost_because, created_at, updated_at from scout_evidence')
       return r.rows.map((x) => ({ ...(x.data as EvidenceInput), confirmed: x.confirmed, assessmentId: x.assessment_id, ownerId: x.owner_id, itemId: x.item_id, dealResult: x.deal_result, lostBecause: x.lost_because, createdAt: new Date(x.created_at).toISOString(), updatedAt: new Date(x.updated_at).toISOString() }))

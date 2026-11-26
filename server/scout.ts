@@ -211,3 +211,24 @@ export async function runGrouping(db: Db, llm: Llm, by = 'AI'): Promise<{ groupe
   }
   return { grouped, created, left: todo.length - grouped }
 }
+
+// ---- backfill ---------------------------------------------------------------------------------------
+
+/**
+ * Copy the gaps of every TOR saved so far into the Scouter, as a save would: for TORs saved before the Scouter existed.
+ * Safe to run again: a TOR's gaps are replaced, keeping their grouping. Entries that no longer parse are skipped.
+ */
+export async function backfill(db: Db, parse: (raw: unknown) => EntryData): Promise<{ tors: number; gaps: number; skipped: number }> {
+  let tors = 0
+  let gaps = 0
+  let skipped = 0
+  for (const a of await db.allAssessments()) {
+    let data: EntryData
+    try { data = parse(a.data) } catch { skipped++; continue }
+    const ev = evidenceOf(data, a.customer)
+    await db.scoutSync(a.id, a.userId, ev)
+    if (ev.length) tors++
+    gaps += ev.length
+  }
+  return { tors, gaps, skipped }
+}

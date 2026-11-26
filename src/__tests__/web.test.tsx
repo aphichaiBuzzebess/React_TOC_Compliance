@@ -1737,7 +1737,8 @@ describe('one menu for the TOR pages', () => {
       coverage: null,
     })
     open('/summary')
-    for (const h of ['ตรงกับ product ที่เรามี', 'ต้องตัดสินใจ', 'ถามลูกค้า', 'ต้องพัฒนาหรือเชื่อมระบบ', 'รายหมวด', 'เงื่อนไขสัญญาและคุณสมบัติผู้ยื่น', 'Open questions for customer']) expect(screen.getByRole('heading', { name: h })).toBeInTheDocument()
+    for (const h of ['ตรงกับ product ที่เรามี', 'ต้องตัดสินใจ', 'ถามลูกค้า', 'ต้องพัฒนาหรือเชื่อมระบบ', 'รายหมวด', 'เงื่อนไขสัญญาและคุณสมบัติผู้ยื่น']) expect(screen.getByRole('heading', { name: h })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Open questions for customer' })).not.toBeInTheDocument() // hidden for now
     expect(screen.getByText('Registration')).toBeInTheDocument() // the feature of ours it maps to
     expect(screen.getByText('ต้องพัฒนาเพิ่ม: ไม่มีตัวกรองสาขา')).toBeInTheDocument()
     expect(screen.getByText('หน่วงได้กี่นาที')).toBeInTheDocument()
@@ -1970,6 +1971,21 @@ describe('Feature Scouter page', () => {
     await user.selectOptions(drawer.getByLabelText('รวมเข้ากับ'), 'SC-0002')
     await user.click(drawer.getByRole('button', { name: 'รวมเข้าด้วยกัน' }))
     expect(calls.find((c) => c.url === '/api/scouter?action=merge')!.body).toEqual({ from: 'SC-0001', into: 'SC-0002' })
+  })
+
+  it('an admin brings in TORs saved before the Scouter, then they are grouped; others do not get the button', async () => {
+    const user = userEvent.setup()
+    serve({ items: [], gaps: [], admin: true })
+    const first = open('/scouter')
+    await user.click(await screen.findByRole('button', { name: 'ดึงจาก TOR ที่บันทึกไว้แล้ว' }))
+    await waitFor(() => expect(calls.some((c) => c.url === '/api/scouter?action=group')).toBe(true))
+    expect(calls.findIndex((c) => c.url === '/api/scouter?action=backfill')).toBeLessThan(calls.findIndex((c) => c.url === '/api/scouter?action=group')) // copied first, then grouped
+    first.unmount()
+    serve({ items: [], gaps: [], admin: false })
+    open('/scouter')
+    await screen.findByRole('heading', { name: /Feature/ })
+    await waitFor(() => expect(calls.some((c) => c.url === '/api/scouter' && c.method === 'GET')).toBe(true))
+    expect(screen.queryByRole('button', { name: 'ดึงจาก TOR ที่บันทึกไว้แล้ว' })).not.toBeInTheDocument()
   })
 
   it('without accounts it says the Scouter needs them', () => {

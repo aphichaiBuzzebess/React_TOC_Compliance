@@ -18,6 +18,8 @@ import { QuestionsPanel } from '@/pages/Questions'
 const SHORT: Record<keyof Counts, string> = { full: 'ทำได้เลย', config: 'ตั้งค่า', custom: 'พัฒนาเพิ่ม', integ: 'เชื่อมต่อ', none: 'ไม่รองรับ', verify: 'รอยืนยัน' }
 const WORK_SHORT = { config: 'ตั้งค่า', custom: 'พัฒนาเพิ่ม', integ: 'เชื่อมระบบ' } as const
 const FEAT_SHOWN = 8
+/** "Open questions for customer" (the BA's Basic Question check) is hidden from the summary for now; the check still runs and the Excel export keeps it. */
+const SHOW_OPEN_QUESTIONS = false
 
 /** The TORs whose result has been shown in this tab: the bars grow and the number counts up the first time only. */
 const shown = new Set<string>()
@@ -410,7 +412,7 @@ function SummaryContent({ a }: { a: Assessment }) {
       </div>
 
       <DealResult a={a} />
-      <section aria-labelledby="questions-h" className="flex flex-col gap-4 border-t border-line pt-6"><QuestionsPanel /></section>
+      {SHOW_OPEN_QUESTIONS && <section aria-labelledby="questions-h" className="flex flex-col gap-4 border-t border-line pt-6"><QuestionsPanel /></section>}
       {open && <ReqDrawer id={open} ids={order} onOpen={setOpen} onClose={() => setOpen(null)} />}
     </>
   )

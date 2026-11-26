@@ -3,7 +3,8 @@ import { HttpError } from '../server/auth.js'
 import { accountMode, getDb, type User } from '../server/db.js'
 import { handle, serverDefault } from '../server/http.js'
 import { createLlm } from '../server/llm.js'
-import { SCOUT_STATUSES, SCOUT_TYPES, runGrouping } from '../server/scout.js'
+import { SCOUT_STATUSES, SCOUT_TYPES, backfill, runGrouping } from '../server/scout.js'
+import { normaliseEntry } from '../server/history.js'
 
 const action = (req: Request) => new URL(req.url).searchParams.get('action') ?? ''
 const body = async (req: Request) => ((await req.json().catch(() => ({}))) ?? {}) as unknown
@@ -48,7 +49,7 @@ export async function GET(req: Request): Promise<Response> {
   })
 }
 
-// POST ?action=group (anyone signed in: it only sorts gaps, with the server's AI) | new | move | merge (admins)
+// POST ?action=group (anyone signed in: it only sorts gaps, with the server's AI) | backfill | new | move | merge (admins)
 export async function POST(req: Request): Promise<Response> {
   return handle(req, async (user) => {
     const db = await getDb()
@@ -60,6 +61,8 @@ export async function POST(req: Request): Promise<Response> {
       return runGrouping(db, createLlm(d))
     }
     const by = admin(user)
+    // TORs saved before the Scouter existed: copy their gaps in (grouping is a separate step, run next).
+    if (a === 'backfill') return backfill(db, normaliseEntry)
     if (a === 'new') {
       const { gaps, ...f } = parse(newItem, await body(req))
       return { item: await db.scoutCreateItem(f as Parameters<typeof db.scoutCreateItem>[0], by, gaps) }
