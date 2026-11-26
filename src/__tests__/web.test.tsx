@@ -631,14 +631,27 @@ describe('home: upload form', () => {
     useAssessmentStore.setState({ result: [req('R-001', 'verify'), req('R-002', 'integ')], project: { ...EMPTY_PROJECT, title: 'TOR CRM' } })
     const { unmount } = open('/')
     const recent = within(screen.getByRole('region', { name: 'TOR ล่าสุด' }))
-    expect(recent.getByText('TOR CRM')).toBeInTheDocument()
-    expect(recent.getByRole('link', { name: 'รายข้อ' })).toHaveAttribute('href', '/matrix')
-    expect(recent.getByRole('link', { name: 'สรุป' })).toHaveAttribute('href', '/summary')
+    expect(recent.getByRole('button', { name: 'เปิด TOR CRM' })).toBeInTheDocument() // the same row as the TOR list
+    expect(recent.getByRole('table', { name: 'TOR ล่าสุด' })).toHaveTextContent('ยื่นได้') // with the verdict
+    expect(recent.queryByRole('link', { name: /ดูทั้งหมด/ })).not.toBeInTheDocument() // no list to see without accounts
     unmount()
     useAssessmentStore.setState({ running: true })
     open('/')
     expect(screen.queryByRole('region', { name: 'TOR ล่าสุด' })).not.toBeInTheDocument()
     useAssessmentStore.setState({ running: false })
+  })
+
+  it('with accounts, shows the newest three as TOR list rows and a way to the rest', async () => {
+    const e = (n: number) => ({ id: `h-${n}`, customer: `C${n}`, title: `TOR ${n}`, files: [], counts: { full: 2, none: 1 }, createdAt: '2026-11-20T10:00:00.000Z' })
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => ({ ok: true, status: 200, json: async () => (url === '/api/history' ? { entries: [1, 2, 3, 4].map(e) } : url === '/api/auth' ? { mode: 'account', user: { username: 'ann' } } : {}) }) as Response))
+    useAssessmentStore.setState({ mode: 'account', user: 'ann', owner: 'ann' })
+    open('/')
+    const recent = within(await screen.findByRole('region', { name: 'TOR ล่าสุด' }))
+    expect(recent.getAllByRole('button', { name: /^เปิด TOR / })).toHaveLength(3)
+    expect(recent.getByRole('link', { name: 'ดูทั้งหมด 4' })).toHaveAttribute('href', '/history')
+    expect(recent.getByRole('table', { name: 'TOR ล่าสุด' })).toHaveTextContent('67%')
+    vi.unstubAllGlobals()
+    useAssessmentStore.setState({ mode: 'unknown', user: null, owner: null })
   })
 
   it('has no recent list before the first assessment', () => {

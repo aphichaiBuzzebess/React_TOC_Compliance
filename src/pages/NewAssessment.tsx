@@ -6,8 +6,9 @@ import { STEPS } from '@/data/tor'
 import { AI_PROVIDERS } from '@/data/models'
 import { industries, leafIndustries, subIndustries } from '@/data/industries'
 import { useAssessment } from '@/lib/useAssessment'
-import { score, scoreCounts } from '@/lib/verdict'
-import { Button, Elapsed, PageHeader, metaLabel } from '@/components/ui'
+import { countsOf } from '@/lib/verdict'
+import { TorRows, type TorEntry } from '@/components/TorList'
+import { Button, Elapsed, PageHeader } from '@/components/ui'
 import { cn } from '@/lib/utils'
 
 const HoopDrop = lazy(() => import('@/components/HoopDrop')) // the game's code loads only when the mode is switched on
@@ -19,19 +20,16 @@ const SAMPLE = { url: '/samples/tor-sample.txt', name: 'TOR-ตัวอย่�
 const RECENT = 3
 
 const field = 'h-11 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink disabled:cursor-not-allowed disabled:bg-tint disabled:text-muted'
-const fmtDate = (iso: string) => (iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('th-TH', { dateStyle: 'medium' }) : '')
 
-interface Recent { id: string; title: string; customer: string; due: string; counts: Record<string, number> }
-
-/** The newest saved TORs (account mode). Nothing is shown until they load, and nothing on failure: this list is a shortcut, not the task. */
-function useRecent(enabled: boolean): Recent[] {
-  const [rows, setRows] = useState<Recent[]>([])
+/** The saved TORs, newest first (account mode). Nothing is shown until they load, and nothing on failure: this list is a shortcut, not the task. */
+function useRecent(enabled: boolean): TorEntry[] {
+  const [rows, setRows] = useState<TorEntry[]>([])
   useEffect(() => {
     if (!enabled) return
     let live = true
     fetch('/api/history')
       .then((res) => (res.ok ? res.json() : { entries: [] }))
-      .then((body) => live && setRows((body.entries ?? []).slice(0, RECENT)))
+      .then((body) => live && setRows(body.entries ?? []))
       .catch(() => undefined)
     return () => { live = false }
   }, [enabled])
@@ -51,6 +49,7 @@ export default function NewAssessment() {
   const setCustomer = (c: string) => setDraft({ customer: c })
   const setProject = setDraft
   const lastTor = { title: useAssessmentStore((s) => s.project.title), customer: useAssessmentStore((s) => s.customer) } // the last TOR run, not the form
+  const lastDue = useAssessmentStore((s) => s.project.due)
   const aiReady = useAssessmentStore(hasAi)
   const pending = useAssessmentStore((s) => s.review !== null) // classified, waiting for the BA to confirm solutions
   const use = useAssessmentStore(activeAi)
@@ -77,6 +76,8 @@ export default function NewAssessment() {
     if (!project.title) setProject({ title: SAMPLE.title })
     if (!customer) setCustomer(SAMPLE.customer)
   }
+  // Without accounts, the last result in this browser, shaped like a saved TOR so it shows as the same row.
+  const lastEntry: TorEntry | null = last ? { id: 'last', title: lastTor.title, customer: lastTor.customer, due: lastDue, files: [], counts: countsOf(last.reqs), createdAt: new Date().toISOString() } : null
   const openRecent = async (id: string) => { if (await openHistory(id)) nav(useAssessmentStore.getState().review ? '/review' : '/summary') }
 
   const subs = project.industry ? subIndustries(project.industry) : []
@@ -236,41 +237,17 @@ export default function NewAssessment() {
         {error && <p role="alert" className="m-0 text-sm text-danger">{error}</p>}
       </section>
 
-      {!running && (recent.length > 0 || (mode !== 'account' && last)) && (
-        <section aria-labelledby="recent-h" className="flex flex-col gap-2">
-          <h2 id="recent-h" className={cn(metaLabel, 'm-0')}>TOR ล่าสุด</h2>
-          <ul className="m-0 flex list-none flex-col p-0">
-            {recent.length > 0
-              ? recent.map((r) => {
-                  const waiting = (r.counts.review ?? 0) > 0
-                  const { total, cov: share } = scoreCounts(r.counts)
-                  const name = r.title || r.customer || 'ไม่ระบุชื่อโครงการ'
-                  return (
-                    <li key={r.id} className="border-t border-line first:border-t-0">
-                      <button type="button" onClick={() => openRecent(r.id)} className="flex min-h-11 w-full items-center gap-4 py-3 text-left">
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate font-medium text-ink">{name}</span>
-                          <span className="truncate text-xs text-muted">{[r.title ? r.customer : '', r.due && `ยื่น ${fmtDate(r.due)}`].filter(Boolean).join(', ') || `${total} ข้อ`}</span>
-                        </span>
-                        {waiting ? <span className="flex-none text-sm text-muted">รอตรวจ requirement</span> : <span className="flex-none text-2xl font-medium tracking-[-0.03em] text-ink">{share}<small className="text-sm text-muted">%</small></span>}
-                      </button>
-                    </li>
-                  )
-                })
-              : last && (
-                  <li className="flex flex-wrap items-center gap-x-5 gap-y-1 py-3">
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate font-medium text-ink">{lastTor.title || lastTor.customer || 'ผลประเมินล่าสุด'}</span>
-                      <span className="text-xs text-muted">{last.total} ข้อ · ต้องตรวจสอบ {last.counts.verify} · ต้องพัฒนา/เชื่อมระบบ {last.counts.custom + last.counts.integ}</span>
-                    </span>
-                    <span className="text-2xl font-medium tracking-[-0.03em] text-ink">{score(last.reqs).cov}<small className="text-sm text-muted">%</small></span>
-                    <span className="flex gap-x-5">
-                      <Link to="/summary" className="inline-flex min-h-11 items-center font-medium text-amber-text underline underline-offset-4">สรุป</Link>
-                      <Link to="/matrix" className="inline-flex min-h-11 items-center font-medium text-amber-text underline underline-offset-4">รายข้อ</Link>
-                    </span>
-                  </li>
-                )}
-          </ul>
+      {/* As in the mockup: the newest three as the same rows as the TOR list, and a way to the rest. Without accounts there is
+          no list, only the last result in this browser. */}
+      {!running && (recent.length > 0 || (mode !== 'account' && lastEntry)) && (
+        <section aria-labelledby="recent-h" className="flex flex-col gap-4 border-t border-line pt-8">
+          <div className="flex flex-wrap items-baseline justify-between gap-4">
+            <h2 id="recent-h" className="m-0 text-xl font-semibold tracking-[-0.02em] text-ink">TOR ล่าสุด</h2>
+            {recent.length > RECENT && <Link to="/history" className="text-sm font-medium text-ink underline underline-offset-4">ดูทั้งหมด {recent.length}</Link>}
+          </div>
+          {recent.length > 0
+            ? <TorRows entries={recent.slice(0, RECENT)} label="TOR ล่าสุด" onOpen={openRecent} />
+            : lastEntry && <TorRows entries={[lastEntry]} label="TOR ล่าสุด" onOpen={() => nav('/summary')} />}
         </section>
       )}
     </div>
