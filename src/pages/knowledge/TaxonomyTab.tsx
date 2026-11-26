@@ -89,7 +89,7 @@ export default function TaxonomyTab({ taxonomy, updatedAt, admin, reload, noteCo
     <div className="flex flex-col gap-4">
       {admin && (
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="primary" disabled={!dirty} onClick={save}>บันทึก taxonomy</Button>
+          <Button variant="primary" disabled={!dirty} onClick={save}>บันทึก</Button>
           {dirty && <Button variant="ghost" onClick={() => { setDraft(clone(taxonomy)); setSel(null) }}>ทิ้งการแก้ไข</Button>}
           {dirty && <span className="text-xs text-muted">ยังไม่ได้บันทึก</span>}
           <Button variant="ghost" onClick={() => setVersions(!versions)}>เวอร์ชัน</Button>

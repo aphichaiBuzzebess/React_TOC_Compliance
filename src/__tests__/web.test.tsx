@@ -1302,7 +1302,7 @@ describe('knowledge base page', () => {
     expect(screen.getAllByText('judge default text').length).toBeGreaterThan(0)
     expect(screen.queryByRole('textbox', { name: /Judge/ })).not.toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: /^Solution/ }))
-    expect(screen.queryByRole('button', { name: /บันทึก taxonomy/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'บันทึก' })).not.toBeInTheDocument()
     expect(calls.every((c) => c.method === 'GET')).toBe(true) // nothing was written
   })
 
@@ -1441,7 +1441,7 @@ describe('knowledge base page', () => {
     await user.type(tx.getByLabelText('ชื่อของ billing'), 'Billing')
     await user.click(tx.getByRole('button', { name: /^APIM Productization/ })) // pick an existing service in the list
     await user.click(tx.getByRole('button', { name: 'เก็บเข้าคลัง (archive)' }))
-    await user.click(screen.getByRole('button', { name: 'บันทึก taxonomy' }))
+    await user.click(tx.getByRole('button', { name: 'บันทึก' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true))
     const sent = calls.find((c) => c.method === 'PUT')!.body as { taxonomy: { services: { id: string; archived?: boolean }[] }; updatedAt: string }
     expect(sent.updatedAt).toBe('tax-1')
