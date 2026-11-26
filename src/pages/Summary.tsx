@@ -9,7 +9,7 @@ import { buildSolution, type Counts, type Line } from '@/lib/solution'
 import { featureOf } from '@/lib/evidence'
 import { GROUPS, SEVERITY, VERDICT, VERDICT_ORDER, bySeverity, groupOf, headline, score, why, type Score } from '@/lib/verdict'
 import type { Assessment } from '@/lib/assessment'
-import type { Req } from '@/lib/types'
+import type { Deal, Req } from '@/lib/types'
 import { Button, EmptyState } from '@/components/ui'
 import { BarButtons, Dot, ReqDrawer, St, Verdict, dealBreaker } from '@/components/tor'
 import ResultHead from '@/components/ResultHead'
@@ -229,6 +229,50 @@ function Matches({ a, onOpen }: { a: Assessment; onOpen: (id: string) => void })
   )
 }
 
+const DEAL_RESULTS: { k: Deal['result']; label: string }[] = [{ k: 'open', label: 'ยังไม่ปิด' }, { k: 'won', label: 'ชนะ' }, { k: 'lost', label: 'แพ้' }]
+
+/**
+ * How the bid ended. With "lost", the gaps it was lost for are ticked: the Feature Scouter adds this deal to "deals lost for lack
+ * of the feature" of each ticked gap's need. Kept outside the PDF: it is a control, not part of the report.
+ */
+function DealResult({ a }: { a: Assessment }) {
+  const deal = useAssessmentStore((s) => s.deal)
+  const setDeal = useAssessmentStore((s) => s.setDeal)
+  const gaps = a.reqs.filter((r) => r.s === 'none' || r.s === 'custom' || r.s === 'integ')
+  const toggle = (id: string, on: boolean) => setDeal({ lostBecause: on ? [...deal.lostBecause, id] : deal.lostBecause.filter((x) => x !== id) })
+  return (
+    <section aria-labelledby="deal-h" className="flex flex-col gap-3 border-t border-line pt-6">
+      <div className="flex flex-col gap-1">
+        <h2 id="deal-h" className="m-0 text-xl font-semibold tracking-[-0.02em] text-ink">ผลดีล</h2>
+        <p className="m-0 text-sm text-muted">กรอกเมื่อรู้ผล ถ้าแพ้ ให้ติ๊กข้อที่ทำให้แพ้ Feature Scouter จะนับมูลค่าดีลนี้เป็น "ดีลที่แพ้เพราะขาดฟีเจอร์" ของข้อนั้น</p>
+      </div>
+      <div role="group" aria-label="ผลดีล" className="flex w-fit gap-1 rounded-full bg-tint p-1">
+        {DEAL_RESULTS.map((o) => (
+          <button key={o.k} type="button" aria-pressed={deal.result === o.k} onClick={() => setDeal({ result: o.k })} className={`h-9 rounded-full border-0 px-4 text-sm transition-colors ${deal.result === o.k ? 'bg-surface font-semibold text-ink shadow-sm' : 'bg-transparent text-muted hover:text-ink'}`}>{o.label}</button>
+        ))}
+      </div>
+      {deal.result === 'lost' && (
+        gaps.length ? (
+          <fieldset className="m-0 flex flex-col border-0 p-0">
+            <legend className="mb-1 p-0 text-sm font-medium text-ink">แพ้เพราะขาดข้อไหน</legend>
+            {gaps.map((r) => (
+              <label key={r.id} className="flex cursor-pointer items-start gap-3 border-t border-line py-2.5 first-of-type:border-t-0">
+                <input type="checkbox" checked={deal.lostBecause.includes(r.id)} onChange={(e) => toggle(r.id, e.target.checked)} className="mt-0.5 size-5 flex-none accent-[var(--color-ink)]" />
+                <span className="min-w-0">
+                  <span className="block text-ink wrap-anywhere"><span className="mr-2 font-mono text-[13px] text-muted">{r.id}</span>{r.text}</span>
+                  <span className="block text-[13px] text-muted">{STATUS[r.s].th}{r.gap ? `: ${r.gap}` : ''}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        ) : (
+          <p className="m-0 text-sm text-muted">TOR นี้ไม่มีข้อที่ product ขาด</p>
+        )
+      )}
+    </section>
+  )
+}
+
 function SummaryContent({ a }: { a: Assessment }) {
   const confirmed = useAssessmentStore((s) => Object.values(s.valid).filter((v) => v === 'ok').length)
   const customer = useAssessmentStore((s) => s.customer)
@@ -365,6 +409,7 @@ function SummaryContent({ a }: { a: Assessment }) {
         </p>
       </div>
 
+      <DealResult a={a} />
       <section aria-labelledby="questions-h" className="flex flex-col gap-4 border-t border-line pt-6"><QuestionsPanel /></section>
       {open && <ReqDrawer id={open} ids={order} onOpen={setOpen} onClose={() => setOpen(null)} />}
     </>

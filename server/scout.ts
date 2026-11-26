@@ -28,6 +28,10 @@ export interface EvidenceInput {
   industry: string
   deal: number | null
   due: string
+  /** How the bid ended (the TOR owner sets it on the summary page). */
+  dealResult: DealResult
+  /** The deal was lost because the product lacked this. */
+  lostBecause: boolean
 }
 
 export type DealResult = 'open' | 'won' | 'lost'
@@ -36,9 +40,6 @@ export interface Evidence extends EvidenceInput {
   ownerId: string | null
   /** The need it was grouped into; null until it is grouped. */
   itemId: string | null
-  dealResult: DealResult
-  /** The deal was lost because the product lacked this. */
-  lostBecause: boolean
   createdAt: string
   updatedAt: string
 }
@@ -81,6 +82,8 @@ export function evidenceOf(data: EntryData, customer: string): EvidenceInput[] {
       industry: industryOf(m),
       deal: m?.value ?? null,
       due: m?.due ?? '',
+      dealResult: data.deal.result,
+      lostBecause: data.deal.result === 'lost' && data.deal.lostBecause.includes(r.id),
     }))
 }
 

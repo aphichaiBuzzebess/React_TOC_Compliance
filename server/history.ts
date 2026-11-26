@@ -59,6 +59,8 @@ const data = z.object({
   review: z.array(pending).max(1000).nullable().default(null),
   terms: z.array(term).max(300).default([]),
   confirmed: z.object({ by: str(120), at: str(40) }).nullable().default(null),
+  /** How the bid ended, and which gaps it was lost for: what the Feature Scouter counts as deals lost for lack of a feature. */
+  deal: z.object({ result: z.enum(['open', 'won', 'lost']).default('open'), lostBecause: z.array(str(20)).max(300).default([]) }).default({ result: 'open', lostBecause: [] }),
   result: z.array(req).max(1000).default([]),
   coverage: z.array(coverage).max(100).nullable().default(null),
   valid: z.record(key, z.enum(['ok', 'flag'])).default({}),

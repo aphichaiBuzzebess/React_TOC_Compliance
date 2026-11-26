@@ -27,6 +27,7 @@ const STATUS_DOT: Record<ScoutStatus, React.CSSProperties> = {
 const StatusDot = ({ s }: { s: ScoutStatus }) => <i aria-hidden className="inline-block size-2 flex-none rounded-full" style={STATUS_DOT[s]} />
 const fmtDate = (iso: string) => (iso ? new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('th-TH', { dateStyle: 'medium' }) : '–')
 const RECENT_DAYS = 3
+const DEAL_LABEL = { open: 'ยังไม่ปิดดีล', won: 'ชนะ', lost: 'แพ้' } as const
 const key = (g: Pick<ScoutGap, 'assessmentId' | 'reqId'>) => ({ assessmentId: g.assessmentId, reqId: g.reqId })
 
 interface Data { items: ScoutItem[]; gaps: ScoutGap[]; admin: boolean }
@@ -298,7 +299,10 @@ function NeedDrawer({ row, items, admin, onClose, onChanged, onError }: { row: R
             {byTor.map((t) => (
               <div key={t[0].assessmentId} className="flex flex-col gap-1.5 border-t border-line py-4">
                 <div className="flex flex-wrap justify-between gap-2 text-[13.5px] text-muted"><b className="text-[15px] font-semibold text-ink">{t[0].customer || '–'}</b><span>{[t[0].industry, fmtDate(t[0].due || t[0].createdAt)].filter(Boolean).join(', ')}</span></div>
-                <p className="m-0 text-[13.5px] text-muted">{t[0].tor} · ดีล {money(t[0].deal)}</p>
+                <p className="m-0 text-[13.5px] text-muted">
+                  {t[0].tor} · ดีล {money(t[0].deal)} · {DEAL_LABEL[t[0].dealResult]}
+                  {t.some((g) => g.lostBecause) && <span className="ml-1.5 rounded-full bg-[var(--st-none-bg)] px-2 py-px text-xs font-medium text-[var(--st-none-fg)]">แพ้เพราะขาดฟีเจอร์นี้</span>}
+                </p>
                 {t.map((g) => (
                   <div key={g.reqId} className="flex flex-col gap-1">
                     <p className="m-0 text-ink wrap-anywhere">

@@ -1977,3 +1977,21 @@ describe('Feature Scouter page', () => {
     expect(screen.getByText('ใช้ได้เมื่อเปิดระบบบัญชี')).toBeInTheDocument()
   })
 })
+
+describe('deal result on the summary page', () => {
+  it('records how the bid ended and, when lost, the gaps it was lost for; anything but lost clears them', async () => {
+    const user = userEvent.setup()
+    useAssessmentStore.setState({ result: [req('R-001', 'full'), { ...req('R-002', 'none'), gap: 'ไม่มีบัญชีครอบครัว' }, req('R-003', 'integ')] })
+    open('/summary')
+    const section = within(screen.getByRole('region', { name: 'ผลดีล' }))
+    expect(section.getByRole('button', { name: 'ยังไม่ปิด' })).toHaveAttribute('aria-pressed', 'true')
+    expect(section.queryByRole('checkbox')).not.toBeInTheDocument()
+    await user.click(section.getByRole('button', { name: 'แพ้' }))
+    expect(section.getAllByRole('checkbox')).toHaveLength(2) // only the gaps: R-001 is supported
+    await user.click(section.getByRole('checkbox', { name: /R-002/ }))
+    expect(useAssessmentStore.getState().deal).toEqual({ result: 'lost', lostBecause: ['R-002'] })
+    await user.click(section.getByRole('button', { name: 'ชนะ' }))
+    expect(useAssessmentStore.getState().deal).toEqual({ result: 'won', lostBecause: [] })
+    useAssessmentStore.setState({ deal: { result: 'open', lostBecause: [] } })
+  })
+})

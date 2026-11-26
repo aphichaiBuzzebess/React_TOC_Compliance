@@ -45,6 +45,10 @@ export type RawReq = Pick<Req, 'id' | 'module' | 'text' | 'targets' | 'wantsApi'
 /** A contract or bidder term from the TOR: not judged, ticked off by the BD once checked. */
 export interface Term { id: string; text: string; ref?: string; ok?: boolean }
 
+/** How the bid for a TOR ended, and the gaps (requirement ids) it was lost for. */
+export interface Deal { result: 'open' | 'won' | 'lost'; lostBecause: string[] }
+export const OPEN_DEAL: Deal = { result: 'open', lostBecause: [] }
+
 /** What the judge returns per requirement. */
 export type Verdict = Pick<Req, 'id' | 's' | 'reason' | 'rec'> & { confidence: number; sources: string[]; gap?: string; q?: string }
 

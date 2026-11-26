@@ -361,6 +361,16 @@ describe('feature scouter: the gaps of every saved TOR', () => {
     expect(new Set((await gaps()).map((e) => e.customer))).toEqual(new Set(['ACME', 'BETA']))
   })
 
+  it('takes the deal result from the TOR: lost marks the gaps it was lost for; won clears them; an old entry is still open', async () => {
+    const { cookie } = await signUp('ann')
+    const { id } = await save(cookie, judged({ deal: { result: 'lost', lostBecause: ['R-2', 'R-1'] } })) // R-1 is supported: not a gap, ignored
+    expect((await gaps()).map((e) => [e.reqId, e.dealResult, e.lostBecause])).toEqual([['R-2', 'lost', true], ['R-3', 'lost', false], ['R-4', 'lost', false]])
+    await call(historyApi.PUT, 'PUT', `/api/history?id=${id}`, { cookie, body: { data: judged({ deal: { result: 'won', lostBecause: ['R-2'] } }) } })
+    expect((await gaps()).map((e) => [e.dealResult, e.lostBecause])).toEqual([['won', false], ['won', false], ['won', false]])
+    await save(cookie, judged()) // saved before deal results existed
+    expect((await gaps()).filter((e) => e.assessmentId !== id).every((e) => e.dealResult === 'open' && !e.lostBecause)).toBe(true)
+  })
+
   it('never fails a save when the Scouter cannot be updated', async () => {
     const { cookie } = await signUp('ann')
     const real = db.scoutSync

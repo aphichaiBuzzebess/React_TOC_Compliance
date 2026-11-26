@@ -201,7 +201,7 @@ export function memoryDb(): Db {
       for (const r of input) {
         const k = `${assessmentId}\u0000${r.reqId}`
         const cur = evidence.get(k)
-        evidence.set(k, { ...r, assessmentId, ownerId, itemId: cur?.itemId ?? null, dealResult: cur?.dealResult ?? 'open', lostBecause: cur?.lostBecause ?? false, createdAt: cur?.createdAt ?? now, updatedAt: now })
+        evidence.set(k, { ...r, assessmentId, ownerId, itemId: cur?.itemId ?? null, createdAt: cur?.createdAt ?? now, updatedAt: now }) // the grouping stays; the rest comes from the TOR
       }
     },
     async scoutDropAssessment(assessmentId) {
@@ -417,9 +417,9 @@ export function pgDb(pool: Pool): Db {
         await c.query('delete from scout_evidence where assessment_id=$1 and not (req_id = any($2::text[]))', [assessmentId, input.map((r) => r.reqId)])
         if (input.length)
           await c.query(
-            `insert into scout_evidence(assessment_id, req_id, owner_id, data, confirmed)
-             select $1, x->>'reqId', $2, x, (x->>'confirmed')::boolean from jsonb_array_elements($3::jsonb) x
-             on conflict (assessment_id, req_id) do update set data=excluded.data, confirmed=excluded.confirmed, owner_id=excluded.owner_id, updated_at=now()`,
+            `insert into scout_evidence(assessment_id, req_id, owner_id, data, confirmed, deal_result, lost_because)
+             select $1, x->>'reqId', $2, x, (x->>'confirmed')::boolean, coalesce(x->>'dealResult', 'open'), coalesce((x->>'lostBecause')::boolean, false) from jsonb_array_elements($3::jsonb) x
+             on conflict (assessment_id, req_id) do update set data=excluded.data, confirmed=excluded.confirmed, owner_id=excluded.owner_id, deal_result=excluded.deal_result, lost_because=excluded.lost_because, updated_at=now()`,
             [assessmentId, ownerId, JSON.stringify(input)],
           )
         await c.query('commit')

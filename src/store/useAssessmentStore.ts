@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STEPS } from '@/data/tor'
 import { defaultModel, type ProviderId } from '@/data/models'
-import type { FunctionCoverage, Priority, RawReq, Req, StatusKey, Target, Term } from '@/lib/types'
+import type { Deal, FunctionCoverage, Priority, RawReq, Req, StatusKey, Target, Term } from '@/lib/types'
+import { OPEN_DEAL } from '@/lib/types'
 import { isCommercial } from '@/data/categories'
 import { DEFAULT_TAXONOMY, MAX_TARGETS, legacyTargets, type Taxonomy } from '@/data/taxonomy'
 
@@ -67,6 +68,8 @@ interface AssessmentState {
   scope: string // what the TOR as a whole asks for, in a sentence or two (from the extract step)
   terms: Term[] // contract and bidder terms: not judged, ticked off by the BD
   confirmed: { by: string; at: string } | null // who confirmed the requirement list, and when (ISO)
+  deal: Deal // how the bid ended; the Feature Scouter counts deals lost for lack of a feature from it
+  setDeal: (patch: Partial<Deal>) => void // a result other than lost clears the gaps it was lost for
   coverage: FunctionCoverage[] | null
   filter: 'all' | StatusKey
   query: string
@@ -134,7 +137,7 @@ async function fetchCoverage(auth: Auth, requirements: RawReq[]): Promise<Functi
 }
 
 /** What a person leaves behind on screen: wiped on sign-out, when the session ends, and when another person signs in. */
-const WIPE = { draft: EMPTY_DRAFT, result: null, review: null, scope: '', terms: [] as Term[], confirmed: null, coverage: null, valid: {}, selId: null, customer: '', project: EMPTY_PROJECT, historyId: null, historyError: null, apiKey: '', files: [] as File[], step: -1, error: null }
+const WIPE = { draft: EMPTY_DRAFT, result: null, review: null, scope: '', terms: [] as Term[], confirmed: null, deal: OPEN_DEAL, coverage: null, valid: {}, selId: null, customer: '', project: EMPTY_PROJECT, historyId: null, historyError: null, apiKey: '', files: [] as File[], step: -1, error: null }
 
 /** A JSON call to our own API with the CSRF header and the session cookie. */
 async function send(path: string, method: string, body?: unknown) {
@@ -169,7 +172,7 @@ function enter(username: string | undefined, admin = false): null {
 let syncTimer: ReturnType<typeof setTimeout> | undefined
 
 /** What a history entry holds: the review while one waits, else the judged result. */
-const entryData = (s: AssessmentState) => ({ meta: s.project, scope: s.scope, review: s.review, terms: s.terms, confirmed: s.confirmed, result: s.result ?? [], coverage: s.coverage, valid: s.valid })
+const entryData = (s: AssessmentState) => ({ meta: s.project, scope: s.scope, review: s.review, terms: s.terms, confirmed: s.confirmed, deal: s.deal, result: s.result ?? [], coverage: s.coverage, valid: s.valid })
 const nextId = (rows: { id: string }[]) => `R-${String(Math.max(0, ...rows.map((r) => Number(r.id.replace(/\D/g, '')) || 0)) + 1).padStart(3, '0')}`
 
 /** `fn` over BATCH-sized slices, PARALLEL at a time, joined in order. `progress` gets (done, total) after each slice. */
@@ -302,7 +305,7 @@ export const useAssessmentStore = create<AssessmentState>()(
         const { entry } = body
         const d = entry.data
         const pending = Array.isArray(d.review)
-        set({ result: pending ? null : d.result, review: pending ? d.review : null, scope: d.scope ?? '', terms: d.terms ?? [], confirmed: d.confirmed ?? null, coverage: d.coverage, valid: d.valid, customer: entry.customer, project: { ...EMPTY_PROJECT, ...d.meta }, selId: pending ? null : (d.result[0]?.id ?? null), historyId: id, step: pending ? 2 : STEPS.length, filter: 'all', query: '', error: null, historyError: null })
+        set({ result: pending ? null : d.result, review: pending ? d.review : null, scope: d.scope ?? '', terms: d.terms ?? [], confirmed: d.confirmed ?? null, deal: d.deal ?? OPEN_DEAL, coverage: d.coverage, valid: d.valid, customer: entry.customer, project: { ...EMPTY_PROJECT, ...d.meta }, selId: pending ? null : (d.result[0]?.id ?? null), historyId: id, step: pending ? 2 : STEPS.length, filter: 'all', query: '', error: null, historyError: null })
         return true
       },
       saveHistory: async () => {
@@ -333,6 +336,7 @@ export const useAssessmentStore = create<AssessmentState>()(
       scope: '',
       terms: [],
       confirmed: null,
+      deal: OPEN_DEAL,
       coverage: null,
       filter: 'all',
       query: '',
@@ -392,7 +396,7 @@ export const useAssessmentStore = create<AssessmentState>()(
           // Stop here: the BA checks the list (text, category, priority, solution and service) before anything is judged.
           // Classify answers with id, module, text and the targets; what extract found besides is put back from the request.
           const review = classified.map((c) => ({ ...byId.get(c.id), ...c }))
-          set({ review, scope: scopes.filter(Boolean).join(' '), terms: [], confirmed: null, result: null, coverage: null, valid: {}, step: 2, running: false, startedAt: null, detail: '', draft: EMPTY_DRAFT, files: [] })
+          set({ review, scope: scopes.filter(Boolean).join(' '), terms: [], confirmed: null, deal: OPEN_DEAL, result: null, coverage: null, valid: {}, step: 2, running: false, startedAt: null, detail: '', draft: EMPTY_DRAFT, files: [] })
           void get().saveHistory() // the TOR is in the list from here on, waiting for its review
         } catch (e) {
           set({ running: false, startedAt: null, detail: '', step: -1, error: e instanceof Error ? e.message : 'Assessment failed' })
@@ -428,6 +432,11 @@ export const useAssessmentStore = create<AssessmentState>()(
         return id
       },
       setTermOk: (id, ok) => { set({ terms: get().terms.map((t) => (t.id === id ? { ...t, ok } : t)) }); get().syncHistory() },
+      setDeal: (patch) => {
+        const next = { ...get().deal, ...patch }
+        set({ deal: next.result === 'lost' ? next : { ...next, lostBecause: [] } })
+        get().syncHistory()
+      },
       override: (id, s, note) => {
         set({
           result: get().result?.map((r) => {
@@ -443,7 +452,7 @@ export const useAssessmentStore = create<AssessmentState>()(
         const { historyId, mode } = get()
         // A review saved to the list goes from the list too: nothing was judged, so nothing is lost.
         if (historyId && mode === 'account') void send(`/api/history?id=${historyId}`, 'DELETE')
-        set({ review: null, historyId: null, scope: '', terms: [], confirmed: null, step: -1, error: null })
+        set({ review: null, historyId: null, scope: '', terms: [], confirmed: null, deal: OPEN_DEAL, step: -1, error: null })
       },
       confirmReview: async () => {
         const { review: all } = get()
@@ -505,7 +514,7 @@ export const useAssessmentStore = create<AssessmentState>()(
         if (from < 1) return { ...st, result: st.result?.map(legacyTargets) ?? null, review: st.review?.map(legacyTargets) ?? null } as AssessmentState
         return st as AssessmentState
       },
-      partialize: (s) => ({ draft: s.draft, theme: s.theme, owner: s.owner, historyId: s.historyId, result: s.result, review: s.review, scope: s.scope, terms: s.terms, confirmed: s.confirmed, coverage: s.coverage, valid: s.valid, selId: s.selId, customer: s.customer, project: s.project, provider: s.provider, model: s.model }),
+      partialize: (s) => ({ deal: s.deal, draft: s.draft, theme: s.theme, owner: s.owner, historyId: s.historyId, result: s.result, review: s.review, scope: s.scope, terms: s.terms, confirmed: s.confirmed, coverage: s.coverage, valid: s.valid, selId: s.selId, customer: s.customer, project: s.project, provider: s.provider, model: s.model }),
     },
   ),
 )
