@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ArrowRight, Copy } from 'lucide-react'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { ORDER, STATUS } from '@/data/tor'
@@ -18,6 +18,35 @@ import { QuestionsPanel } from '@/pages/Questions'
 const SHORT: Record<keyof Counts, string> = { full: 'ทำได้เลย', config: 'ตั้งค่า', custom: 'พัฒนาเพิ่ม', integ: 'เชื่อมต่อ', none: 'ไม่รองรับ', verify: 'รอยืนยัน' }
 const WORK_SHORT = { config: 'ตั้งค่า', custom: 'พัฒนาเพิ่ม', integ: 'เชื่อมระบบ' } as const
 const FEAT_SHOWN = 8
+
+/** The TORs whose result has been shown in this tab: the bars grow and the number counts up the first time only. */
+const shown = new Set<string>()
+function useFirstView(key: string) {
+  const [first] = useState(() => !shown.has(key))
+  useEffect(() => { shown.add(key) }, [key])
+  return first
+}
+const calm = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+/** 0 up to `to` in 0.9 s, easing out; once. Later changes (a person changes a status) show at once. */
+function useCountUp(to: number, run: boolean) {
+  const [v, setV] = useState(run && !calm() ? 0 : to)
+  const done = useRef(!run || calm())
+  useEffect(() => {
+    if (done.current) { setV(to); return }
+    done.current = true
+    const t0 = performance.now()
+    let raf = 0
+    const step = (now: number) => {
+      const p = Math.min(1, (now - t0) / 900)
+      setV(Math.round(to * (1 - (1 - p) ** 3)))
+      if (p < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [to])
+  return v
+}
 
 /** Status counts as small dots with a number: only the statuses that occur. */
 function Breakdown({ by }: { by: Counts }) {
@@ -87,13 +116,14 @@ function Column({ dot, title, n, sub, right, items, empty }: { dot: CSSPropertie
   )
 }
 
-function Hero({ s }: { s: Score }) {
+function Hero({ s, first }: { s: Score; first: boolean }) {
   const w = why(s)
+  const n = useCountUp(s.cov, first)
   return (
     <section aria-label="ผลการประเมิน" className="grid items-end gap-x-10 gap-y-6 pb-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <div>
         <p className="m-0 whitespace-nowrap text-[clamp(80px,10vw,136px)] font-semibold leading-[0.82] tracking-[-0.065em] text-ink tabular-nums" aria-label={`รองรับได้ ${s.cov}%`}>
-          {s.cov}<span className="ml-[0.08em] align-[0.95em] text-[0.38em] tracking-[-0.02em] text-muted">%</span>
+          {n}<span className="ml-[0.08em] align-[0.95em] text-[0.38em] tracking-[-0.02em] text-muted">%</span>
         </p>
         <p className="m-0 mt-[18px] text-[15px] text-muted">รองรับได้ {s.okN} จาก {s.evaluable} ข้อที่ประเมินได้</p>
       </div>
@@ -127,7 +157,8 @@ function Hero({ s }: { s: Score }) {
 }
 
 /** One bar per requirement in four groups, lightest to heaviest; height says how much it matters. Each bar opens that requirement. */
-function Strip({ a, s, onOpen }: { a: Assessment; s: Score; onOpen: (id: string) => void }) {
+function Strip({ a, s, onOpen, first }: { a: Assessment; s: Score; onOpen: (id: string) => void; first: boolean }) {
+  let at = 0 // one wave across the four groups
   return (
     <section aria-label="requirement ทุกข้อ แยกตามผล" className="border-t border-line pb-6 pt-5 [container-type:inline-size]">
       <h2 className="sr-only">ผลรายข้อ</h2>
@@ -137,7 +168,7 @@ function Strip({ a, s, onOpen }: { a: Assessment; s: Score; onOpen: (id: string)
           .map(({ g, items }) => (
             <div key={g.k} className="flex min-w-[96px] flex-col gap-3.5">
               {/* As wide as the row allows for this many bars: 4 to 24px each, like a bar chart that fills the page. */}
-              <BarButtons reqs={items} onOpen={onOpen} size={150} gap={6} width={`clamp(4px, calc((100cqw - 108px) / ${a.total} - 6px), 24px)`} />
+              <BarButtons reqs={items} onOpen={onOpen} size={150} gap={6} width={`clamp(4px, calc((100cqw - 108px) / ${a.total} - 6px), 24px)`} grow={first} from={(at += items.length) - items.length} />
               <div className="flex items-baseline gap-[7px] whitespace-nowrap text-sm text-muted"><b className="text-xl font-semibold tracking-[-0.02em] text-ink tabular-nums">{items.length}</b>{g.label}</div>
               {g.k === 'work' ? (
                 <div className="-mt-2 flex flex-wrap gap-x-3.5 gap-y-0.5 text-[13px] text-muted">
@@ -214,6 +245,8 @@ function SummaryContent({ a }: { a: Assessment }) {
   const [copied, setCopied] = useState(false)
   const today = new Date().toISOString().slice(0, 10)
   const order = useMemo(() => bySeverity(a.reqs).map((r) => r.id), [a.reqs])
+  const historyId = useAssessmentStore((st) => st.historyId)
+  const first = useFirstView(historyId ?? `${a.reqs[0]?.id}:${a.total}`)
 
   async function download() {
     if (!page.current) return
@@ -247,8 +280,8 @@ function SummaryContent({ a }: { a: Assessment }) {
       {error && <p role="alert" className="m-0 text-danger">{error}</p>}
       <div ref={page} className="flex flex-col bg-canvas">
         <span className="pdf-only mb-6 text-xs text-muted">TOR Scouter · {[title, customer].filter(Boolean).join(' · ') || 'Customer TOR'} · {today}</span>
-        <Hero s={s} />
-        <Strip a={a} s={s} onOpen={setOpen} />
+        <Hero s={s} first={first} />
+        <Strip a={a} s={s} onOpen={setOpen} first={first} />
         <Matches a={a} onOpen={setOpen} />
 
         <section aria-label="สิ่งที่ต้องทำต่อ" className="grid gap-8 border-t border-line py-6 lg:grid-cols-3">

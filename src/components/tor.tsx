@@ -1,5 +1,6 @@
-import { forwardRef, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { ChevronLeft, ChevronRight, FileText, X } from 'lucide-react'
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
+import { Check, ChevronLeft, ChevronRight, FileText, X } from 'lucide-react'
 import { ORDER, STATUS } from '@/data/tor'
 import { UNKNOWN, serviceLabel, solutionLabel } from '@/data/taxonomy'
 import { features } from '@/lib/evidence'
@@ -52,22 +53,97 @@ export function StaticBars({ bars, className }: { bars: { s: StatusKey; o: boole
 }
 
 /** Bars that open a requirement. `size` is the height in px; `width` a fixed bar width (any CSS length), else bars share the row. */
-export function BarButtons({ reqs, onOpen, size = 120, width, gap = 4, label = (r) => r.text }: { reqs: Req[]; onOpen: (id: string) => void; size?: number; width?: string; gap?: number; label?: (r: Req) => string }) {
+/**
+ * The tooltip of a bar, as in the mockup: dark, above the bar (below it when there is no room), with the requirement and its
+ * status. It is decorative: the bar's own label already says the same to screen readers.
+ */
+function BarTip({ r, at }: { r: Req; at: DOMRect }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    const w = el.offsetWidth
+    const h = el.offsetHeight
+    const left = Math.max(8, Math.min(at.left + at.width / 2 - w / 2, window.innerWidth - w - 8))
+    const above = at.top - h - 12
+    setPos({ left, top: above < 70 ? at.bottom + 10 : above }) // under the sticky header there is no room: show it below
+  }, [at])
+  return createPortal(
+    <div
+      ref={box}
+      aria-hidden
+      data-bar-tip
+      className="pointer-events-none fixed z-[70] max-w-[320px] rounded-xl bg-dark px-3 py-2 text-[13.5px] leading-normal text-dark-ink shadow-lg transition-[opacity,transform] duration-100"
+      style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, opacity: pos ? 1 : 0, transform: pos ? 'none' : 'translateY(4px)' }}
+    >
+      <b className="font-semibold">{r.id}</b>&ensp;{r.text}
+      <span className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-dark-muted">
+        <Dot s={r.s} size={7} />
+        {STATUS[r.s].th}{r.pri === 'O' ? ', ไม่บังคับ' : ', ข้อบังคับ'}
+      </span>
+    </div>,
+    document.body,
+  )
+}
+
+/** `grow`: the bars grow in one after another, counting from `from` (so several rows can run as one wave). */
+export function BarButtons({ reqs, onOpen, size = 120, width, gap = 4, grow = false, from = 0, label = (r) => r.text }: { reqs: Req[]; onOpen: (id: string) => void; size?: number; width?: string; gap?: number; grow?: boolean; from?: number; label?: (r: Req) => string }) {
+  const [tip, setTip] = useState<{ r: Req; at: DOMRect } | null>(null)
+  useEffect(() => {
+    if (!tip) return
+    const hide = () => setTip(null) // it is placed for where the bar was: a scroll would leave it behind
+    window.addEventListener('scroll', hide, { passive: true, capture: true })
+    return () => window.removeEventListener('scroll', hide, { capture: true })
+  }, [tip])
   return (
-    <div className="group/bars flex min-w-0 items-end pt-3" style={{ height: size, gap }}>
-      {reqs.map((r) => (
+    <div className={cn('group/bars flex min-w-0 items-end pt-3', grow && 'bars-grow')} style={{ height: size, gap }}>
+      {tip && <BarTip r={tip.r} at={tip.at} />}
+      {reqs.map((r, i) => (
         <button
           key={r.id}
           type="button"
-          onClick={() => onOpen(r.id)}
-          title={`${r.id} ${r.text}`}
+          onClick={() => { setTip(null); onOpen(r.id) }}
+          onMouseEnter={(e) => setTip({ r, at: e.currentTarget.getBoundingClientRect() })}
+          onMouseLeave={() => setTip(null)}
+          onFocus={(e) => setTip({ r, at: e.currentTarget.getBoundingClientRect() })}
+          onBlur={() => setTip(null)}
           aria-label={`${r.id} ${label(r)}, ${STATUS[r.s].th}${r.pri !== 'O' ? ', ข้อบังคับ' : ''}`}
           className={cn('relative block cursor-pointer rounded-full border-0 p-0 transition group-hover/bars:opacity-40 hover:!opacity-100 hover:scale-y-105 focus-visible:!opacity-100', width ? 'flex-none' : 'min-w-[4px] max-w-[16px] flex-1')}
-          style={{ ...barStyle(r.s, r.pri === 'O'), transformOrigin: 'bottom', ...(width && { width }) }}
+          style={{ ...barStyle(r.s, r.pri === 'O'), transformOrigin: 'bottom', ...(width && { width }), ['--i' as string]: from + i }}
         >
-          {dealBreaker(r) && <span aria-hidden className="absolute -top-3 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-ink" />}
+          {dealBreaker(r) && <span aria-hidden className="db-dot absolute -top-3 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-ink" />}
         </button>
       ))}
+    </div>
+  )
+}
+
+/**
+ * A run in progress, over the page: the steps, a bar and a spinner on the current one (the mockup's process screen).
+ * `at` is the index of the step running now; `detail` is what it is doing, announced to screen readers.
+ */
+export function ProcessOverlay({ title, steps, at, detail }: { title: string; steps: string[]; at: number; detail?: string }) {
+  const cur = Math.min(Math.max(at, 0), steps.length - 1)
+  return (
+    <div className="fade-in fixed inset-0 z-50 grid place-items-center bg-canvas/85 backdrop-blur-md">
+      <div role="dialog" aria-modal="true" aria-labelledby="proc-h" className="w-[min(480px,88vw)]">
+        <h2 id="proc-h" className="m-0 text-[28px] font-semibold tracking-[-0.035em] text-ink">{title}</h2>
+        <div aria-hidden className="my-6 h-[3px] overflow-hidden rounded-full bg-line">
+          <i className="block h-full rounded-full bg-ink transition-[width] duration-700" style={{ width: `${Math.max(6, ((cur + 0.5) / steps.length) * 100)}%` }} />
+        </div>
+        <ol className="m-0 flex list-none flex-col gap-3 p-0 text-[15px]">
+          {steps.map((st, k) => (
+            <li key={st} className={cn('flex items-center gap-3', k < cur ? 'text-ink' : k === cur ? 'font-medium text-ink' : 'text-muted')}>
+              <span aria-hidden className="grid size-5 flex-none place-items-center">
+                {k < cur ? <Check size={18} className="text-[var(--st-full-dot)]" /> : k === cur ? <span className="spin block size-4 rounded-full border-2 border-line border-t-ink" /> : <i className="block size-1.5 rounded-full bg-line-strong" />}
+              </span>
+              {st}
+            </li>
+          ))}
+        </ol>
+        {detail && <p role="status" className="m-0 mt-5 text-sm text-muted">{detail}</p>}
+      </div>
     </div>
   )
 }
@@ -127,8 +203,8 @@ export function ReqDrawer({ id, ids, onOpen, onClose }: { id: string; ids: strin
 
   return (
     <div className="fixed inset-0 z-50" onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
-      <div aria-hidden className="absolute inset-0 bg-ink/20" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-labelledby="d-title" className="absolute inset-y-2.5 right-2.5 flex w-[min(580px,calc(100%-20px))] flex-col overflow-hidden rounded-card border border-line bg-surface shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
+      <div aria-hidden className="fade-in absolute inset-0 bg-ink/20" onClick={onClose} />
+      <div role="dialog" aria-modal="true" aria-labelledby="d-title" className="slide-in absolute inset-y-2.5 right-2.5 flex w-[min(580px,calc(100%-20px))] flex-col overflow-hidden rounded-card border border-line bg-surface shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
         <div className="flex items-start gap-3 px-6 pb-4 pt-5">
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-[13.5px] text-muted">

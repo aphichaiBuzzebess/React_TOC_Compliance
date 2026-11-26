@@ -1803,3 +1803,52 @@ describe('browser state saved before "zone" was renamed "solution"', () => {
     expect(useAssessmentStore.getState().review?.[0].targets).toEqual([{ solution: 'app-custom', service: 'unknown' }])
   })
 })
+
+describe('motion on the TOR pages, as in the mockup', () => {
+  it('the bars grow in one wave the first time a result is shown, not the next time', () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'full'), req('R-002', 'none'), req('R-003', 'verify')], historyId: 'motion-1' })
+    const first = open('/summary')
+    const strip = screen.getByRole('region', { name: 'requirement ทุกข้อ แยกตามผล' })
+    const rows = [...strip.querySelectorAll('.bars-grow')]
+    expect(rows.length).toBeGreaterThan(0)
+    expect([...strip.querySelectorAll('button')].map((b) => (b as HTMLElement).style.getPropertyValue('--i'))).toEqual(['0', '1', '2']) // one wave across the groups
+    first.unmount()
+    open('/summary')
+    expect(screen.getByRole('region', { name: 'requirement ทุกข้อ แยกตามผล' }).querySelector('.bars-grow')).toBeNull()
+    useAssessmentStore.setState({ historyId: null })
+  })
+
+  it('pointing at a bar shows its requirement and status in a tooltip, and leaving hides it', async () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'full'), { ...req('R-002', 'none'), pri: 'O' }] })
+    const user = userEvent.setup()
+    open('/summary')
+    const strip = within(screen.getByRole('region', { name: 'requirement ทุกข้อ แยกตามผล' }))
+    const bar = strip.getByRole('button', { name: /^R-002 / })
+    expect(bar).not.toHaveAttribute('title') // the mockup's tooltip, not the browser's
+    await user.hover(bar)
+    const tip = document.body.querySelector('[data-bar-tip]') as HTMLElement
+    expect(tip).toHaveTextContent('R-002 requirement R-002')
+    expect(tip).toHaveTextContent('ไม่รองรับ, ไม่บังคับ')
+    await user.unhover(bar)
+    expect(document.body.querySelector('[data-bar-tip]')).toBeNull()
+    act(() => bar.focus()) // the keyboard gets it too
+    expect(document.body.querySelector('[data-bar-tip]')).toHaveTextContent('R-002')
+  })
+
+  it('the detail slides in over a fading backdrop', async () => {
+    useAssessmentStore.setState({ result: [req('R-001', 'full')] })
+    const user = userEvent.setup()
+    open('/matrix')
+    await user.click(screen.getByRole('button', { name: /^R-001 / }))
+    expect(screen.getByRole('dialog').className).toContain('slide-in')
+  })
+
+  it('comparing with the KB shows the steps over the review page', () => {
+    useAssessmentStore.setState({ review: [{ id: 'R-001', module: 'Mission', text: 't', targets: [{ solution: 'crm-plus', service: 'point' }] }], running: true, step: 3, detail: 'ประเมินแล้ว 1/2 ชุด' })
+    open('/review')
+    const proc = within(screen.getByRole('dialog', { name: 'กำลังเทียบกับ Knowledge Base' }))
+    expect(proc.getByText('ตัดสินผลทีละข้อ (1 ข้อ)')).toHaveClass('font-medium') // the step running now
+    expect(proc.getByRole('status')).toHaveTextContent('ประเมินแล้ว 1/2 ชุด')
+    useAssessmentStore.setState({ running: false, step: -1, detail: '', review: null })
+  })
+})

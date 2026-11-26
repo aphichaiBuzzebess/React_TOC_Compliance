@@ -6,6 +6,7 @@ import { MAX_TARGETS, UNKNOWN, activeServices, activeSolutions, serviceLabel, so
 import { ALL_CATEGORIES, COMMERCIAL, isCommercial, orderedModules } from '@/data/categories'
 import type { Priority, RawReq, Target } from '@/lib/types'
 import { Button } from '@/components/ui'
+import { ProcessOverlay } from '@/components/tor'
 import { cn } from '@/lib/utils'
 
 const pick = 'h-10 min-w-0 flex-1 rounded-full border border-line-strong bg-surface text-sm'
@@ -136,7 +137,7 @@ function ViewRow({ r, onEdit }: { r: RawReq; onEdit: () => void }) {
 
 export default function Review() {
   const nav = useNavigate()
-  const { review, running, error, detail, confirmReview, clearReview, removeReq, restoreReq, addReq, customer, project, scope } = useAssessmentStore()
+  const { review, running, step, error, detail, confirmReview, clearReview, removeReq, restoreReq, addReq, customer, project, scope } = useAssessmentStore()
   const aiReady = useAssessmentStore(hasAi)
   const [editing, setEditing] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -309,19 +310,21 @@ export default function Review() {
         )}
       </div>
 
+      {running && <ProcessOverlay title="กำลังเทียบกับ Knowledge Base" steps={['ค้น note ที่เกี่ยวข้องใน KB', `ตัดสินผลทีละข้อ (${product.length} ข้อ)`, 'คำนวณผลและเขียนสรุป']} at={step - 2} detail={detail} />}
+
       {undo && (
-        <div role="status" className="fixed bottom-28 left-1/2 z-30 flex -translate-x-1/2 items-center gap-4 rounded-full bg-dark px-5 py-2.5 text-sm text-dark-ink shadow-lg">
+        <div role="status" className="rise-in fixed bottom-28 left-1/2 z-30 flex -translate-x-1/2 items-center gap-4 rounded-full bg-dark px-5 py-2.5 text-sm text-dark-ink shadow-lg">
           ลบ {undo.r.id} แล้ว
           <button type="button" onClick={() => { restoreReq(undo.r, undo.at); setUndo(null) }} className="border-0 bg-transparent font-semibold text-amber underline underline-offset-4">เลิกทำ</button>
         </div>
       )}
 
       {/* The way forward stays in view: how many still need a look, and the confirm. */}
-      <div className="fixed inset-x-3 bottom-6 z-20 flex flex-col gap-2 rounded-card bg-dark px-5 py-2 text-sm text-dark-muted shadow-[0_16px_48px_rgba(0,0,0,0.22)] sm:inset-x-auto sm:left-1/2 sm:max-w-[calc(100%-32px)] sm:-translate-x-1/2 sm:rounded-full sm:py-[7px] sm:pl-6 sm:pr-[7px]">
+      <div className="rise-in fixed inset-x-3 bottom-6 z-20 flex flex-col gap-2 rounded-card bg-dark px-5 py-2 text-sm text-dark-muted shadow-[0_16px_48px_rgba(0,0,0,0.22)] sm:inset-x-auto sm:left-1/2 sm:max-w-[calc(100%-32px)] sm:-translate-x-1/2 sm:rounded-full sm:py-[7px] sm:pl-6 sm:pr-[7px]">
         {error && <p role="alert" className="m-0 pt-1 text-dark-danger">{error}</p>}
         <div className="flex items-center gap-5">
           {running ? (
-            <p role="status" className="m-0 min-w-0 flex-1">{detail || 'กำลังเทียบกับ KB…'}</p>
+            <p className="m-0 min-w-0 flex-1">{detail || 'กำลังเทียบกับ KB…'}</p>
           ) : asking === 'confirm' ? (
             <p role="alert" className="m-0 min-w-0 flex-1">ยังมี <b className="text-dark-ink">{look.length} ข้อ</b> ที่ควรดูก่อน: {look.map((r) => r.id).join(', ')}</p>
           ) : !aiReady ? (
