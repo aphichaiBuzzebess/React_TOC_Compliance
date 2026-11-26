@@ -65,15 +65,15 @@ describe('defaults and seeding', () => {
   it('runs on files and built-in text until the store is seeded, and says so', async () => {
     const v = await json(await get('notes'))
     expect(v.status).toBe('defaults')
-    expect(v.notes).toHaveLength(12)
+    expect(v.notes).toHaveLength(30)
     expect((await loadKnowledge()).status).toBe('defaults')
-    expect(await json(await seed())).toEqual({ added: 12, skipped: 0 })
+    expect(await json(await seed())).toEqual({ added: 30, skipped: 0 })
     clearKnowledgeCache()
     const k = await loadKnowledge()
     expect(k.status).toBe('database')
-    expect(k.notes).toHaveLength(12)
+    expect(k.notes).toHaveLength(30)
     expect(k.prompts.judge).toBe(DEFAULT_PROMPTS.judge)
-    expect(await json(await seed())).toEqual({ added: 0, skipped: 12 }) // again: adds nothing
+    expect(await json(await seed())).toEqual({ added: 0, skipped: 30 }) // again: adds nothing
   })
 
   it('falls back to defaults instead of failing when the database cannot be read', async () => {
@@ -90,8 +90,8 @@ describe('defaults and seeding', () => {
     const list = (await json(await get('notes'))).notes as { path: string; updatedAt: string }[]
     const gone = list[0]
     expect((await call(kbApi.DELETE, 'DELETE', `/api/knowledge?part=notes&path=${encodeURIComponent(gone.path)}&updatedAt=${encodeURIComponent(gone.updatedAt)}`, { cookie: admin })).status).toBe(200)
-    expect(await json(await seed())).toEqual({ added: 0, skipped: 12 })
-    expect((await json(await get('notes'))).notes).toHaveLength(11)
+    expect(await json(await seed())).toEqual({ added: 0, skipped: 30 })
+    expect((await json(await get('notes'))).notes).toHaveLength(29)
   })
 })
 

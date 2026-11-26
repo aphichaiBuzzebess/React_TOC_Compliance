@@ -41,6 +41,7 @@ export const SERVICES: Service[] = [
   { id: 'sale-portal', label: 'Sale Portal', hint: 'Product, sale plan, quotation, cart, transaction, post to SAP.', confirmed: true },
   { id: 'report-analytic', label: 'Report / Analytic', hint: 'Reports, dashboards, analytics, segmentation insight.', confirmed: true },
   { id: CUSTOM_BUILD, label: 'พัฒนาใหม่ (ไม่ใช่ tool ของ Buzzebees)', hint: 'Functionality that has to be built new for this customer because no Buzzebees service covers it (for example a new AI research feature). Choose this instead of guessing a service.', confirmed: true },
+  { id: 'gendash', label: 'Generative Dashboard', hint: 'GenDash: AI agent builds dashboards from natural language (widget spec JSON on a React canvas) over Databricks or ClickHouse data. Chat to build charts/KPIs/tables, presets and bundles, filters and cross-filter, datasets and SQL Lab, sharing, schedule refresh, export, roles and tenant access.', confirmed: true, examples: ['ขอ dashboard ที่สั่งสร้างด้วยภาษาธรรมชาติหรือ AI', 'ให้ผู้ใช้ถามข้อมูลแล้วได้ chart ทันที', 'ขอ dashboard ที่ drill-down ได้'] },
   { id: 'point', label: 'Point Service', hint: 'Earn/deduct points, earn rules, expiry, point liability.', confirmed: false },
   { id: 'notification', label: 'Notification', hint: 'In-app notifications, list and mark as read.', confirmed: false },
   { id: 'consent', label: 'Consent (PDPA)', hint: 'Consent capture, status, withdraw, history.', confirmed: false },

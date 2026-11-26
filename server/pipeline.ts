@@ -174,7 +174,10 @@ export async function judge(llm: Llm, reqs: RawReq[], kb: Note[], k?: Ctx): Prom
   const retrieved = new Map(
     reqs.map((r) => [r.id, r.targets ? retrieveForTargets(kb, r.text, r.targets) : { notes: searchKb(kb, `${r.module} ${r.text}`), byTarget: new Map<Target, Note[]>() }]),
   )
-  const notes = new Map([...retrieved.values()].flatMap((x) => x.notes).map((n) => [n.path, n]))
+  // The model reads every note, not only the retrieved ones: a wrong service or a word tf-idf misses must not hide the answer.
+  // The retrieved notes come first and stay the "candidates"; the rest follow. Citing any of them is allowed.
+  const candidatePaths = new Set([...retrieved.values()].flatMap((x) => x.notes.map((n) => n.path)))
+  const notes = new Map([...kb].sort((a, b) => Number(candidatePaths.has(b.path)) - Number(candidatePaths.has(a.path))).map((n) => [n.path, n]))
   const prompt = [
     'Requirements:',
     ...reqs.map((r) => {
@@ -199,6 +202,7 @@ export async function judge(llm: Llm, reqs: RawReq[], kb: Note[], k?: Ctx): Prom
     const tag = { ...(r.targets && { targets: r.targets }), ...(r.wantsApi && { wantsApi: true }) }
     const cited = (v?.sources ?? []).map((p) => notes.get(p)).filter((n): n is Note => !!n)
     const titles = (ns: Note[]) => ns.map((n) => `KB › ${n.module} › ${n.title}`).join(' · ')
+    const extra = cited.filter((n) => !candidates.some((c) => c.path === n.path)) // cited from outside the retrieved notes: still shown
 
     // The customer builds their own system and wants an API: the model's opinion is not used, a person verifies.
     if (r.wantsApi) {
@@ -215,7 +219,7 @@ export async function judge(llm: Llm, reqs: RawReq[], kb: Note[], k?: Ctx): Prom
     const uncovered = r.targets ? r.targets.filter((t) => t.service !== CUSTOM_BUILD && !byTarget.get(t)?.length) : [] // new development needs no note
     // Evidence grouped by target when there are targets; the old flat form otherwise.
     const evidence = r.targets
-      ? r.targets.map((t) => { const hit = cited.filter((n) => byTarget.get(t)?.some((c) => c.path === n.path)); return `${targetName(t)}: ${hit.length ? titles(hit) : 'ไม่พบหลักฐานที่ตรงกัน'}` }).join(' | ')
+      ? r.targets.map((t) => { const hit = cited.filter((n) => byTarget.get(t)?.some((c) => c.path === n.path)); return `${targetName(t)}: ${hit.length ? titles(hit) : 'ไม่พบหลักฐานที่ตรงกัน'}` }).join(' | ') + (extra.length ? ` | อ้างอิงเพิ่ม: ${titles(extra)}` : '')
       : cited.length ? titles(cited) : 'ไม่พบหลักฐานที่ตรงกัน'
     const noNote = uncovered.length > 0 // a target with no note at all can not be judged
     return {
