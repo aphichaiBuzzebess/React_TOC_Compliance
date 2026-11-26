@@ -66,3 +66,31 @@ create table if not exists kb_meta (
   key text primary key,
   value text not null
 );
+
+-- Feature Scouter: a copy of every saved TOR's gaps, kept apart from assessments so a TOR that is pruned from someone's
+-- newest 50 still counts (a TOR its owner deletes is removed by the app). Needs are grouped into scout_items.
+create table if not exists scout_items (
+  id text primary key,
+  title text not null,
+  need text not null default '',
+  type text not null default 'NEW_FEATURE',
+  module text not null default '',
+  status text not null default 'new',
+  edited_by text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create table if not exists scout_evidence (
+  assessment_id uuid not null,
+  req_id text not null,
+  owner_id uuid references users(id) on delete set null,
+  item_id text references scout_items(id) on delete set null,
+  data jsonb not null,
+  confirmed boolean not null default false,
+  deal_result text not null default 'open',
+  lost_because boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (assessment_id, req_id)
+);
+create index if not exists scout_evidence_item on scout_evidence(item_id);

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
+import type { Evidence, EvidenceInput, ScoutItem } from './scout.js'
 
 export interface User { id: string; username: string; passwordHash: string; disabled: boolean; isAdmin: boolean }
 export interface KeyRow { provider: string; model: string; ciphertext: Buffer; iv: Buffer; tag: Buffer; last4: string }
@@ -51,6 +52,12 @@ export interface Db {
   kbVersion(id: number): Promise<KbVersion | undefined>
   kbDeletedKeys(kind: KbKind): Promise<{ key: string; data: unknown; at: string }[]> // keys with versions but no live item
   kbSeed(kind: KbKind, items: { key: string; data: unknown }[], by: string): Promise<number> // inserts items with no live row and no history
+  /** Feature Scouter: replace one TOR's gaps with `rows`, keeping what people set on the ones that stay (grouping, deal result). */
+  scoutSync(assessmentId: string, ownerId: string, rows: EvidenceInput[]): Promise<void>
+  /** The TOR was deleted by its owner: its gaps leave the Scouter. */
+  scoutDropAssessment(assessmentId: string): Promise<void>
+  scoutEvidence(): Promise<Evidence[]>
+  scoutItems(): Promise<ScoutItem[]>
   getMeta(key: string): Promise<string | undefined>
   setMeta(key: string, value: string): Promise<void>
 }
@@ -64,6 +71,8 @@ export function memoryDb(): Db {
   const kb = new Map<string, KbItem>() // `${kind}\u0000${key}`
   const versions: KbVersion[] = []
   const meta = new Map<string, string>()
+  const evidence = new Map<string, Evidence>() // `${assessmentId}\u0000${reqId}`
+  const scoutItems = new Map<string, ScoutItem>()
   let seq = 0
   let vseq = 0
   const id = (kind: string, key: string) => `${kind}\u0000${key}`
@@ -178,6 +187,21 @@ export function memoryDb(): Db {
       }
       return n
     },
+    async scoutSync(assessmentId, ownerId, input) {
+      const now = new Date().toISOString()
+      const keep = new Set(input.map((r) => r.reqId))
+      for (const [k, e] of evidence) if (e.assessmentId === assessmentId && !keep.has(e.reqId)) evidence.delete(k)
+      for (const r of input) {
+        const k = `${assessmentId}\u0000${r.reqId}`
+        const cur = evidence.get(k)
+        evidence.set(k, { ...r, assessmentId, ownerId, itemId: cur?.itemId ?? null, dealResult: cur?.dealResult ?? 'open', lostBecause: cur?.lostBecause ?? false, createdAt: cur?.createdAt ?? now, updatedAt: now })
+      }
+    },
+    async scoutDropAssessment(assessmentId) {
+      for (const [k, e] of evidence) if (e.assessmentId === assessmentId) evidence.delete(k)
+    },
+    async scoutEvidence() { return [...evidence.values()].map((e) => ({ ...e })) },
+    async scoutItems() { return [...scoutItems.values()].map((x) => ({ ...x })) },
     async getMeta(key) { return meta.get(key) },
     async setMeta(key, value) { meta.set(key, value) },
   }
@@ -351,6 +375,35 @@ export function pgDb(pool: Pool): Db {
         n += r.rowCount ?? 0
       }
       return n
+    },
+    async scoutSync(assessmentId, ownerId, input) {
+      const c = await pool.connect()
+      try {
+        await c.query('begin')
+        await c.query('delete from scout_evidence where assessment_id=$1 and not (req_id = any($2::text[]))', [assessmentId, input.map((r) => r.reqId)])
+        if (input.length)
+          await c.query(
+            `insert into scout_evidence(assessment_id, req_id, owner_id, data, confirmed)
+             select $1, x->>'reqId', $2, x, (x->>'confirmed')::boolean from jsonb_array_elements($3::jsonb) x
+             on conflict (assessment_id, req_id) do update set data=excluded.data, confirmed=excluded.confirmed, owner_id=excluded.owner_id, updated_at=now()`,
+            [assessmentId, ownerId, JSON.stringify(input)],
+          )
+        await c.query('commit')
+      } catch (e) {
+        await c.query('rollback')
+        throw e
+      } finally {
+        c.release()
+      }
+    },
+    async scoutDropAssessment(assessmentId) { await pool.query('delete from scout_evidence where assessment_id=$1', [assessmentId]) },
+    async scoutEvidence() {
+      const r = await pool.query('select assessment_id, owner_id, item_id, data, confirmed, deal_result, lost_because, created_at, updated_at from scout_evidence')
+      return r.rows.map((x) => ({ ...(x.data as EvidenceInput), confirmed: x.confirmed, assessmentId: x.assessment_id, ownerId: x.owner_id, itemId: x.item_id, dealResult: x.deal_result, lostBecause: x.lost_because, createdAt: new Date(x.created_at).toISOString(), updatedAt: new Date(x.updated_at).toISOString() }))
+    },
+    async scoutItems() {
+      const r = await pool.query('select id, title, need, type, module, status, edited_by, created_at, updated_at from scout_items order by id')
+      return r.rows.map((x) => ({ id: x.id, title: x.title, need: x.need, type: x.type, module: x.module, status: x.status, editedBy: x.edited_by, createdAt: new Date(x.created_at).toISOString(), updatedAt: new Date(x.updated_at).toISOString() }))
     },
     async getMeta(key) { return (await pool.query('select value from kb_meta where key=$1', [key])).rows[0]?.value },
     async setMeta(key, value) { await pool.query('insert into kb_meta(key, value) values($1,$2) on conflict (key) do update set value=$2', [key, value]) },

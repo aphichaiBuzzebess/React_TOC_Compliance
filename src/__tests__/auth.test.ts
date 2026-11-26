@@ -307,6 +307,70 @@ describe('history', () => {
   })
 })
 
+describe('feature scouter: the gaps of every saved TOR', () => {
+  const r = (id: string, s: string, extra: object = {}) => ({ id, module: 'Dashboard & Report', text: `text ${id}`, s, conf: '90%', reason: `why ${id}`, evidence: 'e', rec: 'c', ...extra })
+  const judged = (extra: object = {}) => ({
+    meta: { title: 'TOR CRM', industry: 'Retail Business', sub: 'Department Store', leaf: 'Department Store', due: '2026-12-15', value: 1800000 },
+    result: [r('R-1', 'full'), r('R-2', 'none', { gap: 'ไม่มีมิติสาขา' }), r('R-3', 'custom', { pri: 'O' }), r('R-4', 'integ'), r('R-5', 'verify'), r('R-6', 'config')],
+    coverage: null,
+    valid: { 'R-2': 'ok', 'R-4': 'flag' },
+    ...extra,
+  })
+  const save = async (cookie: string, data: object, customer = 'ACME') => (await (await call(historyApi.POST, 'POST', '/api/history', { cookie, body: { customer, files: [], data } })).json()) as { id: string }
+  const gaps = async () => (await db.scoutEvidence()).sort((a, b) => (a.reqId < b.reqId ? -1 : 1))
+
+  it('keeps each gap (not supported, development, integration) with its TOR details; only a confirmed one is marked so', async () => {
+    const { cookie } = await signUp('ann')
+    const { id } = await save(cookie, judged())
+    const g = await gaps()
+    expect(g.map((e) => e.reqId)).toEqual(['R-2', 'R-3', 'R-4']) // not full, config or verify
+    expect(g[0]).toMatchObject({ assessmentId: id, s: 'none', gap: 'ไม่มีมิติสาขา', mandatory: true, confirmed: true, tor: 'TOR CRM', customer: 'ACME', industry: 'Retail Business › Department Store', deal: 1800000, due: '2026-12-15', itemId: null, dealResult: 'open', lostBecause: false })
+    expect(g[1]).toMatchObject({ s: 'custom', mandatory: false, confirmed: false, gap: 'why R-3' }) // no gap text: the reason stands in
+    expect(g[2]).toMatchObject({ s: 'integ', confirmed: false }) // flagged is not confirmed
+  })
+
+  it('follows later edits: a confirmation, a status a person changed, and a delete', async () => {
+    const { cookie } = await signUp('ann')
+    const { id } = await save(cookie, judged())
+    const changed = judged({ result: [r('R-2', 'none'), r('R-3', 'full', { override: { from: 'custom', note: 'มีแล้ว' } }), r('R-4', 'integ')], valid: { 'R-2': 'ok', 'R-4': 'ok' } })
+    expect((await call(historyApi.PUT, 'PUT', `/api/history?id=${id}`, { cookie, body: { data: changed } })).status).toBe(200)
+    expect((await gaps()).map((e) => [e.reqId, e.confirmed, e.customer])).toEqual([['R-2', true, 'ACME'], ['R-4', true, 'ACME']]) // R-3 is supported now
+    expect((await call(historyApi.DELETE, 'DELETE', `/api/history?id=${id}`, { cookie })).status).toBe(200)
+    expect(await gaps()).toEqual([]) // deleted by its owner: no longer counted
+  })
+
+  it('a TOR waiting for its review has no gaps yet; one pruned from the newest 50 still counts', async () => {
+    const { cookie } = await signUp('ann')
+    await save(cookie, { review: [{ id: 'R-1', module: 'M', text: 't' }] })
+    expect(await gaps()).toEqual([])
+    const { id } = await save(cookie, judged())
+    for (let i = 0; i < 50; i++) await save(cookie, { result: [r('R-1', 'full')], coverage: null, valid: {} })
+    expect((await call(historyApi.GET, 'GET', `/api/history?id=${id}`, { cookie })).status).toBe(404) // gone from history
+    expect((await gaps()).every((e) => e.assessmentId === id)).toBe(true)
+    expect(await gaps()).toHaveLength(3)
+  })
+
+  it('gathers everyone\'s TORs in one place', async () => {
+    const { cookie: a } = await signUp('ann')
+    const { cookie: b } = await signUp('bob')
+    await save(a, judged(), 'ACME')
+    await save(b, judged(), 'BETA')
+    expect(new Set((await gaps()).map((e) => e.customer))).toEqual(new Set(['ACME', 'BETA']))
+  })
+
+  it('never fails a save when the Scouter cannot be updated', async () => {
+    const { cookie } = await signUp('ann')
+    const real = db.scoutSync
+    db.scoutSync = async () => { throw new Error('relation "scout_evidence" does not exist') }
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const res = await call(historyApi.POST, 'POST', '/api/history', { cookie, body: { customer: 'ACME', files: [], data: judged() } })
+    expect(res.status).toBe(200)
+    expect(err).toHaveBeenCalledWith('feature scouter: not updated', 'relation "scout_evidence" does not exist')
+    db.scoutSync = real
+    err.mockRestore()
+  })
+})
+
 describe('admin role', () => {
   it('is reported to the signed-in admin only', async () => {
     const { cookie: a } = await signUp('ann')
