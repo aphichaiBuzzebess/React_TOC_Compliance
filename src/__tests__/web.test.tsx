@@ -5,7 +5,6 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import App from '@/App'
 import { EMPTY_DRAFT, EMPTY_PROJECT, useAssessmentStore } from '@/store/useAssessmentStore'
-import { STEPS } from '@/data/tor'
 import type { Req } from '@/lib/types'
 import { pageSlices } from '@/lib/exportPdf'
 import { Logo, logoPath, spreadFor } from '@/components/Logo'
@@ -1024,6 +1023,17 @@ describe('accounts in the app', () => {
     expect(row).toHaveTextContent('60%') // 3 of the 5 that could be judged
     expect(row).toHaveTextContent('ยื่นได้ แต่มีเงื่อนไข')
     expect(row).toHaveTextContent('เพราะข้อบังคับไม่รองรับ 2 ข้อ')
+  })
+
+  it('a pointed-at row hides the line above it and the one below, as in the mockup', async () => {
+    reset({ owner: 'ann' })
+    const e = (id: string, customer: string) => ({ id, customer, files: [], counts: { full: 1 }, createdAt: '2026-11-20T10:00:00.000Z' })
+    server('ann', { 'GET /api/history': () => json({ entries: [e('h-1', 'ACME'), e('h-2', 'BETA')] }) })
+    open('/history')
+    const rows = [...(await screen.findByText('ACME')).closest('[role="rowgroup"]')!.querySelectorAll(':scope > [role="row"]')] as HTMLElement[]
+    expect(rows).toHaveLength(2)
+    expect(rows[0].className).toContain('first:border-t-0') // the header line is enough above the first row
+    for (const r of rows) expect(r.className).toMatch(/border-t .*hover:border-transparent .*hover:bg-tint .*\[&:hover\+\[role=row\]\]:border-transparent/)
   })
 
   it('an optional requirement draws a short bar, and does not count as a deal breaker', async () => {

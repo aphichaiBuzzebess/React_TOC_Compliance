@@ -84,6 +84,9 @@ export default function History() {
             <span role="columnheader">ผลและเหตุผล</span>
             <span role="columnheader"><span className="sr-only">ลบ</span></span>
           </div>
+          {/* The rows, in their own group under the header line, as in the mockup: each row draws the line above it, and a
+              pointed-at row turns into a rounded tinted box that hides its own line and the next row's, so nothing crosses it. */}
+          <div role="rowgroup" className="flex flex-col">
           {entries.map((e) => {
             const waiting = (e.counts.review ?? 0) > 0
             const s = scoreCounts(e.counts)
@@ -91,7 +94,7 @@ export default function History() {
             const name = e.title || e.customer || 'ไม่ระบุชื่อโครงการ'
             const sub = [e.title ? e.customer : '', e.due ? `ยื่น ${fmtDate(e.due)}` : ''].filter(Boolean).join(', ') || when(e.createdAt)
             return (
-              <div key={e.id} role="row" className="group relative border-b border-line last:border-b-0">
+              <div key={e.id} role="row" className="group relative -mx-3.5 rounded-2xl border-t border-line transition-colors first:border-t-0 hover:border-transparent hover:bg-tint [&:hover+[role=row]]:border-transparent">
                 {asking === e.id ? (
                   <div role="alert" className="flex flex-wrap items-center gap-3 px-3.5 py-5 text-sm">
                     ลบ {name}? กู้คืนไม่ได้
@@ -99,7 +102,7 @@ export default function History() {
                     <Button variant="ghost" onClick={() => setAsking(null)}>ยกเลิก</Button>
                   </div>
                 ) : (
-                  <div className={`grid grid-cols-1 items-center gap-x-6 gap-y-3 rounded-2xl px-3.5 py-4 transition-colors hover:bg-tint ${COLS}`}>
+                  <div className={`grid grid-cols-1 items-center gap-x-6 gap-y-3 px-3.5 py-4 ${COLS}`}>
                     <div role="cell" className="flex min-w-0 flex-col">
                       {/* The name is the link to the TOR; the whole row is its hit area. */}
                       <button type="button" onClick={() => open(e.id)} aria-label={`เปิด ${name}`} className="w-fit border-0 bg-transparent p-0 text-left text-lg font-semibold tracking-[-0.02em] text-ink wrap-anywhere after:absolute after:inset-0 after:content-['']">{name}</button>
@@ -135,6 +138,7 @@ export default function History() {
               </div>
             )
           })}
+          </div>
         </div>
       )}
     </>
