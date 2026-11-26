@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { FileText, Image as ImageIcon, Upload, X } from 'lucide-react'
-import { EMPTY_PROJECT, activeAi, hasAi, useAssessmentStore } from '@/store/useAssessmentStore'
+import { activeAi, hasAi, useAssessmentStore } from '@/store/useAssessmentStore'
 import { STEPS } from '@/data/tor'
 import { AI_PROVIDERS } from '@/data/models'
 import { industries, leafIndustries, subIndustries } from '@/data/industries'
@@ -45,7 +45,12 @@ function Label({ htmlFor, children }: { htmlFor: string; children: string }) {
 export default function NewAssessment() {
   const nav = useNavigate()
   const last = useAssessment()
-  const { step, running, startedAt, detail, error, files, customer, project, result, mode, user, addFiles, removeFile, setCustomer, setProject, runReal, reset, openHistory } = useAssessmentStore()
+  const { step, running, startedAt, detail, error, files, draft, mode, user, addFiles, removeFile, setDraft, runReal, openHistory } = useAssessmentStore()
+  // The form is a draft of the next TOR; the TOR on screen (Review, result) keeps its own details.
+  const { customer, project } = draft
+  const setCustomer = (c: string) => setDraft({ customer: c })
+  const setProject = setDraft
+  const lastTor = { title: useAssessmentStore((s) => s.project.title), customer: useAssessmentStore((s) => s.customer) } // the last TOR run, not the form
   const aiReady = useAssessmentStore(hasAi)
   const pending = useAssessmentStore((s) => s.review !== null) // classified, waiting for the BA to confirm solutions
   const use = useAssessmentStore(activeAi)
@@ -53,20 +58,18 @@ export default function NewAssessment() {
   const [dragging, setDragging] = useState(false)
   const [hoop, setHoop] = useState(readHoop) // a per-browser toggle: the drop zone as a basketball shot
   const toggleHoop = () => { const v = !hoop; setHoop(v); try { localStorage.setItem(HOOP_KEY, v ? '1' : '0') } catch { /* private mode: the toggle still works for this visit */ } }
-  const done = step >= STEPS.length
   const hasFiles = files.length > 0
   const ai = AI_PROVIDERS.find((p) => p.id === use?.provider)
 
   // A text-only AI (DeepSeek, BytePlus) cannot read a PDF or an image: say so before the run, not after a failed request.
   const unreadable = ai?.textOnly ? files.find((f) => (ai.images ? /\.pdf$/i : /\.(pdf|png|jpe?g|webp|gif)$/i).test(f.name)) : undefined
-  const blocker = done || running ? null : !hasFiles && !aiReady ? 'เพิ่มไฟล์ TOR และตั้งค่า AI ก่อน' : !hasFiles ? 'เพิ่มไฟล์ TOR อย่างน้อย 1 ไฟล์' : !aiReady ? 'ตั้งค่า AI ก่อน' : unreadable ? `${ai?.label} อ่าน ${unreadable.name} ไม่ได้ ใช้ DOCX, XLSX, CSV, TXT${ai?.images ? ' หรือรูปภาพ' : ''} หรือเปลี่ยน AI` : null
-  const hint = done ? `เสร็จแล้ว · ${result?.length ?? 0} ข้อ` : pending && !running ? 'แยกและจัดหมวดแล้ว รอตรวจก่อนประเมิน' : running ? null : (blocker ?? 'พร้อมแล้ว')
+  const blocker = running ? null : !hasFiles && !aiReady ? 'เพิ่มไฟล์ TOR และตั้งค่า AI ก่อน' : !hasFiles ? 'เพิ่มไฟล์ TOR อย่างน้อย 1 ไฟล์' : !aiReady ? 'ตั้งค่า AI ก่อน' : unreadable ? `${ai?.label} อ่าน ${unreadable.name} ไม่ได้ ใช้ DOCX, XLSX, CSV, TXT${ai?.images ? ' หรือรูปภาพ' : ''} หรือเปลี่ยน AI` : null
+  const hint = running ? null : (blocker ?? 'พร้อมแล้ว')
 
   const start = async () => {
     await runReal()
     if (useAssessmentStore.getState().review) nav('/review') // the run stops after classify: the BA confirms solutions next
   }
-  const fresh = () => { useAssessmentStore.setState({ files: [], customer: '', project: EMPTY_PROJECT, scope: '', terms: [], confirmed: null, historyId: null }); reset() }
   const loadSample = async () => {
     const res = await fetch(SAMPLE.url).catch(() => null)
     if (!res?.ok) return useAssessmentStore.setState({ error: 'โหลดไฟล์ตัวอย่างไม่ได้' })
@@ -209,19 +212,12 @@ export default function NewAssessment() {
           <Link to="/ai-settings" className="inline-flex min-h-11 items-center font-medium text-amber-text underline underline-offset-4">{use ? 'เปลี่ยน' : 'ตั้งค่า AI'}</Link>
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-          {pending && !running && !done && <Button variant="primary" arrow onClick={() => nav('/review')}>Review solutions</Button>}
-          {!done && !(pending && !running) && (
-            <Button variant="primary" arrow className="min-h-12 px-6 text-base" disabled={running || !!blocker} aria-describedby={blocker ? 'run-hint' : undefined} onClick={start}>
-              {running ? 'กำลังแยก Requirement…' : 'แยก Requirement'}
-            </Button>
-          )}
-          {done && (
-            <>
-              <Button variant="primary" arrow onClick={() => nav('/summary')}>ดูผลประเมิน</Button>
-              <Button onClick={fresh}>ตรวจ TOR ใหม่</Button>
-            </>
-          )}
+          <Button variant="primary" arrow className="min-h-12 px-6 text-base" disabled={running || !!blocker} aria-describedby={blocker ? 'run-hint' : undefined} onClick={start}>
+            {running ? 'กำลังแยก Requirement…' : 'แยก Requirement'}
+          </Button>
           {hint && <span id={blocker ? 'run-hint' : undefined} className="text-sm text-muted">{hint}</span>}
+          {/* A TOR from the last run still waits for its review: say so, but the form stays free for the next one. */}
+          {pending && !running && <Button arrow onClick={() => nav('/review')}>Review solutions</Button>}
         </div>
 
         {running && (
@@ -264,7 +260,7 @@ export default function NewAssessment() {
               : last && (
                   <li className="flex flex-wrap items-center gap-x-5 gap-y-1 py-3">
                     <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate font-medium text-ink">{project.title || customer || 'ผลประเมินล่าสุด'}</span>
+                      <span className="truncate font-medium text-ink">{lastTor.title || lastTor.customer || 'ผลประเมินล่าสุด'}</span>
                       <span className="text-xs text-muted">{last.total} ข้อ · ต้องตรวจสอบ {last.counts.verify} · ต้องพัฒนา/เชื่อมระบบ {last.counts.custom + last.counts.integ}</span>
                     </span>
                     <span className="text-2xl font-medium tracking-[-0.03em] text-ink">{score(last.reqs).cov}<small className="text-sm text-muted">%</small></span>

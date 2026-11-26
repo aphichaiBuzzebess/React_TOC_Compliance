@@ -4,7 +4,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import App from '@/App'
-import { EMPTY_PROJECT, useAssessmentStore } from '@/store/useAssessmentStore'
+import { EMPTY_DRAFT, EMPTY_PROJECT, useAssessmentStore } from '@/store/useAssessmentStore'
 import { STEPS } from '@/data/tor'
 import type { Req } from '@/lib/types'
 import { pageSlices } from '@/lib/exportPdf'
@@ -27,7 +27,7 @@ function open(path: string) {
 
 beforeEach(() => {
   localStorage.clear()
-  useAssessmentStore.setState({ result: null, review: null, coverage: null, selId: null, valid: {}, apiKey: '', accessCode: '', project: EMPTY_PROJECT, scope: '', terms: [], confirmed: null })
+  useAssessmentStore.setState({ result: null, review: null, coverage: null, selId: null, valid: {}, apiKey: '', accessCode: '', project: EMPTY_PROJECT, draft: EMPTY_DRAFT, scope: '', terms: [], confirmed: null })
 })
 
 describe('no mock data', () => {
@@ -567,10 +567,11 @@ describe('home: upload form', () => {
     fireEvent.change(screen.getByLabelText('กำหนดยื่นข้อเสนอ'), { target: { value: '2026-12-15' } })
     await user.type(screen.getByLabelText(/มูลค่าโครงการ/), '1500000')
     expect(screen.getByLabelText(/มูลค่าโครงการ/)).toHaveValue('1,500,000')
-    expect(useAssessmentStore.getState().project).toEqual({ title: 'TOR CRM', industry: 'Retail Business', sub: 'Department Store', leaf: 'Department Store', due: '2026-12-15', value: 1500000 })
-    expect(useAssessmentStore.getState().customer).toBe('ACME')
+    expect(useAssessmentStore.getState().draft.project).toEqual({ title: 'TOR CRM', industry: 'Retail Business', sub: 'Department Store', leaf: 'Department Store', due: '2026-12-15', value: 1500000 })
+    expect(useAssessmentStore.getState().draft.customer).toBe('ACME')
+    expect(useAssessmentStore.getState().project).toEqual(EMPTY_PROJECT) // the form is a draft: the TOR on screen is untouched
     await user.selectOptions(screen.getByLabelText('Industry'), 'Hospital') // another industry clears the levels under it
-    expect(useAssessmentStore.getState().project).toMatchObject({ industry: 'Hospital', sub: '', leaf: '' })
+    expect(useAssessmentStore.getState().draft.project).toMatchObject({ industry: 'Hospital', sub: '', leaf: '' })
     expect(screen.getByLabelText('Sub-Sub-Industry')).toBeDisabled()
   })
 
@@ -652,14 +653,24 @@ describe('home: upload form', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('API key not valid')
   })
 
-  it('after a run, starts a new TOR with an empty form', async () => {
-    const user = userEvent.setup()
-    useAssessmentStore.setState({ result: [req('R-001', 'full')], step: STEPS.length, files: [new File(['x'], 'tor.pdf')], customer: 'ACME', project: { ...EMPTY_PROJECT, title: 'TOR CRM' } })
+  it('once the requirements are split, the form is empty for the next TOR, and the TOR keeps its details; a failed run keeps the form', async () => {
+    const ok = (body: unknown) => ({ ok: true, json: async () => body }) as Response
+    const filled = { customer: 'ACME', project: { ...EMPTY_PROJECT, title: 'TOR CRM' } }
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({ error: 'quota exceeded' }) }) as Response))
+    useAssessmentStore.setState({ draft: filled, files: [new File(['x'], 'tor.txt')], apiKey: 'k-123456789', running: false, step: -1 })
+    await useAssessmentStore.getState().runReal()
+    expect(useAssessmentStore.getState()).toMatchObject({ draft: filled, error: 'quota exceeded' }) // try again without typing it all again
+    expect(useAssessmentStore.getState().files).toHaveLength(1)
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      if (url === '/api/extract') return ok({ requirements: [{ id: 'R-001', module: 'Mission', text: 't' }] })
+      return ok({ results: JSON.parse(init.body as string).requirements })
+    }))
+    await useAssessmentStore.getState().runReal()
+    expect(useAssessmentStore.getState()).toMatchObject({ draft: EMPTY_DRAFT, files: [], customer: 'ACME', project: { title: 'TOR CRM' } })
     open('/')
-    expect(screen.getByRole('button', { name: 'ดูผลประเมิน' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'ตรวจ TOR ใหม่' }))
-    expect(useAssessmentStore.getState()).toMatchObject({ files: [], customer: '', project: EMPTY_PROJECT, step: -1 })
-    expect(runBtn()).toBeInTheDocument()
+    expect(screen.getByLabelText('ชื่อโครงการ')).toHaveValue('')
+    expect(screen.getByLabelText('ลูกค้า')).toHaveValue('')
+    vi.unstubAllGlobals()
   })
 
   it('heads the result with the project name, its details, what it asks for and who confirmed the list', () => {
@@ -845,7 +856,7 @@ describe('review solutions page', () => {
     useAssessmentStore.setState({ review: pending, files: [] })
     open('/')
     expect(screen.getByRole('button', { name: /Review solutions/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'แยก Requirement' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'แยก Requirement' })).toBeInTheDocument() // the form is free for the next TOR
   })
 })
 

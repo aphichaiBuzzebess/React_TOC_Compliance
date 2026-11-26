@@ -18,6 +18,9 @@ export interface StoredKey { provider: ProviderId; model: string; last4: string 
 /** The project details from the upload form. Saved with the result (history `data.meta`); every field is optional. */
 export interface Project { title: string; industry: string; sub: string; leaf: string; due: string; value: number | null }
 export const EMPTY_PROJECT: Project = { title: '', industry: '', sub: '', leaf: '', due: '', value: null }
+/** What the upload form holds before a run: copied to the TOR (`customer`, `project`) when the run starts, cleared when it ends. */
+export interface Draft { customer: string; project: Project }
+export const EMPTY_DRAFT: Draft = { customer: '', project: EMPTY_PROJECT }
 const CSRF = { 'x-requested-with': 'tor-scouter' }
 
 interface AssessmentState {
@@ -49,6 +52,8 @@ interface AssessmentState {
   customer: string
   project: Project
   setProject: (p: Partial<Project>) => void // picking another industry clears the levels under it
+  draft: Draft // the upload form; the TOR on screen keeps its own `customer` and `project`
+  setDraft: (p: Partial<Project> & { customer?: string }) => void // same cascade as setProject
   accessCode: string // optional, only if the operator set one
   provider: ProviderId
   model: string
@@ -129,7 +134,7 @@ async function fetchCoverage(auth: Auth, requirements: RawReq[]): Promise<Functi
 }
 
 /** What a person leaves behind on screen: wiped on sign-out, when the session ends, and when another person signs in. */
-const WIPE = { result: null, review: null, scope: '', terms: [] as Term[], confirmed: null, coverage: null, valid: {}, selId: null, customer: '', project: EMPTY_PROJECT, historyId: null, historyError: null, apiKey: '', files: [] as File[], step: -1, error: null }
+const WIPE = { draft: EMPTY_DRAFT, result: null, review: null, scope: '', terms: [] as Term[], confirmed: null, coverage: null, valid: {}, selId: null, customer: '', project: EMPTY_PROJECT, historyId: null, historyError: null, apiKey: '', files: [] as File[], step: -1, error: null }
 
 /** A JSON call to our own API with the CSRF header and the session cookie. */
 async function send(path: string, method: string, body?: unknown) {
@@ -198,6 +203,14 @@ export const useAssessmentStore = create<AssessmentState>()(
       files: [],
       customer: '',
       project: EMPTY_PROJECT,
+      draft: EMPTY_DRAFT,
+      setDraft: ({ customer, ...p }) => {
+        const cur = get().draft.project
+        const next = { ...cur, ...p }
+        if (p.industry !== undefined && p.industry !== cur.industry) Object.assign(next, { sub: p.sub ?? '', leaf: p.leaf ?? '' })
+        else if (p.sub !== undefined && p.sub !== cur.sub) next.leaf = p.leaf ?? ''
+        set({ draft: { customer: customer ?? get().draft.customer, project: next } })
+      },
       setProject: (p) => {
         const cur = get().project
         const next = { ...cur, ...p }
@@ -341,10 +354,11 @@ export const useAssessmentStore = create<AssessmentState>()(
       setModel: (model) => set({ model }),
       setApiKey: (apiKey) => set({ apiKey }),
       runReal: async () => {
-        const { files } = get()
+        const { files, draft } = get()
         if (files.length === 0 || !hasAi(get())) return
         const auth = get()
-        set({ running: true, step: 0, error: null, historyId: null, historyError: null, startedAt: Date.now(), detail: 'กำลังอ่านไฟล์และแยก requirement ด้วย AI (ใช้เวลาประมาณ 30-60 วินาที)' })
+        // The form becomes this TOR's details; the form itself is cleared once the run is through, ready for the next TOR.
+        set({ customer: draft.customer, project: draft.project, running: true, step: 0, error: null, historyId: null, historyError: null, startedAt: Date.now(), detail: 'กำลังอ่านไฟล์และแยก requirement ด้วย AI (ใช้เวลาประมาณ 30-60 วินาที)' })
         try {
           await get().loadTaxonomy() // the saved solutions/services, in case an admin changed them
           // One request per file (a request body is capped at ~4.5 MB), a few at a time. Ids are renumbered once all are in.
@@ -378,7 +392,7 @@ export const useAssessmentStore = create<AssessmentState>()(
           // Stop here: the BA checks the list (text, category, priority, solution and service) before anything is judged.
           // Classify answers with id, module, text and the targets; what extract found besides is put back from the request.
           const review = classified.map((c) => ({ ...byId.get(c.id), ...c }))
-          set({ review, scope: scopes.filter(Boolean).join(' '), terms: [], confirmed: null, result: null, coverage: null, valid: {}, step: 2, running: false, startedAt: null, detail: '' })
+          set({ review, scope: scopes.filter(Boolean).join(' '), terms: [], confirmed: null, result: null, coverage: null, valid: {}, step: 2, running: false, startedAt: null, detail: '', draft: EMPTY_DRAFT, files: [] })
           void get().saveHistory() // the TOR is in the list from here on, waiting for its review
         } catch (e) {
           set({ running: false, startedAt: null, detail: '', step: -1, error: e instanceof Error ? e.message : 'Assessment failed' })
@@ -490,7 +504,7 @@ export const useAssessmentStore = create<AssessmentState>()(
         if (from < 1) return { ...st, result: st.result?.map(legacyTargets) ?? null, review: st.review?.map(legacyTargets) ?? null } as AssessmentState
         return st as AssessmentState
       },
-      partialize: (s) => ({ theme: s.theme, owner: s.owner, historyId: s.historyId, result: s.result, review: s.review, scope: s.scope, terms: s.terms, confirmed: s.confirmed, coverage: s.coverage, valid: s.valid, selId: s.selId, customer: s.customer, project: s.project, provider: s.provider, model: s.model }),
+      partialize: (s) => ({ draft: s.draft, theme: s.theme, owner: s.owner, historyId: s.historyId, result: s.result, review: s.review, scope: s.scope, terms: s.terms, confirmed: s.confirmed, coverage: s.coverage, valid: s.valid, selId: s.selId, customer: s.customer, project: s.project, provider: s.provider, model: s.model }),
     },
   ),
 )
