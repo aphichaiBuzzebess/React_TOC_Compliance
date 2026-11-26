@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { useAssessmentStore } from '@/store/useAssessmentStore'
+import { authHeaders, useAssessmentStore } from '@/store/useAssessmentStore'
 import { Alert, Button, PageHeader } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { SORTS, STATUS_LABEL, TYPE_LABEL, bySort, money, needStats, type NeedStats, type ScoutGap, type ScoutItem, type ScoutStatus, type ScoutType, type SortKey } from '@/lib/scouter'
 
 const CSRF = { 'x-requested-with': 'tor-scouter' }
 async function api<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, { method, headers: { ...CSRF, ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) })
+  // authHeaders: the AI of AI settings rides along, so grouping uses the same AI as reading a TOR (a typed key too, not only a saved one).
+  const res = await fetch(url, { method, headers: { ...CSRF, ...authHeaders(useAssessmentStore.getState()), ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(json.error ?? `Request failed (${res.status})`)
   return json as T

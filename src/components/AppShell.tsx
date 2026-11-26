@@ -1,20 +1,18 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Moon, Sun } from 'lucide-react'
 import { motion } from 'motion/react'
 import { ease } from '@/components/motion'
-import { Logo } from '@/components/Logo'
+import { APP_NAME, Mark } from '@/components/Brand'
 import ProfileMenu from '@/components/ProfileMenu'
 import { Elapsed } from '@/components/ui'
 import { MENU, NAV, inTorGroup, navIndex } from '@/data/nav'
-import { STEPS } from '@/data/tor'
 import { useAssessmentStore } from '@/store/useAssessmentStore'
 import { useResolvedTheme } from '@/lib/theme'
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
-  const { running, startedAt, step, mode, user, admin, signOut } = useAssessmentStore()
-  const [hot, setHot] = useState(false) // pointer or keyboard focus on the logo
+  const { running, startedAt, mode, user, admin, signOut } = useAssessmentStore()
   const theme = useResolvedTheme()
   const setTheme = useAssessmentStore((s) => s.setTheme)
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
@@ -22,7 +20,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   // Each route gets its own tab title, and a new page starts at its top, not wherever the last one was scrolled to.
   useEffect(() => {
     const i = navIndex(pathname)
-    document.title = i >= 0 ? `${NAV[i].label} · TOR Scouter` : 'TOR Scouter'
+    document.title = i >= 0 ? `${NAV[i].label} · ${APP_NAME}` : APP_NAME
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [pathname])
 
@@ -32,12 +30,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-ink focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-inverse">ข้ามไปเนื้อหาหลัก</a>
       <header className="print:hidden relative z-30 border-b border-line bg-canvas xl:sticky xl:top-0">
         <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 sm:px-10">
-          <Link to="/" onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)} onFocus={() => setHot(true)} onBlur={() => setHot(false)} className="flex min-h-11 items-center gap-3 text-ink no-underline">
-            <Logo size={40} intro active={hot} />
-            <span className="flex flex-col leading-none">
-              <span className="text-[18px] font-semibold tracking-[-0.02em]">TOR Scouter</span>
-              <span className="mt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted">Compliance workspace</span>
-            </span>
+          <Link to="/" className="flex min-h-11 items-center gap-2.5 whitespace-nowrap text-base font-semibold tracking-[-0.02em] text-ink no-underline">
+            <Mark size={24} />
+            {APP_NAME}
           </Link>
 
           {/* Signed in: the avatar holds the theme switch and sign-out. Otherwise there is no profile, so the theme switch stands alone. */}
@@ -81,7 +76,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         {/* Only while a run is going: a way back to its progress from any page. Nothing is shown otherwise. */}
         {running && startedAt && (
           <Link to="/" className="print:hidden -mb-4 -mt-2 flex w-fit items-center gap-2 rounded-full border border-line-strong bg-surface px-3 py-1 text-xs font-medium text-ink no-underline">
-            <Logo size={18} progress={Math.max(step, 0) / STEPS.length} />
+            <Mark size={16} />
             กำลังประเมิน… <Elapsed since={startedAt} />
           </Link>
         )}
@@ -94,7 +89,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <footer className="print:hidden border-t border-line">
         <div className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-x-8 gap-y-3 px-5 py-8 text-xs text-muted sm:px-10">
           <div className="flex flex-col gap-1">
-            <span className="text-sm font-semibold text-ink">TOR Scouter</span>
+            <span className="text-sm font-semibold text-ink">{APP_NAME}</span>
             <span>ประเมิน TOR ของลูกค้ากับหลักฐานของ Product</span>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">

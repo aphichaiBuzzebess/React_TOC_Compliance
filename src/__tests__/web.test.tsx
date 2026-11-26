@@ -7,7 +7,6 @@ import App from '@/App'
 import { EMPTY_DRAFT, EMPTY_PROJECT, useAssessmentStore } from '@/store/useAssessmentStore'
 import type { Req } from '@/lib/types'
 import { pageSlices } from '@/lib/exportPdf'
-import { Logo, logoPath, spreadFor } from '@/components/Logo'
 import Splash from '@/components/Splash'
 import { DEFAULT_TAXONOMY } from '@/data/taxonomy'
 
@@ -210,7 +209,7 @@ describe('summary pdf', () => {
     screen.getByRole('button', { name: 'Download PDF' }).click()
     await vi.waitFor(() => expect(exportPdfMock).toHaveBeenCalled())
     expect(exportPdfMock.mock.calls[0][1]).toMatch(/^Loyalty_App_2027_executive_summary_\d{4}-\d{2}-\d{2}\.pdf$/)
-    expect(screen.getByText(/TOR Scouter · Loyalty App 2027 · Bangchak ·/)).toBeInTheDocument()
+    expect(screen.getByText(/TOR Check · Loyalty App 2027 · Bangchak ·/)).toBeInTheDocument()
     useAssessmentStore.setState({ project: EMPTY_PROJECT })
   })
 
@@ -220,46 +219,23 @@ describe('summary pdf', () => {
   })
 })
 
-describe('animated logo', () => {
-  const rest = readFileSync(join(process.cwd(), 'public/favicon.svg'), 'utf8').match(/ d="([^"]+)"/)![1]
-  const pathOf = (c: HTMLElement) => c.querySelector('path')!.getAttribute('d')
-
-  it('at rest it is exactly the logo file, so the code and the brand files cannot drift apart', () => {
-    expect(logoPath(1)).toBe(rest)
-  })
-
-  it('progress moves the cells: none = apart, done = the logo at rest', () => {
-    expect(spreadFor(1)).toBe(1)
-    expect(spreadFor(0)).toBeGreaterThan(2)
-    const done = render(<Logo progress={1} />)
-    expect(pathOf(done.container)).toBe(rest)
-    const none = render(<Logo progress={0} />)
-    expect(pathOf(none.container)).not.toBe(rest)
-    expect(pathOf(none.container)).toBe(logoPath(spreadFor(0)))
-  })
-
-  it('parting on hover and closing again: it ends exactly at rest and never crosses past it by much', async () => {
-    const { container, rerender } = render(<Logo active />)
-    expect(pathOf(container)).toBe(logoPath(1.3))
-    const xs: number[] = []
-    const sample = () => xs.push(+pathOf(container)!.split(' ')[0].slice(1))
-    rerender(<Logo active={false} />)
-    const timer = setInterval(sample, 20)
-    await waitFor(() => expect(pathOf(container)).toBe(rest), { timeout: 4000 })
-    clearInterval(timer)
-    const restX = +rest.split(' ')[0].slice(1)
-    // the first vertex starts left of rest (cells apart) and may overshoot a hair past it, but not far
-    expect(Math.max(...xs)).toBeLessThan(restX + 3)
-  })
-
-  it('is decorative: hidden from screen readers', () => {
-    const { container } = render(<Logo />)
-    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
-  })
-
-  it('the header logo is in the page and the app still renders with it', () => {
+describe('brand, as in the TOR Check mockup', () => {
+  it('the header says TOR Check beside the mark (a rounded square with a dot), and nothing under it', () => {
     open('/')
-    expect(screen.getByRole('link', { name: /TOR Scouter/ }).querySelector('svg path')).not.toBeNull()
+    const home = screen.getByRole('link', { name: 'TOR Check' })
+    const mark = home.querySelector('span[aria-hidden]') as HTMLElement
+    expect(mark).not.toBeNull()
+    expect(mark.className).toContain('bg-ink')
+    expect(mark.querySelector('.bg-bee')).not.toBeNull()
+    expect(screen.queryByText(/Compliance workspace/i)).not.toBeInTheDocument()
+  })
+
+  it('the favicon is the same mark', () => {
+    const svg = readFileSync(join(process.cwd(), 'public/favicon.svg'), 'utf8')
+    expect(svg).toContain('aria-label="TOR Check"')
+    expect(svg).toMatch(/<rect [^>]*rx="85.33"[^>]*fill="#000"/)
+    expect(svg).toMatch(/<circle [^>]*fill="#ffc20e"/)
+    expect(readFileSync(join(process.cwd(), 'index.html'), 'utf8')).toContain('<title>TOR Check</title>')
   })
 })
 
@@ -349,7 +325,7 @@ describe('accessibility fixes', () => {
   ])('%s sets its own tab title', (path, title) => {
     open(path)
     expect(document.title).toMatch(title)
-    expect(document.title).toContain('TOR Scouter')
+    expect(document.title).toContain('TOR Check')
   })
 
   it('offers a skip link to the main region', () => {
@@ -984,6 +960,7 @@ describe('accounts in the app', () => {
     await useAssessmentStore.getState().confirmReview()
     await waitFor(() => expect(useAssessmentStore.getState().historyId).toBe('h-1'))
     await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url === '/api/scouter?action=group')).toBe(true)) // its gaps get grouped in the Feature Scouter
+    expect(calls.find((c) => c.url === '/api/scouter?action=group')!.headers['x-requested-with']).toBe('tor-scouter') // with the same AI settings as the run (here a saved key, so no key header)
     const post = calls.find((c) => c.method === 'POST' && c.url === '/api/history')!
     expect(post.body).toMatchObject({ customer: 'ACME', files: ['tor.pdf'], data: { meta: { title: 'TOR CRM', due: '2026-12-15' }, result: [{ id: 'R-001' }] } })
     useAssessmentStore.setState({ selId: 'R-001' })

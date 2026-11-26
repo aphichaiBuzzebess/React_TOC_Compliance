@@ -325,7 +325,7 @@ function SummaryContent({ a }: { a: Assessment }) {
       <ResultHead action={<Button disabled={busy} onClick={download}>{busy ? 'กำลังสร้าง PDF…' : 'Download PDF'}</Button>} />
       {error && <p role="alert" className="m-0 text-danger">{error}</p>}
       <div ref={page} className="flex flex-col bg-canvas">
-        <span className="pdf-only mb-6 text-xs text-muted">TOR Scouter · {[title, customer].filter(Boolean).join(' · ') || 'Customer TOR'} · {today}</span>
+        <span className="pdf-only mb-6 text-xs text-muted">TOR Check · {[title, customer].filter(Boolean).join(' · ') || 'Customer TOR'} · {today}</span>
         <Hero s={s} first={first} />
         <Strip a={a} s={s} onOpen={setOpen} first={first} />
         <Matches a={a} onOpen={setOpen} />

@@ -81,6 +81,7 @@
   --color-dark-edge: #4a4a4a;
   --color-dark-raised: #262624;
   --color-dark-ink: #f7f5ef; /* text and the light button on the dark band */
+  --color-bee: #ffc20e; /* the dot of the TOR Check mark */
   --color-dark-danger: #ff9c99;
 
   --font-sans: Inter, 'Noto Sans Thai', system-ui, sans-serif;

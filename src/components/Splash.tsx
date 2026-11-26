@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
-import { Logo } from '@/components/Logo'
+import { Mark } from '@/components/Brand'
 
 const HOLD = 2000 // ms on screen before it fades
 const FADE = 500
 
 /**
- * The landing animation: on every full page load (open or refresh) the logo's two cells fly in and settle (the logo alone, no name),
+ * The landing animation: on every full page load (open or refresh) the mark rises in (the mark alone, no name),
  * then the screen fades to the app. Any click or key skips it. Skipped entirely with reduced motion. Decorative: it hides from screen readers.
  */
 export default function Splash() {
@@ -36,7 +36,7 @@ export default function Splash() {
       className="fixed inset-0 z-[100] flex items-center justify-center bg-canvas"
     >
       <div className="hive pointer-events-none absolute inset-x-0 top-0 h-full opacity-70" />
-      <Logo size={120} intro />
+      <Mark size={88} className="rise-in relative" />
     </div>
   )
 }

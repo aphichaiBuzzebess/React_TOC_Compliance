@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { HttpError } from '../server/auth.js'
 import { accountMode, getDb, type User } from '../server/db.js'
-import { handle, serverDefault } from '../server/http.js'
+import { handle, llmFromRequest } from '../server/http.js'
 import { createLlm } from '../server/llm.js'
 import { SCOUT_STATUSES, SCOUT_TYPES, backfill, runGrouping } from '../server/scout.js'
 import { normaliseEntry } from '../server/history.js'
@@ -49,16 +49,19 @@ export async function GET(req: Request): Promise<Response> {
   })
 }
 
-// POST ?action=group (anyone signed in: it only sorts gaps, with the server's AI) | backfill | new | move | merge (admins)
+// POST ?action=group (anyone signed in: it only sorts gaps, with the caller's AI as in AI settings) | backfill | new | move | merge (admins)
 export async function POST(req: Request): Promise<Response> {
   return handle(req, async (user) => {
     const db = await getDb()
     const a = action(req)
     if (a === 'group') {
       signedIn(user)
-      const d = serverDefault()
-      if (!d) throw new HttpError(409, 'server ยังไม่ได้ตั้ง AI ไว้ จึงจัดกลุ่มอัตโนมัติไม่ได้ ให้ admin จัดกลุ่มเอง')
-      return runGrouping(db, createLlm(d))
+      // The same AI as reading and classifying a TOR: a key sent with the request, else the key saved in AI settings, else the server's.
+      const cfg = await llmFromRequest(req).catch((e: unknown) => {
+        if (e instanceof Error && e.message.startsWith('Choose an AI provider')) throw new HttpError(409, 'ยังไม่มี AI สำหรับจัดกลุ่ม: ใส่ key ที่หน้า AI settings หรือให้ผู้ดูแลตั้ง AI ของ server')
+        throw e
+      })
+      return runGrouping(db, createLlm(cfg))
     }
     const by = admin(user)
     // TORs saved before the Scouter existed: copy their gaps in (grouping is a separate step, run next).

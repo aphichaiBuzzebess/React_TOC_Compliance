@@ -432,7 +432,9 @@ describe('feature scouter: grouping gaps into needs', () => {
     expect(read.gaps[0]).toMatchObject({ reqId: 'R-1', customer: 'ACME' })
     expect(read.gaps[0].ownerId).toBeUndefined() // who saved the TOR is not shared
     expect(read.admin).toBe(false)
-    expect((await call(scouterApi.POST, 'POST', '/api/scouter?action=group', { cookie: bob })).status).toBe(409) // no server AI configured in tests
+    const noAi = await call(scouterApi.POST, 'POST', '/api/scouter?action=group', { cookie: bob }) // no key sent, none saved, no server AI
+    expect(noAi.status).toBe(409)
+    expect((await noAi.json()).error).toMatch(/ใส่ key ที่หน้า AI settings/)
     for (const [fn, m, a, b] of [[scouterApi.POST, 'POST', 'new', { title: 'X', type: 'NEW_FEATURE' }], [scouterApi.POST, 'POST', 'merge', { from: 'SC-0001', into: 'SC-0002' }], [scouterApi.PATCH, 'PATCH', '', { id: 'SC-0001', status: 'planned' }]] as const)
       expect((await call(fn, m, `/api/scouter?action=${a}`, { cookie: bob, body: b })).status).toBe(403)
     const made = await (await call(scouterApi.POST, 'POST', '/api/scouter?action=new', { cookie: ann, body: { title: 'Branch filter', type: 'ENHANCEMENT', gaps: [{ assessmentId: '00000000-0000-4000-8000-000000000001', reqId: 'R-1' }] } })).json()
