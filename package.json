@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "kb:check": "tsx scripts/kb-check.ts",
-    "db:init": "tsx scripts/db-init.ts",
+    "db:init": "tsx --env-file-if-exists=.env.local scripts/db-init.ts",
     "user:reset": "tsx scripts/user-admin.ts reset",
     "user:disable": "tsx scripts/user-admin.ts disable",
     "user:enable": "tsx scripts/user-admin.ts enable",
