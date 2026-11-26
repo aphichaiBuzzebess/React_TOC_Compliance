@@ -1460,7 +1460,7 @@ describe('knowledge base page', () => {
     const tx = within(screen.getByRole('region', { name: 'หมวด Taxonomy' }))
     expect(tx.getByRole('region', { name: 'Solution' })).toBeInTheDocument()
     expect(tx.getByRole('region', { name: 'Service' })).toBeInTheDocument()
-    expect(tx.getByText(/ยืนยันแล้ว · 5/)).toBeInTheDocument() // the four confirmed core services and the new-development bucket
+    expect(tx.getByText(/ยืนยันแล้ว · 6/)).toBeInTheDocument() // the four confirmed core services, Generative Dashboard and the new-development bucket
     expect(tx.getByText(/ยังไม่ยืนยัน · 8/)).toBeInTheDocument() // the eight inferred ones
     expect(tx.getAllByRole('textbox').length).toBeLessThan(6) // one item's fields, not a form per item
     expect(tx.getByText('2 note')).toBeInTheDocument() // the notes that use a service are counted next to it (both fake notes use Point Service)

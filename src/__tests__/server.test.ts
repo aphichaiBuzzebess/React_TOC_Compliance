@@ -20,7 +20,7 @@ import type { Req } from '@/lib/types'
 describe('kb vault', () => {
   const kb = loadKb('kb')
   it('loads every note and skips README', () => {
-    expect(kb.length).toBe(12)
+    expect(kb.length).toBe(30)
     expect(kb.some((n) => n.path === 'README.md')).toBe(false)
   })
   it('rejects notes with a bad support level', () => {
@@ -398,6 +398,13 @@ describe('judge with targets', () => {
     const llm = say([{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'ok', sources: ['point/expiry-policy.md'], rec: 'use' }])
     const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'คะแนนหมดอายุ rolling', targets: [{ solution: 'app-custom', service: 'point' }] }], kb)
     expect(r).toMatchObject({ s: 'full', evidence: 'App project — Custom › Point Service: KB › Point › Point expiry policy', targets: [{ solution: 'app-custom', service: 'point' }] })
+  })
+  it('sends every note to the model and shows a cited note from outside the retrieved ones', async () => {
+    let prompt = ''
+    const llm = (async (a: { content: { text: string }[] }) => { prompt = a.content[0].text; return { verdicts: [{ id: 'R-1', s: 'full', confidence: 0.9, reason: 'ok', sources: ['point/expiry-policy.md', 'gendash/chat-agent.md'], rec: 'use' }] } }) as never
+    const [r] = await judge(llm, [{ id: 'R-1', module: 'Point', text: 'คะแนนหมดอายุ rolling', targets: [{ solution: 'app-custom', service: 'point' }] }], kb)
+    for (const n of kb) expect(prompt).toContain(`### ${n.path}`)
+    expect(r.evidence).toContain('อ้างอิงเพิ่ม: KB › Generative Dashboard')
   })
   it('never lets the model judge an own-system API request, even when a note matches', async () => {
     const llm = say([{ id: 'R-1', s: 'integ', confidence: 0.95, reason: 'burn api', sources: ['integration/burn-api.md'], rec: 'x' }])
